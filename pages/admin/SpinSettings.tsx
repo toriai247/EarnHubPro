@@ -3,7 +3,8 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { SpinItem } from '../../types';
-import { Plus, Trash2, Save, Loader2, PieChart, Ticket } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2, PieChart, Ticket, AlertTriangle } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const SpinSettings: React.FC = () => {
   const [items, setItems] = useState<SpinItem[]>([]);
@@ -33,23 +34,11 @@ const SpinSettings: React.FC = () => {
   };
 
   const handleAddItem = () => {
-      // Add a temporary item locally, will save to DB on "Save"
       const newItem: any = {
           label: 'New Reward',
           value: 0,
           probability: 0,
           color: '#3b82f6',
-          is_active: true
-      };
-      setItems([...items, newItem]);
-  };
-
-  const handleAddPreset = () => {
-      const newItem: any = {
-          label: 'Free Spin Token',
-          value: 0,
-          probability: 5,
-          color: '#FFD700',
           is_active: true
       };
       setItems([...items, newItem]);
@@ -66,10 +55,6 @@ const SpinSettings: React.FC = () => {
   };
 
   const handleSaveAll = async () => {
-      if (Math.abs(totalProb - 100) > 1) {
-          alert(`Warning: Total probability is ${totalProb}%. It should be close to 100% for fair play.`);
-      }
-
       setLoading(true);
       try {
           for (const item of items) {
@@ -103,111 +88,117 @@ const SpinSettings: React.FC = () => {
             </h2>
             <button 
                 onClick={handleSaveAll} 
-                className="bg-neon-green text-black px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition shadow-lg shadow-neon-green/20"
+                disabled={loading}
+                className="bg-neon-green text-black px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition shadow-lg shadow-neon-green/20 disabled:opacity-50"
             >
                 {loading ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />} Save Changes
             </button>
         </div>
 
-        <div className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/10">
+        {/* PROBABILITY METER */}
+        <div className={`flex items-center justify-between p-4 rounded-xl border ${Math.abs(totalProb - 100) < 1 ? 'bg-green-500/10 border-green-500/20' : 'bg-yellow-500/10 border-yellow-500/20'}`}>
             <div>
-                <p className="text-gray-400 text-xs font-bold uppercase">Total Probability</p>
-                <p className={`text-2xl font-bold ${totalProb === 100 ? 'text-green-400' : 'text-yellow-400'}`}>
-                    {totalProb.toFixed(2)}%
+                <p className="text-xs font-bold uppercase opacity-70">Total Probability</p>
+                <p className={`text-2xl font-bold ${Math.abs(totalProb - 100) < 1 ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {totalProb.toFixed(1)}%
                 </p>
             </div>
-            <div className="text-right text-xs text-gray-500">
-                <p>Target: 100%</p>
-                <p>{totalProb < 100 ? 'Under' : totalProb > 100 ? 'Over' : 'Perfect'}</p>
+            <div className="text-right">
+                {Math.abs(totalProb - 100) >= 1 && (
+                    <div className="flex items-center gap-2 text-yellow-400 text-xs font-bold mb-1">
+                        <AlertTriangle size={14} /> Must sum to ~100%
+                    </div>
+                )}
+                <p className="text-xs text-gray-400">Target: 100%</p>
             </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3">
             {items.map((item, idx) => (
-                <GlassCard key={item.id || idx} className="flex flex-col md:flex-row items-center gap-4 p-4">
-                     <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-4 w-full">
-                         <div>
-                             <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Label</label>
-                             <input 
-                                type="text" 
-                                value={item.label} 
-                                onChange={(e) => handleUpdate(idx, 'label', e.target.value)}
-                                className="w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white text-sm focus:border-royal-500 outline-none"
-                             />
-                         </div>
-                         <div>
-                             <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Value ($)</label>
-                             <input 
-                                type="number" 
-                                step="0.01"
-                                value={item.value} 
-                                onChange={(e) => handleUpdate(idx, 'value', e.target.value)}
-                                className="w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white text-sm focus:border-royal-500 outline-none"
-                             />
-                         </div>
-                         <div>
-                             <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Chance (%)</label>
-                             <input 
-                                type="number" 
-                                step="0.1"
-                                value={item.probability} 
-                                onChange={(e) => handleUpdate(idx, 'probability', e.target.value)}
-                                className="w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white text-sm focus:border-royal-500 outline-none"
-                             />
-                         </div>
-                         <div>
-                             <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Color</label>
-                             <div className="flex items-center gap-2">
-                                 <input 
-                                    type="color" 
-                                    value={item.color} 
-                                    onChange={(e) => handleUpdate(idx, 'color', e.target.value)}
-                                    className="w-8 h-9 bg-transparent border-0 p-0 rounded cursor-pointer"
-                                 />
-                                 <input 
-                                    type="text" 
-                                    value={item.color} 
-                                    onChange={(e) => handleUpdate(idx, 'color', e.target.value)}
-                                    className="w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-white text-xs focus:border-royal-500 outline-none"
-                                 />
-                             </div>
-                         </div>
-                         <div className="flex items-center justify-between md:justify-center gap-4 pt-4 md:pt-0">
-                             <label className="flex items-center gap-2 cursor-pointer">
-                                 <input 
+                <motion.div layout key={item.id || idx}>
+                    <GlassCard className="p-4 border border-white/5">
+                        <div className="flex flex-col md:flex-row gap-4 items-end md:items-center">
+                            
+                            {/* Active Toggle */}
+                            <div className="flex items-center gap-2 min-w-[80px]">
+                                <input 
                                     type="checkbox" 
                                     checked={item.is_active} 
                                     onChange={(e) => handleUpdate(idx, 'is_active', e.target.checked)}
-                                    className="w-4 h-4 accent-neon-green"
-                                 />
-                                 <span className="text-xs text-white">Active</span>
-                             </label>
-                             <button 
+                                    className="w-5 h-5 accent-neon-green rounded cursor-pointer"
+                                />
+                                <span className={`text-xs font-bold ${item.is_active ? 'text-white' : 'text-gray-600'}`}>
+                                    {item.is_active ? 'Active' : 'Off'}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1 w-full">
+                                <div>
+                                    <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Label</label>
+                                    <input 
+                                        type="text" 
+                                        value={item.label} 
+                                        onChange={(e) => handleUpdate(idx, 'label', e.target.value)}
+                                        className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-sm focus:border-royal-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Value ($)</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        value={item.value} 
+                                        onChange={(e) => handleUpdate(idx, 'value', e.target.value)}
+                                        className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-sm focus:border-royal-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Probability (%)</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.1"
+                                        value={item.probability} 
+                                        onChange={(e) => handleUpdate(idx, 'probability', e.target.value)}
+                                        className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-sm focus:border-royal-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Color</label>
+                                    <div className="flex items-center gap-2">
+                                        <input 
+                                            type="color" 
+                                            value={item.color} 
+                                            onChange={(e) => handleUpdate(idx, 'color', e.target.value)}
+                                            className="w-8 h-9 bg-transparent border-0 p-0 rounded cursor-pointer"
+                                        />
+                                        <input 
+                                            type="text" 
+                                            value={item.color} 
+                                            onChange={(e) => handleUpdate(idx, 'color', e.target.value)}
+                                            className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white text-xs focus:border-royal-500 outline-none font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button 
                                 onClick={() => handleDelete(idx, item.id)}
-                                className="p-2 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20 transition"
-                             >
-                                 <Trash2 size={16} />
-                             </button>
-                         </div>
-                     </div>
-                </GlassCard>
+                                className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                        </div>
+                    </GlassCard>
+                </motion.div>
             ))}
         </div>
 
-        <div className="flex gap-3">
-            <button 
-                onClick={handleAddItem}
-                className="flex-1 py-3 bg-white/5 border border-dashed border-white/20 rounded-xl text-gray-400 hover:text-white hover:border-neon-green hover:bg-neon-green/5 transition flex items-center justify-center gap-2 font-bold"
-            >
-                <Plus size={18} /> Add New Reward
-            </button>
-            <button 
-                onClick={handleAddPreset}
-                className="flex-1 py-3 bg-yellow-500/10 border border-dashed border-yellow-500/20 rounded-xl text-yellow-500 hover:text-yellow-400 hover:border-yellow-500 hover:bg-yellow-500/20 transition flex items-center justify-center gap-2 font-bold"
-            >
-                <Ticket size={18} /> Add Free Spin Token
-            </button>
-        </div>
+        <button 
+            onClick={handleAddItem}
+            className="w-full py-3 border border-dashed border-white/20 rounded-xl text-gray-400 hover:text-white hover:border-neon-green/50 hover:bg-neon-green/5 transition flex items-center justify-center gap-2 font-bold"
+        >
+            <Plus size={18} /> Add New Item
+        </button>
     </div>
   );
 };

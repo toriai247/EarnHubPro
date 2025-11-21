@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, X, Ticket, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, X, Ticket, CheckCircle2, Database } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
 
@@ -30,6 +30,9 @@ const Signup: React.FC = () => {
   const getFriendlyErrorMessage = (errorMsg: string) => {
     const msg = errorMsg.toLowerCase();
 
+    if (msg.includes('recursion') || msg.includes('policy') || msg.includes('42p17')) {
+      return 'Database Configuration Error. Please run the "Fix Infinite Recursion" SQL script in Supabase.';
+    }
     if (msg.includes('user already registered') || msg.includes('unique constraint')) {
       return 'This email is already associated with an account. Please sign in instead.';
     }
@@ -83,7 +86,13 @@ const Signup: React.FC = () => {
            navigate('/');
         } catch (dbError: any) {
            console.error("DB Init Error:", dbError);
-           // Even if DB init fails partially, the auth user exists, so navigate home to let recovery logic handle it
+           // Show specific policy error if it happens
+           if (dbError.message.includes('Recursion') || dbError.message.includes('Policy')) {
+               setError(getFriendlyErrorMessage(dbError.message));
+               setIsLoading(false);
+               return;
+           }
+           // Otherwise navigate home to let recovery logic handle it
            navigate('/'); 
         }
       } else {
@@ -148,7 +157,7 @@ const Signup: React.FC = () => {
                     exit={{ opacity: 0, height: 0, scale: 0.9 }}
                     className={`p-4 rounded-2xl flex items-start gap-3 text-sm overflow-hidden ${error.includes('sent') ? 'bg-green-500/10 border border-green-500/20 text-green-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}
                   >
-                    {error.includes('sent') ? <CheckCircle2 size={18} className="mt-0.5"/> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
+                    {error.includes('sent') ? <CheckCircle2 size={18} className="mt-0.5"/> : error.includes('Database') ? <Database size={18} className="mt-0.5 shrink-0"/> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
                     <span className="flex-1 font-medium leading-relaxed">{error}</span>
                     <button type="button" onClick={() => setError('')}><X size={16} className="opacity-50 hover:opacity-100" /></button>
                   </motion.div>

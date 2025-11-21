@@ -6,7 +6,6 @@ import {
   Activity as ActivityIcon, AlertCircle, RefreshCw, Wallet, ArrowDownLeft, ArrowUpRight, Trophy, Copy, Terminal
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
-import Loader from '../components/Loader';
 import Skeleton from '../components/Skeleton';
 import TrendChart from '../components/TrendChart';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -36,45 +35,34 @@ const Home: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // 1. Try to fetch wallet directly first
-      let { data: walletData, error: walletFetchError } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).maybeSingle();
+      let { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).maybeSingle();
 
-      // 2. If wallet is missing (Zombie Session), attempt recovery
       if (!walletData) {
-         console.log("Wallet missing, attempting recovery...");
          try {
              await createUserProfile(
                  session.user.id, 
                  session.user.email || '', 
                  session.user.user_metadata?.full_name || 'User'
              );
-             // Retry fetch after creation
              const res = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
              walletData = res.data;
          } catch (recErr: any) {
-             const errMsg = recErr?.message || JSON.stringify(recErr);
-             console.error("Recovery failed:", errMsg);
-             throw new Error("Initialization failed: " + errMsg);
+             throw new Error("Initialization failed: " + (recErr?.message || "Unknown"));
          }
       }
 
       if (walletData) {
         setWallet(walletData as WalletData);
         
-        // Fetch other data in parallel
         const [userRes, txRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', session.user.id).single(),
             supabase.from('transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(10)
         ]);
 
-        if (userRes.data) {
-            setUser(userRes.data as UserProfile);
-        }
+        if (userRes.data) setUser(userRes.data as UserProfile);
 
         if (txRes.data) {
            const txns = txRes.data;
-           
-           // Process Activities
            const acts: Activity[] = txns.map((t: any) => ({
               id: t.id,
               title: t.description || t.type.toUpperCase(),
@@ -86,11 +74,9 @@ const Home: React.FC = () => {
             }));
             setActivities(acts);
 
-           // Process Chart History
            const days = 7;
            const chartHistory: number[] = [];
            let currentBal = (walletData as WalletData).balance;
-           
            const dailyChanges: {[key: string]: number} = {};
            txns.forEach((t: any) => {
               const date = new Date(t.created_at).toDateString();
@@ -116,11 +102,7 @@ const Home: React.FC = () => {
 
     } catch (e: any) {
       console.error(e);
-      // Extract meaningful error message
-      let msg = e.message || JSON.stringify(e);
-      if (typeof e === 'object' && e !== null && 'code' in e) {
-          msg = `Database Error: ${e.message} (Code: ${e.code})`;
-      }
+      let msg = e.message || "Unknown error.";
       setError(msg);
     } finally {
       setLoading(false);
@@ -137,23 +119,9 @@ const Home: React.FC = () => {
     show: { opacity: 1, y: 0 }
   };
 
-  const copySqlFix = () => {
-      const sql = `ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
-DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
-DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
-CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;`;
-      navigator.clipboard.writeText(sql);
-      alert("SQL copied! Run this in Supabase SQL Editor.");
-  };
-
   if (loading) {
     return (
-      <div className="space-y-6 pb-24 sm:pl-20 sm:pt-6 relative px-4 sm:px-0">
-         {/* Header Skeleton */}
+      <div className="space-y-6 pb-24 relative">
          <div className="flex justify-between items-center">
              <div className="flex items-center gap-3">
                  <Skeleton variant="circular" className="w-12 h-12" />
@@ -164,179 +132,103 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;`;
              </div>
              <Skeleton variant="rectangular" className="w-10 h-10" />
          </div>
-
-         {/* Balance Card Skeleton */}
-         <div className="rounded-2xl bg-white/5 border border-white/5 p-5 h-72 space-y-4">
-             <div className="flex justify-between">
-                 <Skeleton variant="text" className="w-32" />
-                 <Skeleton variant="rectangular" className="w-16 h-6" />
-             </div>
-             <Skeleton variant="text" className="w-48 h-10" />
-             <Skeleton variant="rectangular" className="w-full h-24" />
-             <div className="grid grid-cols-3 gap-2">
-                 <Skeleton variant="rectangular" className="h-12" />
-                 <Skeleton variant="rectangular" className="h-12" />
-                 <Skeleton variant="rectangular" className="h-12" />
-             </div>
-         </div>
-
-         {/* Quick Actions Grid Skeleton */}
+         <Skeleton variant="rectangular" className="w-full h-72 rounded-2xl" />
          <div className="grid grid-cols-4 gap-3">
-             {[1, 2, 3, 4].map(i => <Skeleton key={i} variant="rectangular" className="aspect-square" />)}
-         </div>
-
-         {/* Activity List Skeleton */}
-         <div className="space-y-3">
-             <div className="flex justify-between items-center">
-                 <Skeleton variant="text" className="w-32" />
-                 <Skeleton variant="text" className="w-16" />
-             </div>
-             {[1, 2, 3, 4].map(i => (
-                 <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5">
-                     <div className="flex items-center gap-3">
-                         <Skeleton variant="circular" className="w-8 h-8" />
-                         <div className="space-y-1.5">
-                             <Skeleton variant="text" className="w-24" />
-                             <Skeleton variant="text" className="w-16 h-3" />
-                         </div>
-                     </div>
-                     <Skeleton variant="text" className="w-12" />
-                 </div>
-             ))}
+             {[1, 2, 3, 4].map(i => <Skeleton key={i} variant="rectangular" className="aspect-square rounded-2xl" />)}
          </div>
       </div>
     );
   }
   
   if (error || !wallet) {
-      const isRecursionError = error && (error.includes('Infinite Recursion') || error.includes('42P17'));
-
       return (
         <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
-            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
                 <AlertCircle size={32} />
             </div>
             <div className="max-w-md w-full">
-                <h2 className="text-xl font-bold text-white">Failed to load data</h2>
-                <p className="text-gray-400 text-xs font-mono bg-black/30 p-3 rounded mt-2 break-all border border-red-500/20">
-                    {error || "Unknown error occurred."}
-                </p>
-                
-                {isRecursionError && (
-                    <div className="mt-4 text-left bg-white/5 p-4 rounded-xl border border-white/10">
-                        <h3 className="text-white font-bold text-sm flex items-center gap-2 mb-2">
-                            <Terminal size={14} className="text-neon-green"/> Database Fix Required
-                        </h3>
-                        <p className="text-xs text-gray-400 mb-3">
-                            Your database policies are causing an infinite loop. Run this SQL in Supabase:
-                        </p>
-                        <div className="relative">
-                            <pre className="bg-black/50 p-3 rounded-lg text-[10px] text-gray-300 overflow-x-auto font-mono border border-white/5">
-                                {`ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
-... (click copy for full script)`}
-                            </pre>
-                            <button 
-                                onClick={copySqlFix}
-                                className="absolute top-2 right-2 p-1.5 bg-white/10 hover:bg-white/20 rounded text-white transition"
-                                title="Copy SQL"
-                            >
-                                <Copy size={14} />
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                <p className="text-gray-500 text-xs mt-2">Try logging out or refreshing.</p>
-            </div>
-            <div className="flex gap-2 mt-2">
-                <button 
-                    onClick={() => window.location.reload()} 
-                    className="flex items-center gap-2 px-6 py-3 bg-royal-600 text-white rounded-xl font-bold hover:bg-royal-700 transition active:scale-95"
-                >
-                    <RefreshCw size={18} /> Retry
-                </button>
-                <button 
-                    onClick={async () => { await supabase.auth.signOut(); window.location.href='/login'; }} 
-                    className="flex items-center gap-2 px-6 py-3 bg-white/5 text-white rounded-xl font-bold hover:bg-white/10 transition active:scale-95"
-                >
-                    Log Out
-                </button>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white">Failed to load data</h2>
+                <p className="text-slate-500 dark:text-gray-400 text-xs mt-2">{error}</p>
+                <button onClick={() => window.location.reload()} className="mt-4 px-6 py-2 bg-royal-600 text-white rounded-lg text-sm font-bold">Retry</button>
             </div>
         </div>
       );
   }
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 pb-24 sm:pl-20 sm:pt-6 relative">
+    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 pb-24 relative">
       
+      {/* Header Section */}
       <motion.div variants={item} className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="w-12 h-12 rounded-full border-2 border-royal-500 p-0.5">
-              <img src={user?.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name_1 || 'User'}`} alt="User" className="w-full h-full rounded-full bg-white/10" />
+              <img src={user?.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name_1 || 'User'}`} alt="User" className="w-full h-full rounded-full bg-slate-200 dark:bg-white/10" />
             </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-neon-green text-dark-950 text-[10px] font-bold flex items-center justify-center rounded-full border border-dark-950">
-              L{user?.level_1 || 1}
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-neon-green text-black text-[10px] font-bold flex items-center justify-center rounded-full border border-white dark:border-dark-950">
+              {user?.level_1 || 1}
             </div>
           </div>
           <div>
-            <h2 className="font-display font-bold text-lg leading-tight">Hello, {user?.name_1?.split(' ')[0] || 'User'}</h2>
-            <div className="flex items-center gap-1.5 text-xs text-royal-300">
-              <Sparkles size={10} className="text-neon-glow" />
+            <h2 className="font-display font-bold text-lg text-slate-900 dark:text-white leading-tight">
+                Hello, {user?.name_1?.split(' ')[0] || 'User'}
+            </h2>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-royal-300">
+              <Sparkles size={10} className="text-amber-500 dark:text-neon-glow" />
               <span className="italic opacity-80">"{aiMotivation}"</span>
             </div>
           </div>
         </div>
-        <Link to="/profile" className="p-2 glass-panel rounded-xl text-royal-400 hover:text-white transition relative group">
+        <Link to="/profile" className="p-2.5 glass-panel rounded-xl text-royal-600 dark:text-royal-400 hover:bg-slate-100 dark:hover:text-white transition relative group shadow-sm">
           <Crown size={20} />
-          {user && user.level_1 > 1 && <span className="absolute top-0 right-0 w-2 h-2 bg-neon-green rounded-full"></span>}
+          {user && user.level_1 > 1 && <span className="absolute top-2 right-2 w-2 h-2 bg-amber-400 rounded-full border-2 border-white dark:border-dark-900"></span>}
         </Link>
       </motion.div>
 
+      {/* Main Balance Card */}
       <motion.div variants={item}>
-        <GlassCard glow className="bg-gradient-royal border-royal-500/30 relative overflow-hidden">
+        <GlassCard glow className="bg-gradient-royal border-none relative overflow-hidden shadow-xl shadow-royal-900/20">
           <div className="absolute top-0 right-0 p-3 opacity-10">
-            <Wallet size={120} />
+            <Wallet size={120} className="text-white" />
           </div>
           
           <div className="relative z-10">
             <div className="flex justify-between items-start mb-1">
               <div>
-                <p className="text-royal-200 text-xs font-bold uppercase tracking-wider mb-1">Total Asset Balance</p>
+                <p className="text-blue-100 text-xs font-bold uppercase tracking-wider mb-1 opacity-80">Total Asset Balance</p>
                 <h1 className="text-4xl font-display font-bold text-white tracking-tight">
                   <BalanceDisplay amount={wallet.balance} />
                 </h1>
               </div>
-              <div className="bg-white/10 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10 text-xs font-medium text-neon-glow flex items-center gap-1">
+              <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg border border-white/20 text-xs font-medium text-white flex items-center gap-1 shadow-sm">
                 <TrendingUp size={12} /> +{wallet.today_earning > 0 && wallet.balance > 0 ? ((wallet.today_earning/wallet.balance)*100).toFixed(1) : '0.0'}%
               </div>
             </div>
 
             <div className="mb-4">
-                <TrendChart data={chartData} />
+                <TrendChart data={chartData} color="#60a5fa" />
             </div>
 
             <div className="grid grid-cols-3 gap-2 mb-6">
-              <div className="bg-black/20 rounded-xl p-2.5 backdrop-blur-sm">
-                <p className="text-[10px] text-gray-400 mb-1">Deposit</p>
+              <div className="bg-black/20 rounded-xl p-2.5 backdrop-blur-sm border border-white/5">
+                <p className="text-[10px] text-blue-200 mb-1">Deposit</p>
                 <p className="font-bold text-white text-sm"><BalanceDisplay amount={wallet.deposit} /></p>
               </div>
-              <div className="bg-black/20 rounded-xl p-2.5 backdrop-blur-sm">
-                <p className="text-[10px] text-gray-400 mb-1">Withdrawable</p>
+              <div className="bg-black/20 rounded-xl p-2.5 backdrop-blur-sm border border-white/5">
+                <p className="text-[10px] text-blue-200 mb-1">Withdrawable</p>
                 <p className="font-bold text-white text-sm"><BalanceDisplay amount={wallet.withdrawable} /></p>
               </div>
-              <div className="bg-neon-green/10 rounded-xl p-2.5 backdrop-blur-sm border border-neon-green/20">
-                <p className="text-[10px] text-neon-glow mb-1">Today Earn</p>
+              <div className="bg-emerald-500/20 rounded-xl p-2.5 backdrop-blur-sm border border-emerald-500/30">
+                <p className="text-[10px] text-emerald-300 mb-1">Today Earn</p>
                 <p className="font-bold text-white text-sm">+<BalanceDisplay amount={wallet.today_earning} /></p>
               </div>
             </div>
 
             <div className="flex gap-3">
-              <Link to="/wallet" className="flex-1 bg-white text-royal-900 font-bold py-3 rounded-xl shadow-lg hover:bg-gray-100 transition flex items-center justify-center gap-2 text-sm">
+              <Link to="/deposit" className="flex-1 bg-white text-royal-900 font-bold py-3 rounded-xl shadow-lg hover:bg-blue-50 transition flex items-center justify-center gap-2 text-sm active:scale-95">
                 <ArrowDownLeft size={16} /> Deposit
               </Link>
-              <Link to="/wallet" className="flex-1 bg-white/10 text-white font-bold py-3 rounded-xl border border-white/10 hover:bg-white/20 transition flex items-center justify-center gap-2 text-sm">
+              <Link to="/withdraw" className="flex-1 bg-white/10 text-white font-bold py-3 rounded-xl border border-white/20 hover:bg-white/20 transition flex items-center justify-center gap-2 text-sm active:scale-95">
                 <ArrowUpRight size={16} /> Withdraw
               </Link>
             </div>
@@ -344,65 +236,76 @@ DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
         </GlassCard>
       </motion.div>
 
+      {/* Quick Actions Grid */}
       <motion.div variants={item}>
         <div className="grid grid-cols-4 gap-3">
           <Link to="/invite" className="flex flex-col items-center gap-2 group">
-            <div className="w-full aspect-square rounded-2xl bg-purple-500/10 flex flex-col items-center justify-center border border-white/5 glass-card-hover transition-all duration-300 group-hover:scale-105">
-              <Users size={22} className="text-purple-400 mb-1" />
-              <span className="text-[10px] font-bold text-white">Invite</span>
+            <div className="w-full aspect-square rounded-2xl bg-purple-50 dark:bg-purple-500/10 flex flex-col items-center justify-center border border-purple-100 dark:border-white/5 glass-card-hover transition-all duration-300 group-hover:scale-105 shadow-sm">
+              <Users size={22} className="text-purple-600 dark:text-purple-400 mb-1" />
+              <span className="text-[10px] font-bold text-slate-700 dark:text-white">Invite</span>
             </div>
           </Link>
           <Link to="/tasks" className="flex flex-col items-center gap-2 group">
-            <div className="w-full aspect-square rounded-2xl bg-blue-500/10 flex flex-col items-center justify-center border border-white/5 glass-card-hover transition-all duration-300 group-hover:scale-105">
-              <Zap size={22} className="text-blue-400 mb-1" />
-              <span className="text-[10px] font-bold text-white">Tasks</span>
+            <div className="w-full aspect-square rounded-2xl bg-blue-50 dark:bg-blue-500/10 flex flex-col items-center justify-center border border-blue-100 dark:border-white/5 glass-card-hover transition-all duration-300 group-hover:scale-105 shadow-sm">
+              <Zap size={22} className="text-blue-600 dark:text-blue-400 mb-1" />
+              <span className="text-[10px] font-bold text-slate-700 dark:text-white">Tasks</span>
             </div>
           </Link>
           <Link to="/leaderboard" className="flex flex-col items-center gap-2 group">
-            <div className="w-full aspect-square rounded-2xl bg-yellow-500/10 flex flex-col items-center justify-center border border-white/5 glass-card-hover transition-all duration-300 group-hover:scale-105">
-              <Trophy size={22} className="text-yellow-400 mb-1" />
-              <span className="text-[10px] font-bold text-white">Top 10</span>
+            <div className="w-full aspect-square rounded-2xl bg-amber-50 dark:bg-yellow-500/10 flex flex-col items-center justify-center border border-amber-100 dark:border-white/5 glass-card-hover transition-all duration-300 group-hover:scale-105 shadow-sm">
+              <Trophy size={22} className="text-amber-600 dark:text-yellow-400 mb-1" />
+              <span className="text-[10px] font-bold text-slate-700 dark:text-white">Top 10</span>
             </div>
           </Link>
           <Link to="/games" className="flex flex-col items-center gap-2 group w-full">
-            <div className="w-full aspect-square rounded-2xl bg-neon-green/10 flex flex-col items-center justify-center border border-white/5 glass-card-hover transition-all duration-300 group-hover:scale-105">
-              <Gift size={22} className="text-neon-glow mb-1" />
-              <span className="text-[10px] font-bold text-white">Spin</span>
+            <div className="w-full aspect-square rounded-2xl bg-emerald-50 dark:bg-neon-green/10 flex flex-col items-center justify-center border border-emerald-100 dark:border-white/5 glass-card-hover transition-all duration-300 group-hover:scale-105 shadow-sm">
+              <Gift size={22} className="text-emerald-600 dark:text-neon-glow mb-1" />
+              <span className="text-[10px] font-bold text-slate-700 dark:text-white">Spin</span>
             </div>
           </Link>
         </div>
       </motion.div>
 
+      {/* Recent Activity */}
       <motion.div variants={item}>
          <div className="flex justify-between items-center mb-3 px-1">
-           <h2 className="font-display font-bold text-white">Recent Activity</h2>
-           <Link to="/wallet" className="text-xs text-royal-400 flex items-center gap-1">View All <ArrowRight size={12}/></Link>
+           <h2 className="font-display font-bold text-slate-800 dark:text-white text-lg">Recent Activity</h2>
+           <Link to="/wallet" className="text-xs text-royal-600 dark:text-royal-400 font-bold flex items-center gap-1 hover:underline">
+               View All <ArrowRight size={12}/>
+           </Link>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {activities.length === 0 ? (
-             <p className="text-gray-500 text-sm text-center py-4">No recent activity.</p>
+             <div className="text-center py-8 bg-white dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5">
+                 <ActivityIcon className="mx-auto text-slate-300 dark:text-gray-600 mb-2" size={24}/>
+                 <p className="text-slate-500 dark:text-gray-500 text-sm">No recent activity.</p>
+             </div>
           ) : (
             activities.slice(0,5).map((act) => (
-              <GlassCard key={act.id} className="flex items-center justify-between py-2.5 px-3 bg-white/5 hover:bg-white/10" onClick={() => {}}>
+              <GlassCard key={act.id} className="flex items-center justify-between py-3 px-4 hover:bg-slate-50 dark:hover:bg-white/10 transition" onClick={() => {}}>
                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      act.type === 'earn' || act.type === 'bonus' ? 'bg-green-500/20 text-green-400' : 
-                      act.type === 'withdraw' || act.type === 'invest' ? 'bg-red-500/20 text-red-400' : 
-                      'bg-blue-500/20 text-blue-400'
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      act.type === 'earn' || act.type === 'bonus' ? 'bg-emerald-100 text-emerald-600 dark:bg-green-500/20 dark:text-green-400' : 
+                      act.type === 'withdraw' || act.type === 'invest' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' : 
+                      'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400'
                     }`}>
-                      {act.type === 'earn' || act.type === 'bonus' ? <Zap size={14} /> : 
-                       act.type === 'withdraw' || act.type === 'invest' ? <ArrowUpRight size={14} /> : 
-                       <ActivityIcon size={14} />}
+                      {act.type === 'earn' || act.type === 'bonus' ? <Zap size={18} /> : 
+                       act.type === 'withdraw' || act.type === 'invest' ? <ArrowUpRight size={18} /> : 
+                       <ActivityIcon size={18} />}
                     </div>
                     <div>
-                      <h4 className="font-medium text-xs text-white">{act.title}</h4>
-                      <p className="text-[10px] text-gray-500">
-                        {new Date(act.time).toLocaleDateString()}
+                      <h4 className="font-bold text-sm text-slate-800 dark:text-white">{act.title}</h4>
+                      <p className="text-[10px] text-slate-500 dark:text-gray-500 font-medium">
+                        {new Date(act.time).toLocaleDateString()} • {new Date(act.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                       </p>
                     </div>
                  </div>
                  {act.amount && (
-                   <span className={`text-xs font-bold font-mono ${act.type === 'withdraw' || act.type === 'invest' || act.type === 'game_loss' ? 'text-white' : 'text-neon-glow'}`}>
+                   <span className={`text-sm font-bold font-mono ${
+                       act.type === 'withdraw' || act.type === 'invest' || act.type === 'game_loss' 
+                       ? 'text-slate-800 dark:text-white' 
+                       : 'text-emerald-600 dark:text-neon-glow'
+                   }`}>
                      {act.type === 'withdraw' || act.type === 'invest' || act.type === 'game_loss' ? '-' : '+'}
                      <BalanceDisplay amount={act.amount} />
                    </span>

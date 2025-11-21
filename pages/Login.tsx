@@ -22,6 +22,9 @@ const Login: React.FC = () => {
     if (msg.includes('email not confirmed')) {
       return 'Your email address is not verified. Please check your inbox for the confirmation link.';
     }
+    if (msg.includes('recursion') || msg.includes('policy') || msg.includes('42p17')) {
+      return 'Database Configuration Error. Admin must run the SQL repair script.';
+    }
     if (msg.includes('too many requests') || msg.includes('rate limit')) {
       return 'Too many login attempts. Please wait a few minutes before trying again.';
     }

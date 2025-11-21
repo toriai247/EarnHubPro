@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 // Import Sub-pages
 import Dashboard from './Dashboard';
 import UserManagement from './UserManagement';
+import UserInfo from './UserInfo';
 import TaskManagement from './TaskManagement';
 import VideoManagement from './VideoManagement';
 import DepositApprove from './DepositApprove';
@@ -28,6 +29,7 @@ type AdminSection = 'dashboard' | 'users' | 'tasks' | 'spin' | 'videos' | 'depos
 
 const Admin: React.FC = () => {
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null); // New State for User Detail View
   const navigate = useNavigate();
 
   const items = [
@@ -38,7 +40,7 @@ const Admin: React.FC = () => {
     { id: 'spin', icon: PieChart, label: 'Spin Control' },
     { id: 'payment', icon: Banknote, label: 'Payment Methods' },
     { id: 'withdraw_config', icon: Sliders, label: 'Withdraw Limits' },
-    { id: 'monthly_pay', icon: CalendarClock, label: 'Monthly Payroll' }, // New
+    { id: 'monthly_pay', icon: CalendarClock, label: 'Monthly Payroll' },
     { id: 'videos', icon: Video, label: 'Video Oversight' },
     { id: 'deposits', icon: Database, label: 'Deposits (Log)' },
     { id: 'withdrawals', icon: CreditCard, label: 'Withdrawals' },
@@ -58,6 +60,11 @@ const Admin: React.FC = () => {
     checkAdmin();
   }, [navigate]);
 
+  const handleSectionChange = (section: AdminSection) => {
+      setActiveSection(section);
+      setSelectedUserId(null); // Reset user selection when changing tabs
+  };
+
   const renderSidebar = () => {
     return (
       <div className="w-64 bg-dark-900 border-r border-white/10 flex-shrink-0 hidden md:flex flex-col h-screen sticky top-0 overflow-y-auto custom-scrollbar">
@@ -70,7 +77,7 @@ const Admin: React.FC = () => {
           {items.map((item) => (
             <button
               key={item.id}
-              onClick={() => item.action ? item.action() : setActiveSection(item.id as AdminSection)}
+              onClick={() => item.action ? item.action() : handleSectionChange(item.id as AdminSection)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${
                 activeSection === item.id ? 'bg-royal-600 text-white shadow-lg' : item.id === 'home' ? 'bg-white/5 text-neon-green border border-neon-green/20 hover:bg-neon-green/10' : 'text-gray-400 hover:bg-white/5 hover:text-white'
               }`}
@@ -89,7 +96,7 @@ const Admin: React.FC = () => {
         {items.map((item) => (
             <button
               key={item.id}
-              onClick={() => item.action ? item.action() : setActiveSection(item.id as AdminSection)}
+              onClick={() => item.action ? item.action() : handleSectionChange(item.id as AdminSection)}
               className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
                 activeSection === item.id ? 'bg-royal-600 text-white' : item.id === 'home' ? 'bg-white/5 text-neon-green border border-neon-green/20' : 'bg-white/5 text-gray-400'
               }`}
@@ -102,9 +109,14 @@ const Admin: React.FC = () => {
   );
 
   const renderContent = () => {
+      // Special Case: User Info View
+      if (activeSection === 'users' && selectedUserId) {
+          return <UserInfo userId={selectedUserId} onBack={() => setSelectedUserId(null)} />;
+      }
+
       switch(activeSection) {
           case 'dashboard': return <Dashboard />;
-          case 'users': return <UserManagement />;
+          case 'users': return <UserManagement onSelectUser={setSelectedUserId} />;
           case 'tasks': return <TaskManagement />;
           case 'spin': return <SpinSettings />;
           case 'payment': return <PaymentSettings />;

@@ -26,17 +26,16 @@ const LevelRing = ({ level, xp, nextThreshold, size = 120, children }: any) => {
 
     return (
         <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-            {/* Background Ring */}
             <svg className="absolute inset-0 transform -rotate-90" width={size} height={size}>
                 <circle
                     cx={size / 2}
                     cy={size / 2}
                     r={radius}
-                    stroke="rgba(255, 255, 255, 0.1)"
+                    stroke="currentColor"
+                    className="text-slate-200 dark:text-white/10"
                     strokeWidth={strokeWidth}
                     fill="transparent"
                 />
-                {/* Progress Ring */}
                 <circle
                     cx={size / 2}
                     cy={size / 2}
@@ -57,13 +56,11 @@ const LevelRing = ({ level, xp, nextThreshold, size = 120, children }: any) => {
                 </defs>
             </svg>
             
-            {/* Avatar Container */}
-            <div className="relative z-10 w-[calc(100%-16px)] h-[calc(100%-16px)] rounded-full overflow-hidden border-4 border-dark-950">
+            <div className="relative z-10 w-[calc(100%-16px)] h-[calc(100%-16px)] rounded-full overflow-hidden border-4 border-white dark:border-dark-950 shadow-lg">
                 {children}
             </div>
 
-            {/* Level Badge */}
-            <div className="absolute -bottom-2 bg-dark-900 border border-royal-500/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg z-20">
+            <div className="absolute -bottom-2 bg-slate-900 dark:bg-dark-900 border border-royal-500/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg z-20">
                 LVL {level}
             </div>
         </div>
@@ -71,8 +68,7 @@ const LevelRing = ({ level, xp, nextThreshold, size = 120, children }: any) => {
 };
 
 const CyberCard = ({ balance, holder, number }: { balance: number, holder: string, number: string }) => (
-    <div className="relative w-full aspect-[1.586/1] rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 shadow-2xl group">
-        {/* Holographic Effect */}
+    <div className="relative w-full aspect-[1.586/1] rounded-2xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 dark:from-slate-900 dark:to-black border border-white/10 shadow-2xl group">
         <div className="absolute inset-0 opacity-30 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_100%] animate-shimmer"></div>
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/circuit-board.png')] opacity-20 mix-blend-overlay"></div>
         
@@ -113,7 +109,6 @@ const Profile: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'history' | 'badges'>('overview');
   const navigate = useNavigate();
 
-  // Edit Form State
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name_1: '',
@@ -212,7 +207,6 @@ const Profile: React.FC = () => {
 
   const copyToClipboard = (text: string) => {
       navigator.clipboard.writeText(text);
-      // Could use a toast here
   };
 
   const nextLevelThreshold = (user?.level_1 || 1) * 500;
@@ -223,13 +217,8 @@ const Profile: React.FC = () => {
               <div className="flex flex-col items-center pt-10">
                   <Skeleton variant="circular" className="w-32 h-32" />
                   <Skeleton variant="text" className="w-48 h-8 mt-4" />
-                  <Skeleton variant="text" className="w-24 h-4 mt-2" />
               </div>
               <Skeleton variant="rectangular" className="w-full h-40" />
-              <div className="grid grid-cols-2 gap-4">
-                  <Skeleton variant="rectangular" className="h-24" />
-                  <Skeleton variant="rectangular" className="h-24" />
-              </div>
           </div>
       );
   }
@@ -239,7 +228,7 @@ const Profile: React.FC = () => {
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 min-h-screen relative overflow-x-hidden">
         {/* Background FX */}
-        <div className="fixed top-0 left-0 w-full h-[50vh] bg-gradient-to-b from-royal-900/20 to-transparent pointer-events-none z-0"></div>
+        <div className="fixed top-0 left-0 w-full h-[50vh] bg-gradient-to-b from-royal-500/10 dark:from-royal-900/20 to-transparent pointer-events-none z-0"></div>
         
         {/* --- PROFILE HEADER --- */}
         <div className="relative z-10 flex flex-col items-center pt-8 pb-6 px-4 text-center">
@@ -248,39 +237,39 @@ const Profile: React.FC = () => {
                     <img 
                         src={user.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name_1}`} 
                         alt="User" 
-                        className="w-full h-full object-cover bg-black/50"
+                        className="w-full h-full object-cover bg-slate-200 dark:bg-black/50"
                     />
                 </LevelRing>
                 <button 
                     onClick={() => setIsEditing(true)}
-                    className="absolute bottom-0 right-0 p-2 bg-white text-black rounded-full shadow-lg hover:scale-110 transition"
+                    className="absolute bottom-0 right-0 p-2 bg-white text-black rounded-full shadow-lg hover:scale-110 transition border border-slate-200"
                 >
                     <Edit2 size={14} />
                 </button>
             </div>
 
-            <h1 className="text-2xl font-display font-bold text-white mt-3 mb-1">{user.name_1}</h1>
+            <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white mt-3 mb-1">{user.name_1}</h1>
             <div className="flex items-center gap-2 mb-4">
-                <span className="text-xs text-royal-300">@{user.email_1.split('@')[0]}</span>
-                {user.is_kyc_1 && <ShieldCheck size={14} className="text-green-400" />}
+                <span className="text-xs text-slate-500 dark:text-royal-300">@{user.email_1.split('@')[0]}</span>
+                {user.is_kyc_1 && <ShieldCheck size={14} className="text-green-500" />}
             </div>
 
             {/* Quick Actions */}
             <div className="flex gap-3">
-                <Link to="/admin" className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white transition">
+                <Link to="/admin" className="p-2.5 rounded-xl bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-500 dark:text-gray-400 hover:bg-white hover:text-royal-600 dark:hover:text-white transition shadow-sm">
                     <LayoutDashboard size={20} />
                 </Link>
-                <button onClick={() => navigate('/support')} className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white transition">
+                <button onClick={() => navigate('/support')} className="p-2.5 rounded-xl bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-500 dark:text-gray-400 hover:bg-white hover:text-royal-600 dark:hover:text-white transition shadow-sm">
                     <Settings size={20} />
                 </button>
-                <button onClick={handleLogout} className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition">
+                <button onClick={handleLogout} className="p-2.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition shadow-sm">
                     <LogOut size={20} />
                 </button>
             </div>
         </div>
 
         {/* --- TAB NAVIGATION --- */}
-        <div className="sticky top-0 z-30 bg-dark-950/80 backdrop-blur-md border-b border-white/5 px-4 mb-6">
+        <div className="sticky top-0 z-30 bg-slate-50/90 dark:bg-dark-950/80 backdrop-blur-md border-b border-slate-200 dark:border-white/5 px-4 mb-6">
             <div className="flex overflow-x-auto no-scrollbar gap-6">
                 {[
                     { id: 'overview', label: 'Overview' },
@@ -292,14 +281,14 @@ const Profile: React.FC = () => {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`py-4 text-sm font-bold relative transition-colors ${
-                            activeTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                            activeTab === tab.id ? 'text-royal-600 dark:text-white' : 'text-slate-500 dark:text-gray-500 hover:text-slate-800 dark:hover:text-gray-300'
                         }`}
                     >
                         {tab.label}
                         {activeTab === tab.id && (
                             <motion.div 
                                 layoutId="activeTab"
-                                className="absolute bottom-0 left-0 right-0 h-0.5 bg-neon-green shadow-[0_0_10px_#10b981]"
+                                className="absolute bottom-0 left-0 right-0 h-0.5 bg-royal-600 dark:bg-neon-green shadow-sm"
                             />
                         )}
                     </button>
@@ -315,59 +304,56 @@ const Profile: React.FC = () => {
                 {activeTab === 'overview' && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
                         
-                        {/* Bio Card */}
-                        <GlassCard className="relative overflow-hidden">
+                        <GlassCard>
                             <div className="flex justify-between items-start mb-2">
-                                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                                    <UserIcon size={16} className="text-royal-400"/> Bio
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                    <UserIcon size={16} className="text-royal-500"/> Bio
                                 </h3>
                             </div>
-                            <p className="text-sm text-gray-400 italic leading-relaxed">
+                            <p className="text-sm text-slate-500 dark:text-gray-400 italic leading-relaxed">
                                 "{user.bio_1 || "Digital nomad earning on EarnHub Pro."}"
                             </p>
                         </GlassCard>
 
-                        {/* Stats Grid (Bento) */}
                         <div className="grid grid-cols-2 gap-3">
-                            <GlassCard className="bg-gradient-to-br from-royal-900/40 to-transparent border-royal-500/20">
-                                <p className="text-[10px] text-royal-300 font-bold uppercase mb-1">Current Rank</p>
+                            <GlassCard className="bg-gradient-to-br from-royal-50 to-white dark:from-royal-900/40 dark:to-transparent border-royal-100 dark:border-royal-500/20">
+                                <p className="text-[10px] text-royal-600 dark:text-royal-300 font-bold uppercase mb-1">Current Rank</p>
                                 <div className="flex items-center gap-2">
-                                    <Crown size={24} className="text-yellow-400 drop-shadow-md" />
-                                    <span className="text-xl font-bold text-white">{user.rank_1 || 'Member'}</span>
+                                    <Crown size={24} className="text-amber-500 dark:text-yellow-400 drop-shadow-sm" />
+                                    <span className="text-xl font-bold text-slate-800 dark:text-white">{user.rank_1 || 'Member'}</span>
                                 </div>
                             </GlassCard>
                             
-                            <GlassCard className="bg-gradient-to-br from-green-900/40 to-transparent border-green-500/20">
-                                <p className="text-[10px] text-green-300 font-bold uppercase mb-1">Referrals</p>
+                            <GlassCard className="bg-gradient-to-br from-emerald-50 to-white dark:from-green-900/40 dark:to-transparent border-emerald-100 dark:border-green-500/20">
+                                <p className="text-[10px] text-emerald-600 dark:text-green-300 font-bold uppercase mb-1">Referrals</p>
                                 <div className="flex items-center gap-2">
-                                    <Users size={24} className="text-green-400 drop-shadow-md" />
-                                    <span className="text-xl font-bold text-white">{referral?.invitedUsers}</span>
+                                    <Users size={24} className="text-emerald-500 dark:text-green-400 drop-shadow-sm" />
+                                    <span className="text-xl font-bold text-slate-800 dark:text-white">{referral?.invitedUsers}</span>
                                 </div>
                             </GlassCard>
 
                             <GlassCard className="col-span-2 flex items-center justify-between">
                                 <div>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Next Level Progress</p>
-                                    <p className="text-sm text-white"><span className="font-bold text-neon-green">{user.xp_1}</span> / {nextLevelThreshold} XP</p>
+                                    <p className="text-[10px] text-slate-500 dark:text-gray-400 font-bold uppercase mb-1">Next Level Progress</p>
+                                    <p className="text-sm text-slate-800 dark:text-white"><span className="font-bold text-royal-600 dark:text-neon-green">{user.xp_1}</span> / {nextLevelThreshold} XP</p>
                                 </div>
-                                <div className="w-24 h-2 bg-white/10 rounded-full overflow-hidden">
+                                <div className="w-24 h-2 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden">
                                     <div 
-                                        className="h-full bg-gradient-to-r from-royal-500 to-neon-green" 
+                                        className="h-full bg-gradient-to-r from-royal-500 to-emerald-500" 
                                         style={{ width: `${Math.min(100, (user.xp_1 / nextLevelThreshold) * 100)}%` }}
                                     ></div>
                                 </div>
                             </GlassCard>
                         </div>
 
-                        {/* Socials */}
                         <div className="grid grid-cols-2 gap-3">
-                            <a href={user.socials_1?.twitter || '#'} target="_blank" className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-blue-500/20 hover:border-blue-500/30 transition group">
-                                <Twitter size={18} className="text-gray-400 group-hover:text-blue-400" />
-                                <span className="text-sm font-medium text-gray-300 group-hover:text-white">Twitter</span>
+                            <a href={user.socials_1?.twitter || '#'} target="_blank" className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:border-blue-200 dark:hover:border-blue-500/30 transition group">
+                                <Twitter size={18} className="text-slate-400 dark:text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
+                                <span className="text-sm font-medium text-slate-600 dark:text-gray-300 group-hover:text-slate-900 dark:group-hover:text-white">Twitter</span>
                             </a>
-                            <a href={user.socials_1?.telegram || '#'} target="_blank" className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-cyan-500/20 hover:border-cyan-500/30 transition group">
-                                <Send size={18} className="text-gray-400 group-hover:text-cyan-400" />
-                                <span className="text-sm font-medium text-gray-300 group-hover:text-white">Telegram</span>
+                            <a href={user.socials_1?.telegram || '#'} target="_blank" className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-cyan-50 dark:hover:bg-cyan-500/20 hover:border-cyan-200 dark:hover:border-cyan-500/30 transition group">
+                                <Send size={18} className="text-slate-400 dark:text-gray-400 group-hover:text-cyan-500 dark:group-hover:text-cyan-400" />
+                                <span className="text-sm font-medium text-slate-600 dark:text-gray-300 group-hover:text-slate-900 dark:group-hover:text-white">Telegram</span>
                             </a>
                         </div>
                     </motion.div>
@@ -383,14 +369,14 @@ const Profile: React.FC = () => {
                         />
 
                         <div className="grid grid-cols-2 gap-4">
-                            <Link to="/deposit" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-neon-green/10 border border-neon-green/30 text-neon-green hover:bg-neon-green hover:text-black transition duration-300 group">
-                                <div className="w-10 h-10 rounded-full bg-neon-green/20 flex items-center justify-center mb-2 group-hover:bg-black/20">
+                            <Link to="/deposit" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-emerald-50 dark:bg-neon-green/10 border border-emerald-100 dark:border-neon-green/30 text-emerald-600 dark:text-neon-green hover:bg-emerald-100 dark:hover:bg-neon-green dark:hover:text-black transition duration-300 group">
+                                <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-neon-green/20 flex items-center justify-center mb-2 group-hover:bg-white dark:group-hover:bg-black/20">
                                     <ArrowDownLeft size={20} />
                                 </div>
                                 <span className="font-bold text-sm">Deposit</span>
                             </Link>
-                            <Link to="/withdraw" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/20 transition duration-300">
-                                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center mb-2">
+                            <Link to="/withdraw" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/20 transition duration-300">
+                                <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center mb-2">
                                     <ArrowUpRight size={20} />
                                 </div>
                                 <span className="font-bold text-sm">Withdraw</span>
@@ -398,17 +384,17 @@ const Profile: React.FC = () => {
                         </div>
 
                         <GlassCard>
-                            <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                                <Users size={16} className="text-purple-400"/> Referral Earnings
+                            <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                                <Users size={16} className="text-purple-500"/> Referral Earnings
                             </h3>
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-2xl font-bold text-white">${referral?.totalEarned.toFixed(2)}</p>
-                                    <p className="text-xs text-gray-500">From {referral?.invitedUsers} friends</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">${referral?.totalEarned.toFixed(2)}</p>
+                                    <p className="text-xs text-slate-500 dark:text-gray-500">From {referral?.invitedUsers} friends</p>
                                 </div>
                                 <button 
                                     onClick={() => copyToClipboard(user.ref_code_1)}
-                                    className="px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-xs font-bold hover:bg-purple-500/30 transition flex items-center gap-2"
+                                    className="px-4 py-2 bg-purple-50 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-500/30 rounded-lg text-xs font-bold hover:bg-purple-100 dark:hover:bg-purple-500/30 transition flex items-center gap-2"
                                 >
                                     <Copy size={14} /> {user.ref_code_1}
                                 </button>
@@ -421,28 +407,30 @@ const Profile: React.FC = () => {
                 {activeTab === 'history' && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
                         {transactions.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500">No transactions yet.</div>
+                            <div className="text-center py-12 text-slate-400 dark:text-gray-500">No transactions yet.</div>
                         ) : (
                             transactions.map((tx) => (
-                                <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                                <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                            tx.type === 'deposit' ? 'bg-green-500/20 text-green-400' :
-                                            tx.type === 'withdraw' ? 'bg-white/10 text-white' :
-                                            tx.type.includes('game') ? 'bg-purple-500/20 text-purple-400' :
-                                            'bg-blue-500/20 text-blue-400'
+                                            tx.type === 'deposit' ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400' :
+                                            tx.type === 'withdraw' ? 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-white' :
+                                            tx.type.includes('game') ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400' :
+                                            'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400'
                                         }`}>
                                             {tx.type === 'deposit' ? <ArrowDownLeft size={18}/> : 
                                              tx.type === 'withdraw' ? <ArrowUpRight size={18}/> : 
                                              <WalletIcon size={18}/>}
                                         </div>
                                         <div>
-                                            <p className="text-sm font-bold text-white capitalize">{tx.type.replace('_', ' ')}</p>
-                                            <p className="text-[10px] text-gray-500">{new Date(tx.created_at).toLocaleDateString()}</p>
+                                            <p className="text-sm font-bold text-slate-800 dark:text-white capitalize">{tx.type.replace('_', ' ')}</p>
+                                            <p className="text-[10px] text-slate-500 dark:text-gray-500">{new Date(tx.created_at).toLocaleDateString()}</p>
                                         </div>
                                     </div>
                                     <span className={`font-mono font-bold text-sm ${
-                                        ['deposit', 'earn', 'bonus', 'game_win', 'referral'].includes(tx.type) ? 'text-neon-green' : 'text-white'
+                                        ['deposit', 'earn', 'bonus', 'game_win', 'referral'].includes(tx.type) 
+                                        ? 'text-emerald-600 dark:text-neon-green' 
+                                        : 'text-slate-800 dark:text-white'
                                     }`}>
                                         {['deposit', 'earn', 'bonus', 'game_win', 'referral'].includes(tx.type) ? '+' : '-'}${tx.amount.toFixed(2)}
                                     </span>
@@ -459,11 +447,13 @@ const Profile: React.FC = () => {
                             const isEarned = (user.badges_1 || []).includes(badge.id) || badge.id === 'early_adopter';
                             return (
                                 <div key={badge.id} className={`p-4 rounded-xl border flex flex-col items-center text-center transition-all ${
-                                    isEarned ? 'bg-gradient-to-b from-white/10 to-transparent border-neon-green/30' : 'bg-white/5 border-white/5 opacity-50 grayscale'
+                                    isEarned 
+                                    ? 'bg-gradient-to-b from-white to-slate-50 dark:from-white/10 dark:to-transparent border-emerald-200 dark:border-neon-green/30 shadow-sm' 
+                                    : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-50 grayscale'
                                 }`}>
-                                    <div className="text-3xl mb-2 drop-shadow-lg">{badge.icon}</div>
-                                    <h4 className="font-bold text-white text-xs">{badge.name}</h4>
-                                    {isEarned && <span className="mt-1 text-[9px] bg-neon-green text-black px-1.5 py-0.5 rounded font-bold">UNLOCKED</span>}
+                                    <div className="text-3xl mb-2 drop-shadow-md">{badge.icon}</div>
+                                    <h4 className="font-bold text-slate-800 dark:text-white text-xs">{badge.name}</h4>
+                                    {isEarned && <span className="mt-1 text-[9px] bg-emerald-100 dark:bg-neon-green text-emerald-800 dark:text-black px-1.5 py-0.5 rounded font-bold">UNLOCKED</span>}
                                 </div>
                             )
                         })}
@@ -479,24 +469,24 @@ const Profile: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex justify-end sm:items-center sm:justify-center">
                     <motion.div 
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                        className="absolute inset-0 bg-slate-900/20 dark:bg-black/80 backdrop-blur-sm"
                         onClick={() => setIsEditing(false)}
                     />
                     <motion.div 
                         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="relative z-10 w-full sm:max-w-md bg-dark-900 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 max-h-[85vh] overflow-y-auto custom-scrollbar"
+                        className="relative z-10 w-full sm:max-w-md bg-white dark:bg-dark-900 border-t sm:border border-slate-200 dark:border-white/10 rounded-t-3xl sm:rounded-3xl p-6 max-h-[85vh] overflow-y-auto custom-scrollbar shadow-2xl"
                     >
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-white">Edit Profile</h2>
-                            <button onClick={() => setIsEditing(false)} className="p-2 bg-white/5 rounded-full text-gray-400 hover:text-white transition"><X size={20}/></button>
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Edit Profile</h2>
+                            <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-100 dark:bg-white/5 rounded-full text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white transition"><X size={20}/></button>
                         </div>
 
                         <div className="space-y-4">
                             <div className="text-center mb-4">
-                                <div className="w-20 h-20 mx-auto rounded-full bg-black border-2 border-white/10 relative overflow-hidden group">
+                                <div className="w-20 h-20 mx-auto rounded-full bg-slate-100 dark:bg-black border-2 border-slate-200 dark:border-white/10 relative overflow-hidden group">
                                     <img src={editForm.avatar_1 || user.avatar_1 || ''} alt="" className="w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
                                         <Camera size={20} className="text-white"/>
                                     </div>
                                 </div>
@@ -508,43 +498,27 @@ const Profile: React.FC = () => {
                                     type="text" 
                                     value={editForm.name_1} 
                                     onChange={e => setEditForm({...editForm, name_1: e.target.value})} 
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none transition"
+                                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl p-4 text-slate-900 dark:text-white text-sm focus:border-royal-500 dark:focus:border-neon-green outline-none transition"
                                     placeholder="Display Name"
                                 />
                                 <input 
                                     type="text" 
                                     value={editForm.avatar_1} 
                                     onChange={e => setEditForm({...editForm, avatar_1: e.target.value})} 
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none transition"
+                                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl p-4 text-slate-900 dark:text-white text-sm focus:border-royal-500 dark:focus:border-neon-green outline-none transition"
                                     placeholder="Avatar URL (https://...)"
                                 />
                                 <textarea 
                                     value={editForm.bio_1} 
                                     onChange={e => setEditForm({...editForm, bio_1: e.target.value})} 
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none transition resize-none h-24"
+                                    className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl p-4 text-slate-900 dark:text-white text-sm focus:border-royal-500 dark:focus:border-neon-green outline-none transition resize-none h-24"
                                     placeholder="Your Bio..."
                                 />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input 
-                                        type="text" 
-                                        value={editForm.twitter} 
-                                        onChange={e => setEditForm({...editForm, twitter: e.target.value})} 
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none"
-                                        placeholder="Twitter URL"
-                                    />
-                                    <input 
-                                        type="text" 
-                                        value={editForm.telegram} 
-                                        onChange={e => setEditForm({...editForm, telegram: e.target.value})} 
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none"
-                                        placeholder="Telegram URL"
-                                    />
-                                </div>
                             </div>
 
                             <button 
                                 onClick={handleUpdateProfile} 
-                                className="w-full py-4 mt-4 bg-neon-green text-black font-bold rounded-xl hover:scale-[1.02] transition flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                                className="w-full py-4 mt-4 bg-royal-600 dark:bg-neon-green text-white dark:text-black font-bold rounded-xl hover:scale-[1.02] transition flex items-center justify-center gap-2 shadow-lg"
                             >
                                 <CheckCircle2 size={18} /> Save Changes
                             </button>
