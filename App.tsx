@@ -43,26 +43,19 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // Activate Anti-Hack Security (Lite Version)
+  // Activate Anti-Hack Security (High Level)
   useSecurity();
 
   useEffect(() => {
-    // Safety Timeout: If Supabase takes too long (e.g. network issue), force load the app
-    // This prevents being stuck on the loading spinner forever.
-    const timeoutId = setTimeout(() => {
-        setLoading(false);
-    }, 3000); // 3 seconds max wait time
-
+    // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
-      clearTimeout(timeoutId);
     }).catch(() => {
-      // Even if there's an error, stop loading so user sees Login screen
       setLoading(false);
-      clearTimeout(timeoutId);
     });
 
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
@@ -70,7 +63,6 @@ const App: React.FC = () => {
 
     return () => {
         subscription.unsubscribe();
-        clearTimeout(timeoutId);
     };
   }, []);
 
@@ -79,6 +71,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-neon-green">
         <div className="w-12 h-12 border-4 border-royal-600 border-t-neon-green rounded-full animate-spin mb-4"></div>
         <div className="font-display font-bold tracking-wider">EARNHUB PRO</div>
+        <div className="text-xs text-gray-500 mt-2">Establishing Secure Connection...</div>
       </div>
     );
   }
