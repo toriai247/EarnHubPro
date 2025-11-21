@@ -8,8 +8,42 @@ import { supabase } from '../integrations/supabase/client';
 import { WalletData, GameResult } from '../types';
 import { processGameResult, updateWallet } from '../lib/actions';
 
+// --- DICE FACE COMPONENT ---
+const DiceFace = ({ val }: { val: number }) => {
+    return (
+        <div className="w-full h-full bg-black/90 border border-neon-green/50 shadow-[0_0_10px_rgba(16,185,129,0.2)] p-1">
+             <div className="grid grid-cols-3 grid-rows-3 w-full h-full gap-0.5">
+                {Array.from({length: 9}).map((_, i) => {
+                    let active = false;
+                    if (val === 1 && i === 4) active = true;
+                    if (val === 2 && [0, 8].includes(i)) active = true;
+                    if (val === 3 && [0, 4, 8].includes(i)) active = true;
+                    if (val === 4 && [0, 2, 6, 8].includes(i)) active = true;
+                    if (val === 5 && [0, 2, 4, 6, 8].includes(i)) active = true;
+                    if (val === 6 && [0, 2, 3, 5, 6, 8].includes(i)) active = true;
+                    
+                    return (
+                        <div key={i} className="flex items-center justify-center">
+                            {active && <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-neon-green rounded-full shadow-[0_0_5px_#10b981]"></div>}
+                        </div>
+                    )
+                })}
+             </div>
+        </div>
+    );
+};
+
 // --- ADVANCED 3D CUBE COMPONENT ---
 const CyberCube = ({ spinning }: { spinning: boolean }) => {
+  const faces = [
+      { val: 1, rotateY: 0, translateZ: 32 },    // Front
+      { val: 6, rotateY: 180, translateZ: 32 },  // Back
+      { val: 2, rotateY: 90, translateZ: 32 },   // Right
+      { val: 5, rotateY: -90, translateZ: 32 },  // Left
+      { val: 3, rotateX: 90, translateZ: 32 },   // Top
+      { val: 4, rotateX: -90, translateZ: 32 },  // Bottom
+  ];
+
   return (
     <div className="w-32 h-32 mx-auto mb-8 relative perspective-[1000px] flex items-center justify-center">
       
@@ -18,7 +52,7 @@ const CyberCube = ({ spinning }: { spinning: boolean }) => {
         className="w-24 h-24 absolute preserve-3d"
         style={{ transformStyle: 'preserve-3d' }}
         animate={{ rotateX: 360, rotateY: -360 }}
-        transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
+        transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
       >
          {[
             { rotY: 0, z: 48 }, { rotY: 180, z: 48 }, 
@@ -27,7 +61,7 @@ const CyberCube = ({ spinning }: { spinning: boolean }) => {
          ].map((face, i) => (
             <div 
                 key={`outer-${i}`}
-                className="absolute inset-0 border border-royal-500/30 bg-royal-500/5 flex items-center justify-center"
+                className="absolute inset-0 border border-royal-500/20 bg-royal-500/5 flex items-center justify-center"
                 style={{ transform: `rotateX(${face.rotX || 0}deg) rotateY(${face.rotY || 0}deg) translateZ(${face.z}px)` }}
             >
                 <div className="w-full h-full border border-royal-500/10 transform scale-75"></div>
@@ -35,32 +69,44 @@ const CyberCube = ({ spinning }: { spinning: boolean }) => {
          ))}
       </motion.div>
 
-      {/* Inner Glowing Cube (Fast Spin on Roll) */}
+      {/* Inner Glowing Dice (Fast Spin on Roll) */}
       <motion.div
-        className="w-12 h-12 relative preserve-3d"
+        className="w-16 h-16 relative preserve-3d"
         style={{ transformStyle: 'preserve-3d' }}
-        animate={spinning ? { rotateX: 720, rotateY: 720 } : { rotateX: -25, rotateY: 45 }}
-        transition={spinning ? { repeat: Infinity, duration: 0.5, ease: "linear" } : { duration: 0.8, type: "spring" }}
+        animate={spinning ? { 
+            rotateX: [0, 360, 720, 1080], 
+            rotateY: [0, 360, 720, 1080],
+            rotateZ: [0, 180, 360]
+        } : { 
+            rotateX: -25, 
+            rotateY: 45,
+            rotateZ: 0
+        }}
+        transition={spinning ? { 
+            repeat: Infinity, 
+            duration: 0.6, 
+            ease: "linear" 
+        } : { 
+            duration: 0.8, 
+            type: "spring",
+            stiffness: 60 
+        }}
       >
-        {[
-            { rotateY: 0, translateZ: 24 }, { rotateY: 180, translateZ: 24 },
-            { rotateY: 90, translateZ: 24 }, { rotateY: -90, translateZ: 24 },
-            { rotateX: 90, translateZ: 24 }, { rotateX: -90, translateZ: 24 },
-        ].map((face, i) => (
+        {faces.map((face, i) => (
             <div 
                 key={i}
-                className={`absolute inset-0 border border-neon-green/50 bg-black/80 shadow-[0_0_15px_rgba(16,185,129,0.4)] backdrop-blur-md flex items-center justify-center`}
+                className={`absolute inset-0 flex items-center justify-center backface-visible`}
                 style={{ 
                     transform: `rotateX(${face.rotateX || 0}deg) rotateY(${face.rotateY || 0}deg) translateZ(${face.translateZ}px)` 
                 }}
             >
-                <div className="w-2 h-2 bg-neon-green rounded-full shadow-[0_0_10px_#10b981]"></div>
+                <DiceFace val={face.val} />
             </div>
         ))}
         
         {/* Core Light */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-8 h-8 bg-neon-green rounded-full blur-xl animate-pulse"></div>
+            <div className="w-8 h-8 bg-neon-green rounded-full blur-xl animate-pulse opacity-50"></div>
         </div>
       </motion.div>
     </div>
@@ -202,8 +248,6 @@ const Dice: React.FC = () => {
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = parseInt(e.target.value);
       // Constrain target to keep win chance between 4% and 96%
-      // Roll Under: Target 4 (4% win) to 96 (96% win)
-      // Roll Over: Target 4 (96% win) to 96 (4% win)
       const clamped = Math.max(4, Math.min(96, val));
       setTarget(clamped);
       playSound('slider');
@@ -212,7 +256,6 @@ const Dice: React.FC = () => {
   const setDirection = (dir: 'under' | 'over') => {
       if (dir === rollDirection) return;
       setRollDirection(dir);
-      // Invert target to keep approximate visual position but flip logic
       setTarget(100 - target); 
       playSound('slider');
   };
