@@ -21,8 +21,8 @@ export const createUserProfile = async (userId: string, email: string, fullName:
       }
   }
 
-  // 1. Create Profile
-  const { error: profileError } = await supabase.from('profiles').insert({
+  // 1. Create Profile (Use upsert to safely handle existing profiles)
+  const { error: profileError } = await supabase.from('profiles').upsert({
     id: userId,
     email_1: email,
     name_1: fullName,
@@ -30,15 +30,17 @@ export const createUserProfile = async (userId: string, email: string, fullName:
     referred_by: referredBy,
     level_1: 1,
     is_kyc_1: false
-  });
+  }, { onConflict: 'id', ignoreDuplicates: true });
 
-  if (profileError && profileError.code !== '23505') {
-    console.error("Profile create error:", profileError);
-    throw profileError;
+  if (profileError) {
+    console.error("Profile create error:", JSON.stringify(profileError));
+    if (profileError.code === '42P17') {
+        throw new Error("Database Policy Error: Infinite Recursion. Please run the fix SQL script.");
+    }
   }
 
-  // 2. Create Wallet
-  const { error: walletError } = await supabase.from('wallets').insert({
+  // 2. Create Wallet safely
+  const { error: walletError } = await supabase.from('wallets').upsert({
     user_id: userId,
     balance: welcomeBonus,
     deposit: 0,
@@ -47,32 +49,51 @@ export const createUserProfile = async (userId: string, email: string, fullName:
     today_earning: 0,
     pending_withdraw: 0,
     referral_earnings: 0
-  });
+  }, { onConflict: 'user_id', ignoreDuplicates: true });
 
-  // 3. Create Referral Record & Transactions
-  if (!walletError) {
-    await createTransaction(userId, 'bonus', 120.00, 'Welcome Bonus');
-    
-    if (referrerId) {
-        // Bonus for User
-        await createTransaction(userId, 'bonus', 50.00, `Referral Bonus (Code: ${referralCode})`);
-        
-        // Create Database Link for Tracking
-        await supabase.from('referrals').insert({
-            referrer_id: referrerId,
-            referred_id: userId,
-            status: 'completed',
-            earned: 0
-        });
-        
-        // Notify Referrer of new signup
-        await supabase.from('notifications').insert({
-            user_id: referrerId,
-            title: 'New Recruit! 🚀',
-            message: `${fullName || 'A new user'} joined your team using code ${referralCode}.`,
-            type: 'success'
-        });
-    }
+  if (walletError) {
+      console.error("Wallet create error:", JSON.stringify(walletError));
+      if (walletError.code === '42P17') {
+          throw new Error("Database Policy Error: Infinite Recursion on Wallet. Run fix SQL.");
+      }
+      throw walletError;
+  }
+
+  // 3. Check and Create Transactions (Prevent Duplicates)
+  const { count: txCount } = await supabase.from('transactions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('description', 'Welcome Bonus');
+
+  if (!txCount) {
+      await createTransaction(userId, 'bonus', 120.00, 'Welcome Bonus');
+      
+      if (referrerId) {
+          const { count: refTxCount } = await supabase.from('transactions')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .ilike('description', 'Referral Bonus%');
+
+          if (!refTxCount) {
+              await createTransaction(userId, 'bonus', 50.00, `Referral Bonus (Code: ${referralCode})`);
+              
+              const { error: refError } = await supabase.from('referrals').upsert({
+                  referrer_id: referrerId,
+                  referred_id: userId,
+                  status: 'completed',
+                  earned: 0
+              }, { onConflict: 'referred_id', ignoreDuplicates: true });
+              
+              if (!refError) {
+                  await supabase.from('notifications').insert({
+                      user_id: referrerId,
+                      title: 'New Recruit! 🚀',
+                      message: `${fullName || 'A new user'} joined your team using code ${referralCode}.`,
+                      type: 'success'
+                  });
+              }
+          }
+      }
   }
 };
 
@@ -86,7 +107,7 @@ export const createTransaction = async (userId: string, type: string, amount: nu
   });
   
   if (error) {
-    console.error("Failed to create transaction log:", error.message);
+    console.error("Failed to create transaction log:", JSON.stringify(error));
   }
 };
 
@@ -94,16 +115,14 @@ export const updateWallet = async (userId: string, amount: number, type: 'increm
   const { data: wallet, error: fetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
   
   if (fetchError || !wallet) {
-      console.error("Wallet fetch error:", fetchError);
+      console.error("Wallet fetch error in updateWallet:", JSON.stringify(fetchError));
       throw new Error("Wallet not found");
   }
 
   const updates: any = {};
-  // Update target field
   if (type === 'increment') updates[field] = wallet[field] + amount;
   else updates[field] = Math.max(0, wallet[field] - amount);
 
-  // If balance changed, recalculate withdrawable
   if (field === 'balance') {
       const newBalance = updates.balance;
       updates.withdrawable = Math.max(0, newBalance - wallet.pending_withdraw);
@@ -112,7 +131,7 @@ export const updateWallet = async (userId: string, amount: number, type: 'increm
   const { error: updateError } = await supabase.from('wallets').update(updates).eq('user_id', userId);
   
   if (updateError) {
-      console.error("Wallet update error:", updateError);
+      console.error("Wallet update error:", JSON.stringify(updateError));
       throw new Error("Failed to update wallet balance");
   }
 };
@@ -121,23 +140,18 @@ export const updateWallet = async (userId: string, amount: number, type: 'increm
 const distributeReferralReward = async (userId: string, earningAmount: number) => {
     if (earningAmount <= 0) return;
 
-    // 1. Find if user was referred
     const { data: userProfile } = await supabase.from('profiles').select('referred_by, name_1').eq('id', userId).single();
     
-    if (!userProfile || !userProfile.referred_by) return; // No referrer
+    if (!userProfile || !userProfile.referred_by) return;
 
-    // 2. Find Referrer ID
     const { data: referrerProfile } = await supabase.from('profiles').select('id').eq('ref_code_1', userProfile.referred_by).maybeSingle();
     
     if (!referrerProfile) return;
 
-    // 3. Calculate 5% Commission
-    const commission = Number((earningAmount * 0.05).toFixed(4)); // 5%
+    const commission = Number((earningAmount * 0.05).toFixed(4));
     
-    // Minimum commission check
     if (commission < 0.001) return;
 
-    // 4. Update Referrer Wallet
     const { data: rWallet } = await supabase.from('wallets').select('*').eq('user_id', referrerProfile.id).single();
     if (rWallet) {
         await supabase.from('wallets').update({
@@ -147,10 +161,8 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
             referral_earnings: (rWallet.referral_earnings || 0) + commission
         }).eq('user_id', referrerProfile.id);
 
-        // 5. Log Transaction for Referrer
         await createTransaction(referrerProfile.id, 'referral', commission, `5% Commission from ${userProfile.name_1 || 'User'}`);
         
-        // 6. Update Referral Stats Table
         const { data: refRecord } = await supabase.from('referrals').select('*')
             .eq('referrer_id', referrerProfile.id)
             .eq('referred_id', userId)
@@ -162,7 +174,6 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
             }).eq('id', refRecord.id);
         }
 
-        // 7. NOTIFY REFERRER - PROVES SYSTEM IS WORKING
         await supabase.from('notifications').insert({
             user_id: referrerProfile.id,
             title: 'Commission Earned! 💸',
@@ -177,7 +188,6 @@ export const processGameResult = async (userId: string, gameId: string, gameName
     let finalPayout = payout;
     const initialProfit = payout - bet;
     
-    // Admin Fee Logic
     if (initialProfit > 0) {
         const adminFeePercent = 0.05; 
         const fee = initialProfit * adminFeePercent;
@@ -187,7 +197,6 @@ export const processGameResult = async (userId: string, gameId: string, gameName
 
     const finalProfit = finalPayout - bet;
 
-    // 1. Record Game History
     await supabase.from('game_history').insert({
         user_id: userId,
         game_id: gameId,
@@ -198,12 +207,7 @@ export const processGameResult = async (userId: string, gameId: string, gameName
         details
     });
 
-    // 2. Update Wallet
-    if (bet > 0) await updateWallet(userId, bet, 'decrement', 'balance');
     if (finalPayout > 0) {
-        await updateWallet(userId, finalPayout, 'increment', 'balance');
-        
-        // Update PNL stats
         if (finalProfit > 0) {
              const { data: w } = await supabase.from('wallets').select('total_earning, today_earning').eq('user_id', userId).single();
              if (w) {
@@ -214,13 +218,11 @@ export const processGameResult = async (userId: string, gameId: string, gameName
              }
         }
         
-        // 3. Distribute Commission on Net Profit
         if (finalProfit > 0) {
             await distributeReferralReward(userId, finalProfit);
         }
     }
 
-    // 4. Transaction Log
     await createTransaction(userId, finalProfit > 0 ? 'game_win' : 'game_loss', Math.abs(finalProfit), details);
 };
 
@@ -291,7 +293,6 @@ export const claimInvestmentReturn = async (userId: string, investment: ActiveIn
     }
 };
 
-// ... existing withdrawal functions ...
 export const saveWithdrawMethod = async (userId: string, method: string, number: string, isAuto: boolean) => {
     const { data: settings } = await supabase.from('withdrawal_settings').select('*').maybeSingle();
     const fee = settings?.id_change_fee || 30;

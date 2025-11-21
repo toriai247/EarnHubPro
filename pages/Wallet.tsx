@@ -3,22 +3,24 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import Loader from '../components/Loader';
 import Skeleton from '../components/Skeleton';
-import { ArrowDownLeft, ArrowUpRight, Wallet as WalletIcon, ShieldCheck, XCircle, Clock, Users } from 'lucide-react';
-import { WalletData, Activity, WalletMeta } from '../types';
+import { 
+  ArrowDownLeft, ArrowUpRight, Wallet as WalletIcon, ShieldCheck, XCircle, Clock, Users, 
+  Zap, TrendingUp, Gamepad2, Trophy, Gift, AlertCircle, RefreshCw
+} from 'lucide-react';
+import { WalletData, Activity } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../integrations/supabase/client';
-import { updateWallet, createTransaction, createUserProfile } from '../lib/actions';
-import { Link, useNavigate } from 'react-router-dom';
+import { createUserProfile } from '../lib/actions';
+import { Link } from 'react-router-dom';
 
 const Wallet: React.FC = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [meta] = useState<WalletMeta>({ minWithdraw: 50, withdrawFeePercent: 5, currency: 'USD' });
+  const [error, setError] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState<'all' | 'deposit' | 'withdraw' | 'earn' | 'game'>('all');
   const [userId, setUserId] = useState<string>('');
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -26,35 +28,41 @@ const Wallet: React.FC = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    setError(null);
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
        setUserId(session.user.id);
        
-       // Try to fetch wallet
-       let { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
+       try {
+           // Try to fetch wallet
+           let { data: walletData, error: fetchError } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).maybeSingle();
 
-       // Auto-recover if missing
-       if (!walletData) {
-          try {
-             await createUserProfile(session.user.id, session.user.email || '', session.user.user_metadata?.full_name || 'User');
-             // Retry fetch
-             const res = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
-             walletData = res.data;
-          } catch (e) {
-             console.error("Recovery failed", e);
-          }
-       }
+           // Auto-recover if missing
+           if (!walletData) {
+              try {
+                 await createUserProfile(session.user.id, session.user.email || '', session.user.user_metadata?.full_name || 'User');
+                 // Retry fetch
+                 const res = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
+                 walletData = res.data;
+              } catch (e) {
+                 console.error("Recovery failed", e);
+                 throw new Error("Could not initialize wallet.");
+              }
+           }
 
-       if (walletData) {
-         setWallet(walletData as WalletData);
-         
-         const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', session.user.id).order('created_at', {ascending: false});
-         if (txData) {
-             setActivities(txData.map((t: any) => ({
-                id: t.id, title: t.description || t.type, type: t.type, amount: t.amount,
-                time: t.created_at, timestamp: new Date(t.created_at).getTime(), status: t.status
-             })));
-         }
+           if (walletData) {
+             setWallet(walletData as WalletData);
+             
+             const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', session.user.id).order('created_at', {ascending: false});
+             if (txData) {
+                 setActivities(txData.map((t: any) => ({
+                    id: t.id, title: t.description || t.type, type: t.type, amount: t.amount,
+                    time: t.created_at, timestamp: new Date(t.created_at).getTime(), status: t.status
+                 })));
+             }
+           }
+       } catch (e: any) {
+           setError(e.message || JSON.stringify(e));
        }
     }
     setLoading(false);
@@ -65,6 +73,21 @@ const Wallet: React.FC = () => {
     if (activeTab === 'game') return a.type === 'game_win' || a.type === 'game_loss';
     return a.type === activeTab;
   });
+
+  const getTxConfig = (type: string) => {
+      switch (type) {
+          case 'deposit': return { icon: ArrowDownLeft, color: 'text-green-400', bg: 'bg-green-500/20' };
+          case 'withdraw': return { icon: ArrowUpRight, color: 'text-white', bg: 'bg-white/10' };
+          case 'earn': return { icon: Zap, color: 'text-yellow-400', bg: 'bg-yellow-500/20' };
+          case 'bonus': return { icon: Gift, color: 'text-purple-400', bg: 'bg-purple-500/20' };
+          case 'referral': return { icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/20' };
+          case 'game_win': return { icon: Trophy, color: 'text-neon-green', bg: 'bg-neon-green/20' };
+          case 'game_loss': return { icon: Gamepad2, color: 'text-red-400', bg: 'bg-red-500/20' };
+          case 'invest': return { icon: TrendingUp, color: 'text-blue-300', bg: 'bg-blue-500/10' };
+          case 'penalty': return { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10' };
+          default: return { icon: WalletIcon, color: 'text-gray-400', bg: 'bg-gray-500/20' };
+      }
+  };
 
   if (loading) {
     return (
@@ -115,16 +138,24 @@ const Wallet: React.FC = () => {
     );
   }
 
-  if (!wallet) return (
-    <div className="p-8 text-center">
-       <p className="text-gray-400 mb-4">Wallet not initialized.</p>
-       <button onClick={fetchData} className="px-4 py-2 bg-royal-600 rounded-lg text-white font-bold">Retry</button>
+  if (error || !wallet) return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
+       <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
+            <AlertCircle size={32} />
+       </div>
+       <div>
+           <h2 className="text-xl font-bold text-white">Wallet Error</h2>
+           <p className="text-gray-400 text-sm mb-4">{error || "Wallet not initialized."}</p>
+       </div>
+       <button onClick={fetchData} className="flex items-center gap-2 px-6 py-3 bg-royal-600 rounded-xl text-white font-bold hover:bg-royal-700 transition">
+           <RefreshCw size={18} /> Retry
+       </button>
     </div>
   );
 
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 relative">
-      <header className="flex justify-between items-end">
+      <header className="flex justify-between items-end px-4 sm:px-0">
          <div>
            <h1 className="text-2xl font-display font-bold text-white mb-1">My Wallet</h1>
            <p className="text-gray-400 text-sm flex items-center gap-2">
@@ -133,15 +164,15 @@ const Wallet: React.FC = () => {
          </div>
       </header>
 
-      <GlassCard glow className="bg-gradient-to-br from-slate-900 via-royal-900 to-slate-900 text-center py-8 relative overflow-hidden border-royal-500/30">
+      <GlassCard glow className="bg-gradient-to-br from-slate-900 via-royal-900 to-slate-900 text-center py-8 relative overflow-hidden border-royal-500/30 mx-4 sm:mx-0">
         <div className="relative z-10">
           <p className="text-royal-300 text-xs font-bold uppercase tracking-widest mb-2">Total Asset Balance</p>
           <h1 className="text-5xl font-display font-bold text-white mb-2 tracking-tighter">
-            ${wallet.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ${wallet.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h1>
           <div className="flex items-center justify-center gap-2 text-sm mb-8">
              <span className="text-gray-400">Withdrawable:</span>
-             <span className="text-white font-bold">${wallet.withdrawable.toFixed(2)}</span>
+             <span className="text-white font-bold">${wallet.withdrawable.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
           </div>
           
           <div className="grid grid-cols-2 gap-4 px-4 max-w-md mx-auto">
@@ -159,26 +190,26 @@ const Wallet: React.FC = () => {
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 px-4 sm:px-0">
         <div className="bg-white/5 rounded-xl p-3 border border-white/5">
             <p className="text-[10px] text-gray-400 uppercase mb-1">Lifetime Earned</p>
-            <p className="text-lg font-bold text-neon-glow">+${wallet.total_earning.toFixed(2)}</p>
+            <p className="text-lg font-bold text-neon-glow">+${wallet.total_earning.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
         </div>
          <div className="bg-white/5 rounded-xl p-3 border border-white/5">
             <p className="text-[10px] text-gray-400 uppercase mb-1">Referral Earn</p>
-            <p className="text-lg font-bold text-purple-400">+${(wallet.referral_earnings || 0).toFixed(2)}</p>
+            <p className="text-lg font-bold text-purple-400">+${(wallet.referral_earnings || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
         </div>
         <div className="bg-white/5 rounded-xl p-3 border border-white/5">
             <p className="text-[10px] text-gray-400 uppercase mb-1">Pending Withdraw</p>
-            <p className="text-lg font-bold text-yellow-400">${wallet.pending_withdraw.toFixed(2)}</p>
+            <p className="text-lg font-bold text-yellow-400">${wallet.pending_withdraw.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
         </div>
         <div className="bg-white/5 rounded-xl p-3 border border-white/5">
             <p className="text-[10px] text-gray-400 uppercase mb-1">Today's PNL</p>
-            <p className="text-lg font-bold text-white">+${wallet.today_earning.toFixed(2)}</p>
+            <p className="text-lg font-bold text-white">+${wallet.today_earning.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 px-4 sm:px-0">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
            {['all', 'deposit', 'withdraw', 'earn', 'game'].map((tab) => (
              <button
@@ -195,48 +226,49 @@ const Wallet: React.FC = () => {
 
         <div className="space-y-2">
            {filteredActivities.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 text-sm border border-dashed border-white/10 rounded-xl">
-                 No transactions found.
+              <div className="text-center py-12 text-gray-500 text-sm border border-dashed border-white/10 rounded-xl">
+                 <AlertCircle className="mx-auto mb-2 opacity-50" size={24} />
+                 No transactions found for this category.
               </div>
            ) : (
-             filteredActivities.map((tx) => (
+             filteredActivities.map((tx) => {
+                const config = getTxConfig(tx.type);
+                const isPositive = ['deposit', 'earn', 'bonus', 'game_win', 'referral'].includes(tx.type);
+                const date = new Date(tx.time);
+                
+                return (
                 <GlassCard key={tx.id} className="flex items-center justify-between py-3 px-4 group hover:bg-white/5 transition">
                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        tx.type === 'deposit' ? 'bg-green-500/20 text-green-500' :
-                        tx.type === 'withdraw' ? 'bg-white/10 text-white' :
-                        tx.type === 'game_loss' ? 'bg-red-500/10 text-red-500' :
-                        tx.type === 'penalty' ? 'bg-red-500/20 text-red-400' :
-                        tx.type === 'referral' ? 'bg-purple-500/20 text-purple-400' :
-                        'bg-blue-500/20 text-blue-400'
-                      }`}>
-                        {tx.type === 'deposit' ? <ArrowDownLeft size={18} /> :
-                         tx.type === 'withdraw' ? <ArrowUpRight size={18} /> :
-                         tx.type === 'game_loss' ? <ArrowUpRight size={18} className="rotate-45" /> :
-                         tx.type === 'penalty' ? <XCircle size={18} /> :
-                         tx.type === 'referral' ? <Users size={18} /> :
-                         <WalletIcon size={18} />
-                        }
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${config.bg} ${config.color}`}>
+                        <config.icon size={18} />
                       </div>
-                      <div>
-                        <h4 className="font-bold text-white text-sm capitalize">{tx.title}</h4>
-                        <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                           <span>{new Date(tx.time).toLocaleDateString()}</span>
-                           <span className={`uppercase ${tx.status === 'pending' ? 'text-yellow-400' : tx.status === 'failed' ? 'text-red-400' : 'text-green-400'}`}>
-                             {tx.status || 'Success'}
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-white text-sm capitalize truncate max-w-[150px] sm:max-w-none">{tx.title}</h4>
+                        <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
+                           <span className="flex items-center gap-1">
+                               {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                               <span className="w-0.5 h-0.5 bg-gray-500 rounded-full"></span>
+                               {date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                            </span>
+                           {tx.status && (
+                               <span className={`uppercase px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wide ${
+                                   tx.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' : 
+                                   tx.status === 'failed' ? 'bg-red-500/10 text-red-400' : 
+                                   'bg-green-500/10 text-green-400'
+                               }`}>
+                                 {tx.status}
+                               </span>
+                           )}
                         </div>
                       </div>
                    </div>
-                   <div className="text-right">
-                      <div className={`font-mono font-bold text-sm ${
-                        tx.type === 'deposit' || tx.type === 'earn' || tx.type === 'bonus' || tx.type === 'game_win' || tx.type === 'referral' ? 'text-green-400' : 'text-white'
-                      }`}>
-                        {tx.type === 'deposit' || tx.type === 'earn' || tx.type === 'bonus' || tx.type === 'game_win' || tx.type === 'referral' ? '+' : '-'}${tx.amount?.toFixed(2)}
+                   <div className="text-right shrink-0">
+                      <div className={`font-mono font-bold text-sm ${isPositive ? 'text-neon-green' : 'text-white'}`}>
+                        {isPositive ? '+' : '-'}${Math.abs(tx.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                    </div>
                 </GlassCard>
-             ))
+             )})
            )}
         </div>
       </div>

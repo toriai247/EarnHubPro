@@ -1,9 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import Loader from '../components/Loader';
 import Skeleton from '../components/Skeleton';
-import { Edit2, LogOut, Bell, Shield, Settings, Twitter, Send, LayoutDashboard, Copy, Award, Zap, CreditCard, Smartphone, Lock, ChevronRight, X, User as UserIcon, Crown, History, ArrowDownLeft, ArrowUpRight, Wallet as WalletIcon, Users, XCircle } from 'lucide-react';
+import { 
+  Edit2, LogOut, Bell, Shield, Settings, Twitter, Send, LayoutDashboard, 
+  Copy, Award, Zap, CreditCard, Smartphone, Lock, ChevronRight, X, 
+  User as UserIcon, Crown, History, ArrowDownLeft, ArrowUpRight, 
+  Wallet as WalletIcon, Users, XCircle, Camera, CheckCircle2, ShieldCheck
+} from 'lucide-react';
 import { UserProfile, WalletData, ReferralStats, Transaction } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import { useNavigate, Link } from 'react-router-dom';
@@ -11,15 +15,105 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BADGES } from '../constants';
 import { createUserProfile } from '../lib/actions';
 
+// --- COMPONENTS ---
+
+const LevelRing = ({ level, xp, nextThreshold, size = 120, children }: any) => {
+    const strokeWidth = 4;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const progress = Math.min(100, Math.max(0, (xp / nextThreshold) * 100));
+    const offset = circumference - (progress / 100) * circumference;
+
+    return (
+        <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+            {/* Background Ring */}
+            <svg className="absolute inset-0 transform -rotate-90" width={size} height={size}>
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    stroke="rgba(255, 255, 255, 0.1)"
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                />
+                {/* Progress Ring */}
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    stroke="url(#gradient)"
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={offset}
+                    strokeLinecap="round"
+                    style={{ transition: 'stroke-dashoffset 1s ease-in-out' }}
+                />
+                <defs>
+                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#3b82f6" />
+                        <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                </defs>
+            </svg>
+            
+            {/* Avatar Container */}
+            <div className="relative z-10 w-[calc(100%-16px)] h-[calc(100%-16px)] rounded-full overflow-hidden border-4 border-dark-950">
+                {children}
+            </div>
+
+            {/* Level Badge */}
+            <div className="absolute -bottom-2 bg-dark-900 border border-royal-500/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg z-20">
+                LVL {level}
+            </div>
+        </div>
+    );
+};
+
+const CyberCard = ({ balance, holder, number }: { balance: number, holder: string, number: string }) => (
+    <div className="relative w-full aspect-[1.586/1] rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 shadow-2xl group">
+        {/* Holographic Effect */}
+        <div className="absolute inset-0 opacity-30 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_100%] animate-shimmer"></div>
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/circuit-board.png')] opacity-20 mix-blend-overlay"></div>
+        
+        <div className="absolute inset-0 p-6 flex flex-col justify-between z-10">
+            <div className="flex justify-between items-start">
+                <div className="w-10 h-10 rounded-lg bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                    <Zap className="text-neon-green" fill="currentColor" size={20} />
+                </div>
+                <span className="text-royal-300 font-mono text-xs tracking-widest">EARNHUB PRO</span>
+            </div>
+
+            <div>
+                <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Asset Balance</p>
+                <h3 className="text-3xl font-display font-bold text-white tracking-tight text-shadow-glow">
+                    ${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </h3>
+            </div>
+
+            <div className="flex justify-between items-end">
+                <div>
+                    <p className="text-[9px] text-gray-500 uppercase mb-0.5">Card Holder</p>
+                    <p className="text-sm font-bold text-white uppercase tracking-wide">{holder || 'ANONYMOUS'}</p>
+                </div>
+                <p className="font-mono text-xs text-gray-400">**** {number.slice(0, 4)}</p>
+            </div>
+        </div>
+    </div>
+);
+
+// --- MAIN PAGE ---
+
 const Profile: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [referral, setReferral] = useState<ReferralStats | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'history' | 'security' | 'badges'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'history' | 'badges'>('overview');
   const navigate = useNavigate();
 
+  // Edit Form State
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name_1: '',
@@ -29,8 +123,6 @@ const Profile: React.FC = () => {
     twitter: '',
     telegram: ''
   });
-
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   useEffect(() => {
     fetchData();
@@ -54,35 +146,26 @@ const Profile: React.FC = () => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-            // Attempt to fetch profile first
             let { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
             
-            // Recover if missing
             if (!profileData) {
                 try {
                    await createUserProfile(session.user.id, session.user.email || '', session.user.user_metadata?.full_name || 'User');
                    const res = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
                    profileData = res.data;
-                } catch (e) {
-                   console.error("Recovery failed", e);
-                }
+                } catch (e) { console.error("Recovery failed", e); }
             }
 
-            if (profileData) {
-                setUser(profileData as UserProfile);
-            }
+            if (profileData) setUser(profileData as UserProfile);
 
-            // Fetch wallet and other stats
             const [walletRes, refCountRes, refEarnRes, txRes] = await Promise.allSettled([
                 supabase.from('wallets').select('*').eq('user_id', session.user.id).single(),
                 supabase.from('referrals').select('*', {count: 'exact', head: true}).eq('referrer_id', session.user.id),
                 supabase.from('referrals').select('earned').eq('referrer_id', session.user.id),
-                supabase.from('transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(20)
+                supabase.from('transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(15)
             ]);
 
-            if (walletRes.status === 'fulfilled' && walletRes.value.data) {
-                setWallet(walletRes.value.data as WalletData);
-            }
+            if (walletRes.status === 'fulfilled' && walletRes.value.data) setWallet(walletRes.value.data as WalletData);
 
             let count = 0;
             let totalEarned = 0;
@@ -97,45 +180,29 @@ const Profile: React.FC = () => {
                 totalEarned
             });
 
-            if (txRes.status === 'fulfilled' && txRes.value.data) {
-                setTransactions(txRes.value.data as Transaction[]);
-            }
+            if (txRes.status === 'fulfilled' && txRes.value.data) setTransactions(txRes.value.data as Transaction[]);
         }
-    } catch (e) {
-        console.error(e);
-    } finally {
-        setLoading(false);
-    }
+    } catch (e) { console.error(e); } 
+    finally { setLoading(false); }
   };
 
   const handleUpdateProfile = async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase
-          .from('profiles')
+      const { data, error } = await supabase.from('profiles')
           .update({
             name_1: editForm.name_1,
             avatar_1: editForm.avatar_1,
             bio_1: editForm.bio_1,
             phone_1: editForm.phone_1,
-            socials_1: {
-              twitter: editForm.twitter,
-              telegram: editForm.telegram,
-              discord: user.socials_1?.discord || ''
-            }
+            socials_1: { twitter: editForm.twitter, telegram: editForm.telegram, discord: user.socials_1?.discord || '' }
           })
-          .eq('id', user.id)
-          .select()
-          .single();
+          .eq('id', user.id).select().single();
 
       if (error) throw error;
-
       setUser(data as UserProfile);
       setIsEditing(false);
-      alert("Profile updated successfully!");
-    } catch (e: any) {
-      alert(e.message || "An error occurred while updating.");
-    }
+    } catch (e: any) { alert(e.message); }
   };
 
   const handleLogout = async () => {
@@ -145,410 +212,347 @@ const Profile: React.FC = () => {
 
   const copyToClipboard = (text: string) => {
       navigator.clipboard.writeText(text);
-      alert('Copied to clipboard!');
+      // Could use a toast here
   };
+
+  const nextLevelThreshold = (user?.level_1 || 1) * 500;
 
   if (loading) {
       return (
-          <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 relative">
-              {/* Header Skeleton */}
-              <div className="h-48 w-full bg-white/5 border-b border-white/5 rounded-b-3xl"></div>
-              <div className="px-4 -mt-16 relative z-10">
-                  <div className="rounded-2xl bg-white/5 border border-white/5 p-5 flex flex-col items-center pt-12">
-                      <Skeleton variant="circular" className="absolute -top-12 w-24 h-24" />
-                      <Skeleton variant="text" className="w-40 h-8 mt-4" />
-                      <Skeleton variant="text" className="w-24 h-4 mt-2" />
-                      <div className="flex gap-2 mt-4">
-                          <Skeleton variant="rectangular" className="w-24 h-8" />
-                          <Skeleton variant="rectangular" className="w-24 h-8" />
-                      </div>
-                  </div>
+          <div className="pb-24 sm:pl-20 sm:pt-6 px-4 space-y-6">
+              <div className="flex flex-col items-center pt-10">
+                  <Skeleton variant="circular" className="w-32 h-32" />
+                  <Skeleton variant="text" className="w-48 h-8 mt-4" />
+                  <Skeleton variant="text" className="w-24 h-4 mt-2" />
               </div>
-              
-              {/* Tabs Skeleton */}
-              <div className="flex gap-2 px-4">
-                  {[1,2,3,4].map(i => <Skeleton key={i} variant="rectangular" className="w-24 h-10" />)}
-              </div>
-
-              {/* Content Skeleton */}
-              <div className="px-4 space-y-4">
-                  <div className="rounded-2xl bg-white/5 border border-white/5 p-5 space-y-4">
-                      <Skeleton variant="text" className="w-32" />
-                      <Skeleton variant="text" className="w-full h-16" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                      <Skeleton variant="rectangular" className="h-32" />
-                      <Skeleton variant="rectangular" className="h-32" />
-                  </div>
+              <Skeleton variant="rectangular" className="w-full h-40" />
+              <div className="grid grid-cols-2 gap-4">
+                  <Skeleton variant="rectangular" className="h-24" />
+                  <Skeleton variant="rectangular" className="h-24" />
               </div>
           </div>
       );
   }
 
-  if (!user || !wallet) return <div className="p-8 text-center">
-      <p className="text-gray-400 mb-2">Error loading profile.</p>
-      <button onClick={fetchData} className="px-4 py-2 bg-royal-600 rounded-lg text-white text-sm">Retry</button>
-  </div>;
-
-  const getRankColor = (rank: string) => {
-    switch(rank?.toLowerCase()) {
-      case 'gold': return 'from-yellow-400 to-yellow-600';
-      case 'platinum': return 'from-cyan-400 to-blue-600';
-      case 'diamond': return 'from-purple-400 to-pink-600';
-      default: return 'from-orange-400 to-red-500'; // Bronze
-    }
-  };
-
-  const nextLevelThreshold = (user.level_1 || 1) * 500;
-  const xpProgress = Math.min(100, (user.xp_1 / nextLevelThreshold) * 100);
+  if (!user || !wallet) return null;
 
   return (
-    <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 relative">
-      {/* Header Cover */}
-      <div className="h-48 w-full bg-gradient-to-r from-royal-900 to-dark-950 relative overflow-hidden rounded-b-3xl shadow-2xl border-b border-white/5">
-         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-         <div className={`absolute top-4 right-4 px-3 py-1 rounded-full bg-gradient-to-r ${getRankColor(user.rank_1)} text-xs font-bold text-white shadow-lg uppercase tracking-wider flex items-center gap-1`}>
-            <Award size={12} /> {user.rank_1 || 'Member'}
-         </div>
-      </div>
-
-      {/* Profile Header Card */}
-      <div className="px-4 -mt-16 relative z-10">
-         <GlassCard className="flex flex-col items-center pt-12 pb-6 relative overflow-visible">
-             <div className="absolute -top-12 w-24 h-24 rounded-full p-1 bg-dark-900 shadow-xl">
-                <img 
-                  src={user.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name_1}`} 
-                  alt="Profile" 
-                  className="w-full h-full rounded-full object-cover bg-royal-800"
-                />
+    <div className="pb-24 sm:pl-20 sm:pt-6 min-h-screen relative overflow-x-hidden">
+        {/* Background FX */}
+        <div className="fixed top-0 left-0 w-full h-[50vh] bg-gradient-to-b from-royal-900/20 to-transparent pointer-events-none z-0"></div>
+        
+        {/* --- PROFILE HEADER --- */}
+        <div className="relative z-10 flex flex-col items-center pt-8 pb-6 px-4 text-center">
+            <div className="relative group">
+                <LevelRing level={user.level_1} xp={user.xp_1} nextThreshold={nextLevelThreshold}>
+                    <img 
+                        src={user.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name_1}`} 
+                        alt="User" 
+                        className="w-full h-full object-cover bg-black/50"
+                    />
+                </LevelRing>
                 <button 
-                   onClick={() => setIsEditing(true)}
-                   className="absolute bottom-0 right-0 bg-neon-green text-black p-1.5 rounded-full shadow-lg hover:scale-110 transition"
+                    onClick={() => setIsEditing(true)}
+                    className="absolute bottom-0 right-0 p-2 bg-white text-black rounded-full shadow-lg hover:scale-110 transition"
                 >
-                   <Edit2 size={14} />
+                    <Edit2 size={14} />
                 </button>
-             </div>
-             
-             <h1 className="text-2xl font-display font-bold text-white mt-2">{user.name_1}</h1>
-             <p className="text-gray-400 text-sm mb-2">@{user.email_1.split('@')[0]}</p>
-             
-             <div className="flex items-center gap-3 mt-2">
-                {user.is_kyc_1 ? (
-                    <span className="px-3 py-1 rounded-lg bg-green-500/10 text-green-400 text-xs font-bold border border-green-500/20 flex items-center gap-1">
-                        <Shield size={12} /> KYC Verified
-                    </span>
-                ) : (
-                    <span className="px-3 py-1 rounded-lg bg-red-500/10 text-red-400 text-xs font-bold border border-red-500/20 flex items-center gap-1">
-                        <Shield size={12} /> Not Verified
-                    </span>
+            </div>
+
+            <h1 className="text-2xl font-display font-bold text-white mt-3 mb-1">{user.name_1}</h1>
+            <div className="flex items-center gap-2 mb-4">
+                <span className="text-xs text-royal-300">@{user.email_1.split('@')[0]}</span>
+                {user.is_kyc_1 && <ShieldCheck size={14} className="text-green-400" />}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex gap-3">
+                <Link to="/admin" className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white transition">
+                    <LayoutDashboard size={20} />
+                </Link>
+                <button onClick={() => navigate('/support')} className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white transition">
+                    <Settings size={20} />
+                </button>
+                <button onClick={handleLogout} className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition">
+                    <LogOut size={20} />
+                </button>
+            </div>
+        </div>
+
+        {/* --- TAB NAVIGATION --- */}
+        <div className="sticky top-0 z-30 bg-dark-950/80 backdrop-blur-md border-b border-white/5 px-4 mb-6">
+            <div className="flex overflow-x-auto no-scrollbar gap-6">
+                {[
+                    { id: 'overview', label: 'Overview' },
+                    { id: 'wallet', label: 'Wallet' },
+                    { id: 'history', label: 'History' },
+                    { id: 'badges', label: 'Badges' },
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`py-4 text-sm font-bold relative transition-colors ${
+                            activeTab === tab.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        {tab.label}
+                        {activeTab === tab.id && (
+                            <motion.div 
+                                layoutId="activeTab"
+                                className="absolute bottom-0 left-0 right-0 h-0.5 bg-neon-green shadow-[0_0_10px_#10b981]"
+                            />
+                        )}
+                    </button>
+                ))}
+            </div>
+        </div>
+
+        {/* --- CONTENT AREA --- */}
+        <div className="px-4 relative z-10 min-h-[400px]">
+            <AnimatePresence mode="wait">
+                
+                {/* OVERVIEW TAB */}
+                {activeTab === 'overview' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+                        
+                        {/* Bio Card */}
+                        <GlassCard className="relative overflow-hidden">
+                            <div className="flex justify-between items-start mb-2">
+                                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                    <UserIcon size={16} className="text-royal-400"/> Bio
+                                </h3>
+                            </div>
+                            <p className="text-sm text-gray-400 italic leading-relaxed">
+                                "{user.bio_1 || "Digital nomad earning on EarnHub Pro."}"
+                            </p>
+                        </GlassCard>
+
+                        {/* Stats Grid (Bento) */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <GlassCard className="bg-gradient-to-br from-royal-900/40 to-transparent border-royal-500/20">
+                                <p className="text-[10px] text-royal-300 font-bold uppercase mb-1">Current Rank</p>
+                                <div className="flex items-center gap-2">
+                                    <Crown size={24} className="text-yellow-400 drop-shadow-md" />
+                                    <span className="text-xl font-bold text-white">{user.rank_1 || 'Member'}</span>
+                                </div>
+                            </GlassCard>
+                            
+                            <GlassCard className="bg-gradient-to-br from-green-900/40 to-transparent border-green-500/20">
+                                <p className="text-[10px] text-green-300 font-bold uppercase mb-1">Referrals</p>
+                                <div className="flex items-center gap-2">
+                                    <Users size={24} className="text-green-400 drop-shadow-md" />
+                                    <span className="text-xl font-bold text-white">{referral?.invitedUsers}</span>
+                                </div>
+                            </GlassCard>
+
+                            <GlassCard className="col-span-2 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Next Level Progress</p>
+                                    <p className="text-sm text-white"><span className="font-bold text-neon-green">{user.xp_1}</span> / {nextLevelThreshold} XP</p>
+                                </div>
+                                <div className="w-24 h-2 bg-white/10 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-royal-500 to-neon-green" 
+                                        style={{ width: `${Math.min(100, (user.xp_1 / nextLevelThreshold) * 100)}%` }}
+                                    ></div>
+                                </div>
+                            </GlassCard>
+                        </div>
+
+                        {/* Socials */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <a href={user.socials_1?.twitter || '#'} target="_blank" className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-blue-500/20 hover:border-blue-500/30 transition group">
+                                <Twitter size={18} className="text-gray-400 group-hover:text-blue-400" />
+                                <span className="text-sm font-medium text-gray-300 group-hover:text-white">Twitter</span>
+                            </a>
+                            <a href={user.socials_1?.telegram || '#'} target="_blank" className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-cyan-500/20 hover:border-cyan-500/30 transition group">
+                                <Send size={18} className="text-gray-400 group-hover:text-cyan-400" />
+                                <span className="text-sm font-medium text-gray-300 group-hover:text-white">Telegram</span>
+                            </a>
+                        </div>
+                    </motion.div>
                 )}
-                <span className="px-3 py-1 rounded-lg bg-royal-500/10 text-royal-400 text-xs font-bold border border-royal-500/20 flex items-center gap-1">
-                    <Crown size={12} /> Lvl {user.level_1}
-                </span>
-             </div>
-         </GlassCard>
-      </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex overflow-x-auto px-4 pb-2 gap-2 no-scrollbar">
-         {['overview', 'wallet', 'history', 'security', 'badges'].map((tab) => (
-             <button
-               key={tab}
-               onClick={() => setActiveTab(tab as any)}
-               className={`px-5 py-2.5 rounded-xl text-sm font-bold capitalize transition whitespace-nowrap ${
-                 activeTab === tab ? 'bg-royal-600 text-white shadow-lg shadow-royal-600/30' : 'bg-white/5 text-gray-400 hover:bg-white/10'
-               }`}
-             >
-               {tab}
-             </button>
-         ))}
-      </div>
+                {/* WALLET TAB */}
+                {activeTab === 'wallet' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                        <CyberCard 
+                            balance={wallet.balance} 
+                            holder={user.name_1 || ''} 
+                            number={user.id} 
+                        />
 
-      {/* Content Area */}
-      <div className="px-4 min-h-[300px]">
-        <AnimatePresence mode="wait">
-            {activeTab === 'overview' && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
-                    <GlassCard className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <h3 className="font-bold text-white">Bio</h3>
-                            <button onClick={() => setIsEditing(true)} className="text-xs text-royal-400 hover:text-white">Edit</button>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Link to="/deposit" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-neon-green/10 border border-neon-green/30 text-neon-green hover:bg-neon-green hover:text-black transition duration-300 group">
+                                <div className="w-10 h-10 rounded-full bg-neon-green/20 flex items-center justify-center mb-2 group-hover:bg-black/20">
+                                    <ArrowDownLeft size={20} />
+                                </div>
+                                <span className="font-bold text-sm">Deposit</span>
+                            </Link>
+                            <Link to="/withdraw" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/20 transition duration-300">
+                                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center mb-2">
+                                    <ArrowUpRight size={20} />
+                                </div>
+                                <span className="font-bold text-sm">Withdraw</span>
+                            </Link>
                         </div>
-                        <p className="text-sm text-gray-400 italic">
-                            {user.bio_1 || "No bio added yet. Tell us about yourself!"}
-                        </p>
-                    </GlassCard>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <GlassCard>
-                            <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Zap className="text-yellow-400" size={18}/> Stats</h3>
-                            <div className="space-y-3">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Level</span>
-                                    <span className="text-white font-bold">{user.level_1}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">XP Points</span>
-                                    <span className="text-white font-bold">{user.xp_1 || 0} XP</span>
-                                </div>
-                                
-                                <div className="pt-2 mt-2 border-t border-white/10">
-                                    <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                                        <span>Next Level</span>
-                                        <span>{user.xp_1} / {nextLevelThreshold}</span>
-                                    </div>
-                                    <div className="w-full h-2 bg-black/30 rounded-full overflow-hidden border border-white/5">
-                                        <div className="h-full bg-gradient-to-r from-royal-500 to-yellow-500 rounded-full transition-all duration-500" style={{ width: `${xpProgress}%` }}></div>
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-between text-sm mt-2">
-                                    <span className="text-gray-400">Referrals</span>
-                                    <span className="text-white font-bold">{referral?.invitedUsers}</span>
-                                </div>
-                            </div>
-                        </GlassCard>
 
                         <GlassCard>
-                            <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Smartphone className="text-blue-400" size={18}/> Contact</h3>
-                            <div className="space-y-3">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Email</span>
-                                    <span className="text-white truncate max-w-[150px]">{user.email_1}</span>
+                            <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                                <Users size={16} className="text-purple-400"/> Referral Earnings
+                            </h3>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-2xl font-bold text-white">${referral?.totalEarned.toFixed(2)}</p>
+                                    <p className="text-xs text-gray-500">From {referral?.invitedUsers} friends</p>
                                 </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Phone</span>
-                                    <span className="text-white">{user.phone_1 || 'Not set'}</span>
-                                </div>
-                                <div className="flex justify-between text-sm items-center pt-2">
-                                    <span className="text-gray-400">Socials</span>
-                                    <div className="flex gap-2">
-                                        {user.socials_1?.twitter && <a href={user.socials_1.twitter} target="_blank" className="p-1.5 bg-blue-500/20 text-blue-400 rounded-lg"><Twitter size={14}/></a>}
-                                        {user.socials_1?.telegram && <a href={user.socials_1.telegram} target="_blank" className="p-1.5 bg-cyan-500/20 text-cyan-400 rounded-lg"><Send size={14}/></a>}
-                                        <button onClick={() => setIsEditing(true)} className="p-1.5 bg-white/10 text-gray-400 rounded-lg hover:text-white"><Edit2 size={14}/></button>
-                                    </div>
-                                </div>
+                                <button 
+                                    onClick={() => copyToClipboard(user.ref_code_1)}
+                                    className="px-4 py-2 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-lg text-xs font-bold hover:bg-purple-500/30 transition flex items-center gap-2"
+                                >
+                                    <Copy size={14} /> {user.ref_code_1}
+                                </button>
                             </div>
                         </GlassCard>
-                    </div>
-                    
-                    <Link to="/admin" className="block">
-                         <GlassCard className="bg-gradient-to-r from-royal-900/50 to-transparent border-royal-500/30 hover:border-neon-green/50 transition group">
-                             <div className="flex items-center justify-between">
-                                 <div className="flex items-center gap-3">
-                                     <div className="p-2 bg-royal-600 rounded-lg text-white group-hover:bg-neon-green group-hover:text-black transition"><LayoutDashboard size={20}/></div>
-                                     <div>
-                                         <h4 className="font-bold text-white">Admin Panel</h4>
-                                         <p className="text-xs text-gray-400">Manage system settings</p>
-                                     </div>
-                                 </div>
-                                 <ChevronRight className="text-gray-500 group-hover:text-white" size={20} />
-                             </div>
-                         </GlassCard>
-                    </Link>
-                </motion.div>
-            )}
+                    </motion.div>
+                )}
 
-            {activeTab === 'wallet' && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
-                    <GlassCard className="bg-gradient-royal relative overflow-hidden">
-                         <div className="relative z-10">
-                             <p className="text-xs text-royal-300 uppercase font-bold mb-1">Total Net Worth</p>
-                             <h2 className="text-4xl font-display font-bold text-white mb-4">${wallet.balance.toFixed(2)}</h2>
-                             <div className="grid grid-cols-2 gap-4">
-                                 <div className="bg-black/20 p-3 rounded-xl">
-                                     <p className="text-[10px] text-gray-400 uppercase">Lifetime Earnings</p>
-                                     <p className="text-lg font-bold text-neon-green">+${wallet.total_earning.toFixed(2)}</p>
-                                 </div>
-                                 <div className="bg-black/20 p-3 rounded-xl">
-                                     <p className="text-[10px] text-gray-400 uppercase">Pending Withdraw</p>
-                                     <p className="text-lg font-bold text-yellow-400">${wallet.pending_withdraw.toFixed(2)}</p>
-                                 </div>
-                             </div>
-                         </div>
-                         <CreditCard className="absolute -right-6 -bottom-6 text-white/5 w-48 h-48 rotate-12" />
-                    </GlassCard>
-                    
-                    <GlassCard>
-                         <h3 className="font-bold text-white mb-3">Referral Earnings</h3>
-                         <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl mb-3 border border-white/5">
-                             <div className="flex items-center gap-3">
-                                 <div className="p-2 bg-purple-500/20 text-purple-400 rounded-lg"><UserIcon size={18}/></div>
-                                 <div>
-                                     <p className="text-sm font-bold text-white">My Network</p>
-                                     <p className="text-xs text-gray-500">{referral?.invitedUsers} active users</p>
-                                 </div>
-                             </div>
-                             <p className="font-bold text-neon-green text-lg">+${referral?.totalEarned.toFixed(2)}</p>
-                         </div>
-                         <button onClick={() => copyToClipboard(user.ref_code_1)} className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-bold text-gray-300 hover:bg-white/10 flex items-center justify-center gap-2 transition">
-                             <Copy size={16} /> Copy Referral Code
-                         </button>
-                    </GlassCard>
-                </motion.div>
-            )}
-
-            {activeTab === 'history' && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
-                    <div className="flex items-center gap-2 text-white mb-2">
-                         <History size={18} className="text-neon-green"/> <h3 className="font-bold">Transaction History</h3>
-                    </div>
-                    {transactions.length === 0 ? (
-                        <div className="text-center py-10 bg-white/5 rounded-xl border border-white/5 text-gray-500">
-                            No transactions found.
-                        </div>
-                    ) : (
-                        transactions.map(tx => (
-                            <GlassCard key={tx.id} className="flex items-center justify-between py-3 px-4 hover:bg-white/5 transition">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                        tx.type === 'deposit' ? 'bg-green-500/20 text-green-500' :
-                                        tx.type === 'withdraw' ? 'bg-white/10 text-white' :
-                                        tx.type === 'game_loss' ? 'bg-red-500/10 text-red-500' :
-                                        tx.type === 'penalty' ? 'bg-red-500/20 text-red-400' :
-                                        tx.type === 'referral' ? 'bg-purple-500/20 text-purple-400' :
-                                        'bg-blue-500/20 text-blue-400'
-                                    }`}>
-                                        {tx.type === 'deposit' ? <ArrowDownLeft size={18} /> :
-                                         tx.type === 'withdraw' ? <ArrowUpRight size={18} /> :
-                                         tx.type === 'game_loss' ? <ArrowUpRight size={18} className="rotate-45" /> :
-                                         tx.type === 'penalty' ? <XCircle size={18} /> :
-                                         tx.type === 'referral' ? <Users size={18} /> :
-                                         <WalletIcon size={18} />
-                                        }
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-bold text-white capitalize">{tx.description || tx.type.replace('_', ' ')}</p>
-                                        <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                                            <span>{new Date(tx.created_at).toLocaleDateString()}</span>
-                                            <span className={`uppercase ${tx.status === 'pending' ? 'text-yellow-400' : tx.status === 'failed' ? 'text-red-400' : 'text-green-400'}`}>
-                                                {tx.status || 'Success'}
-                                            </span>
+                {/* HISTORY TAB */}
+                {activeTab === 'history' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
+                        {transactions.length === 0 ? (
+                            <div className="text-center py-12 text-gray-500">No transactions yet.</div>
+                        ) : (
+                            transactions.map((tx) => (
+                                <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                            tx.type === 'deposit' ? 'bg-green-500/20 text-green-400' :
+                                            tx.type === 'withdraw' ? 'bg-white/10 text-white' :
+                                            tx.type.includes('game') ? 'bg-purple-500/20 text-purple-400' :
+                                            'bg-blue-500/20 text-blue-400'
+                                        }`}>
+                                            {tx.type === 'deposit' ? <ArrowDownLeft size={18}/> : 
+                                             tx.type === 'withdraw' ? <ArrowUpRight size={18}/> : 
+                                             <WalletIcon size={18}/>}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-white capitalize">{tx.type.replace('_', ' ')}</p>
+                                            <p className="text-[10px] text-gray-500">{new Date(tx.created_at).toLocaleDateString()}</p>
                                         </div>
                                     </div>
+                                    <span className={`font-mono font-bold text-sm ${
+                                        ['deposit', 'earn', 'bonus', 'game_win', 'referral'].includes(tx.type) ? 'text-neon-green' : 'text-white'
+                                    }`}>
+                                        {['deposit', 'earn', 'bonus', 'game_win', 'referral'].includes(tx.type) ? '+' : '-'}${tx.amount.toFixed(2)}
+                                    </span>
                                 </div>
-                                <div className={`font-mono font-bold text-sm ${
-                                    tx.type === 'deposit' || tx.type === 'earn' || tx.type === 'bonus' || tx.type === 'game_win' || tx.type === 'referral' ? 'text-green-400' : 'text-white'
-                                }`}>
-                                    {tx.type === 'deposit' || tx.type === 'earn' || tx.type === 'bonus' || tx.type === 'game_win' || tx.type === 'referral' ? '+' : '-'}${tx.amount.toFixed(2)}
-                                </div>
-                            </GlassCard>
-                        ))
-                    )}
-                </motion.div>
-            )}
+                            ))
+                        )}
+                    </motion.div>
+                )}
 
-            {activeTab === 'security' && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
-                    <GlassCard className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-red-500/10 rounded-lg text-red-400"><Lock size={20}/></div>
-                                <div>
-                                    <h4 className="font-bold text-white text-sm">Two-Factor Auth</h4>
-                                    <p className="text-xs text-gray-500">Secure your account</p>
+                {/* BADGES TAB */}
+                {activeTab === 'badges' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-2 gap-3">
+                        {BADGES.map(badge => {
+                            const isEarned = (user.badges_1 || []).includes(badge.id) || badge.id === 'early_adopter';
+                            return (
+                                <div key={badge.id} className={`p-4 rounded-xl border flex flex-col items-center text-center transition-all ${
+                                    isEarned ? 'bg-gradient-to-b from-white/10 to-transparent border-neon-green/30' : 'bg-white/5 border-white/5 opacity-50 grayscale'
+                                }`}>
+                                    <div className="text-3xl mb-2 drop-shadow-lg">{badge.icon}</div>
+                                    <h4 className="font-bold text-white text-xs">{badge.name}</h4>
+                                    {isEarned && <span className="mt-1 text-[9px] bg-neon-green text-black px-1.5 py-0.5 rounded font-bold">UNLOCKED</span>}
                                 </div>
-                            </div>
-                            <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${user.sec_2fa_1 ? 'bg-neon-green' : 'bg-gray-700'}`}>
-                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${user.sec_2fa_1 ? 'left-7' : 'left-1'}`}></div>
-                            </div>
+                            )
+                        })}
+                    </motion.div>
+                )}
+
+            </AnimatePresence>
+        </div>
+
+        {/* --- EDIT PROFILE SLIDE-UP DRAWER --- */}
+        <AnimatePresence>
+            {isEditing && (
+                <div className="fixed inset-0 z-50 flex justify-end sm:items-center sm:justify-center">
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                        onClick={() => setIsEditing(false)}
+                    />
+                    <motion.div 
+                        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                        className="relative z-10 w-full sm:max-w-md bg-dark-900 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 max-h-[85vh] overflow-y-auto custom-scrollbar"
+                    >
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-white">Edit Profile</h2>
+                            <button onClick={() => setIsEditing(false)} className="p-2 bg-white/5 rounded-full text-gray-400 hover:text-white transition"><X size={20}/></button>
                         </div>
-                        <div className="h-px bg-white/5"></div>
-                        <div className="flex items-center justify-between">
-                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400"><Bell size={20}/></div>
-                                <div>
-                                    <h4 className="font-bold text-white text-sm">Notifications</h4>
-                                    <p className="text-xs text-gray-500">Email alerts</p>
+
+                        <div className="space-y-4">
+                            <div className="text-center mb-4">
+                                <div className="w-20 h-20 mx-auto rounded-full bg-black border-2 border-white/10 relative overflow-hidden group">
+                                    <img src={editForm.avatar_1 || user.avatar_1 || ''} alt="" className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                        <Camera size={20} className="text-white"/>
+                                    </div>
                                 </div>
-                             </div>
-                             <button onClick={() => setNotificationsEnabled(!notificationsEnabled)} className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${notificationsEnabled ? 'bg-neon-green' : 'bg-gray-700'}`}>
-                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${notificationsEnabled ? 'left-7' : 'left-1'}`}></div>
+                                <p className="text-[10px] text-gray-500 mt-2">Avatar updates via URL</p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <input 
+                                    type="text" 
+                                    value={editForm.name_1} 
+                                    onChange={e => setEditForm({...editForm, name_1: e.target.value})} 
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none transition"
+                                    placeholder="Display Name"
+                                />
+                                <input 
+                                    type="text" 
+                                    value={editForm.avatar_1} 
+                                    onChange={e => setEditForm({...editForm, avatar_1: e.target.value})} 
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none transition"
+                                    placeholder="Avatar URL (https://...)"
+                                />
+                                <textarea 
+                                    value={editForm.bio_1} 
+                                    onChange={e => setEditForm({...editForm, bio_1: e.target.value})} 
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none transition resize-none h-24"
+                                    placeholder="Your Bio..."
+                                />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input 
+                                        type="text" 
+                                        value={editForm.twitter} 
+                                        onChange={e => setEditForm({...editForm, twitter: e.target.value})} 
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none"
+                                        placeholder="Twitter URL"
+                                    />
+                                    <input 
+                                        type="text" 
+                                        value={editForm.telegram} 
+                                        onChange={e => setEditForm({...editForm, telegram: e.target.value})} 
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none"
+                                        placeholder="Telegram URL"
+                                    />
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={handleUpdateProfile} 
+                                className="w-full py-4 mt-4 bg-neon-green text-black font-bold rounded-xl hover:scale-[1.02] transition flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                            >
+                                <CheckCircle2 size={18} /> Save Changes
                             </button>
                         </div>
-                    </GlassCard>
-
-                    <div className="space-y-2 pt-2">
-                        <button onClick={handleLogout} className="w-full py-4 rounded-xl bg-red-500/10 text-red-500 font-bold border border-red-500/20 hover:bg-red-500/20 transition flex items-center justify-center gap-2">
-                            <LogOut size={18} /> Sign Out
-                        </button>
-                    </div>
-                </motion.div>
-            )}
-
-            {activeTab === 'badges' && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-2 gap-4">
-                    {BADGES.map(badge => {
-                        const isEarned = (user.badges_1 || []).includes(badge.id) || badge.id === 'early_adopter'; // Demo logic
-                        return (
-                            <GlassCard key={badge.id} className={`text-center transition-all duration-300 ${isEarned ? 'border-neon-green/30 bg-neon-green/5' : 'opacity-50 grayscale'}`}>
-                                <div className="text-4xl mb-2 filter drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">{badge.icon}</div>
-                                <h4 className="font-bold text-white text-sm">{badge.name}</h4>
-                                <p className="text-[10px] text-gray-400 mt-1">{badge.description}</p>
-                                {isEarned && <div className="mt-2 text-[10px] font-bold text-neon-green uppercase tracking-wider">Earned</div>}
-                            </GlassCard>
-                        )
-                    })}
-                </motion.div>
+                    </motion.div>
+                </div>
             )}
         </AnimatePresence>
-      </div>
-
-      {/* Edit Profile Modal */}
-      <AnimatePresence>
-        {isEditing && (
-            <motion.div 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-            >
-                <motion.div 
-                   initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-                   className="bg-dark-900 border border-white/10 w-full max-w-md rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto custom-scrollbar"
-                >
-                    <button onClick={() => setIsEditing(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={20}/></button>
-                    <h2 className="text-xl font-bold text-white mb-6">Edit Profile</h2>
-                    
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-xs text-gray-400 font-bold mb-1 block">Full Name</label>
-                            <input type="text" value={editForm.name_1} onChange={e => setEditForm({...editForm, name_1: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" />
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 font-bold mb-1 block">Bio</label>
-                            <textarea value={editForm.bio_1} onChange={e => setEditForm({...editForm, bio_1: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none h-20 resize-none" />
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 font-bold mb-1 block">Avatar URL</label>
-                            <div className="flex gap-2">
-                                <input type="text" value={editForm.avatar_1} onChange={e => setEditForm({...editForm, avatar_1: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" placeholder="https://..." />
-                                <div className="w-12 h-12 bg-black/30 rounded-lg shrink-0 flex items-center justify-center border border-white/10">
-                                    <img src={editForm.avatar_1 || user.avatar_1 || ''} className="w-full h-full object-cover rounded-lg" alt="" onError={(e:any) => e.target.style.display='none'} />
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 font-bold mb-1 block">Phone Number</label>
-                            <input type="tel" value={editForm.phone_1} onChange={e => setEditForm({...editForm, phone_1: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" placeholder="+1 234..." />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs text-gray-400 font-bold mb-1 block">Twitter (X)</label>
-                                <input type="text" value={editForm.twitter} onChange={e => setEditForm({...editForm, twitter: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" placeholder="https://x.com/..." />
-                            </div>
-                            <div>
-                                <label className="text-xs text-gray-400 font-bold mb-1 block">Telegram</label>
-                                <input type="text" value={editForm.telegram} onChange={e => setEditForm({...editForm, telegram: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" placeholder="https://t.me/..." />
-                            </div>
-                        </div>
-
-                        <button onClick={handleUpdateProfile} className="w-full py-4 bg-neon-green text-black font-bold rounded-xl hover:scale-[1.02] transition mt-4">
-                            Save Changes
-                        </button>
-                    </div>
-                </motion.div>
-            </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

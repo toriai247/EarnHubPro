@@ -49,6 +49,7 @@ const Tasks: React.FC = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [claimStatus, setClaimStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
   const [taskStarted, setTaskStarted] = useState(false);
+  const [recentlyCompleted, setRecentlyCompleted] = useState<string | null>(null);
 
   useEffect(() => {
      fetchTasks();
@@ -113,10 +114,15 @@ const Tasks: React.FC = () => {
                   // Update local list
                   setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, status: 'completed' } : t));
                   
+                  // Trigger animation on list item
+                  setRecentlyCompleted(selectedTask.id);
+                  
                   setTimeout(() => {
                       setClaimStatus('idle');
                       setSelectedTask(null);
                       setTaskStarted(false);
+                      // Clear animation after delay
+                      setTimeout(() => setRecentlyCompleted(null), 2500);
                   }, 2000);
               } catch (e) {
                   console.error(e);
@@ -171,20 +177,27 @@ const Tasks: React.FC = () => {
           {tasks.map((task) => {
              const isCompleted = task.status === 'completed';
              const isDaily = task.frequency === 'daily';
+             const isRecent = recentlyCompleted === task.id;
              
              return (
                 <motion.div
                    key={task.id}
                    layout
                    initial={{ opacity: 0, y: 10 }}
-                   animate={{ opacity: 1, y: 0 }}
+                   animate={{ 
+                       opacity: 1, 
+                       y: 0, 
+                       scale: isRecent ? 1.02 : 1,
+                   }}
                    className="rounded-2xl"
                 >
                      <GlassCard 
-                       className={`flex items-center justify-between p-4 transition-all duration-300 group ${
-                           isCompleted 
-                             ? isDaily ? 'cursor-default border-yellow-500/30 bg-yellow-500/5' : 'cursor-default border-neon-green/30 bg-neon-green/5' 
-                             : 'cursor-pointer hover:bg-white/5'
+                       className={`flex items-center justify-between p-4 transition-all duration-500 group ${
+                           isRecent 
+                             ? 'border-neon-green bg-neon-green/10 shadow-[0_0_20px_rgba(16,185,129,0.2)]' 
+                             : isCompleted 
+                               ? isDaily ? 'cursor-default border-yellow-500/30 bg-yellow-500/5' : 'cursor-default border-neon-green/30 bg-neon-green/5' 
+                               : 'cursor-pointer hover:bg-white/5'
                        }`}
                        onClick={() => !isCompleted && setSelectedTask(task)}
                      >

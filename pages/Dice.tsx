@@ -1,12 +1,71 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Dices, Volume2, VolumeX, Zap, History, ArrowLeft, Trophy, Settings2, Percent } from 'lucide-react';
+import { Dices, Volume2, VolumeX, Zap, ArrowLeft, Trophy, ArrowDown, ArrowUp, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../integrations/supabase/client';
 import { WalletData, GameResult } from '../types';
 import { processGameResult, updateWallet } from '../lib/actions';
+
+// --- ADVANCED 3D CUBE COMPONENT ---
+const CyberCube = ({ spinning }: { spinning: boolean }) => {
+  return (
+    <div className="w-32 h-32 mx-auto mb-8 relative perspective-[1000px] flex items-center justify-center">
+      
+      {/* Outer Wireframe Cube (Slow Rotate) */}
+      <motion.div
+        className="w-24 h-24 absolute preserve-3d"
+        style={{ transformStyle: 'preserve-3d' }}
+        animate={{ rotateX: 360, rotateY: -360 }}
+        transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
+      >
+         {[
+            { rotY: 0, z: 48 }, { rotY: 180, z: 48 }, 
+            { rotY: 90, z: 48 }, { rotY: -90, z: 48 }, 
+            { rotX: 90, z: 48 }, { rotX: -90, z: 48 }
+         ].map((face, i) => (
+            <div 
+                key={`outer-${i}`}
+                className="absolute inset-0 border border-royal-500/30 bg-royal-500/5 flex items-center justify-center"
+                style={{ transform: `rotateX(${face.rotX || 0}deg) rotateY(${face.rotY || 0}deg) translateZ(${face.z}px)` }}
+            >
+                <div className="w-full h-full border border-royal-500/10 transform scale-75"></div>
+            </div>
+         ))}
+      </motion.div>
+
+      {/* Inner Glowing Cube (Fast Spin on Roll) */}
+      <motion.div
+        className="w-12 h-12 relative preserve-3d"
+        style={{ transformStyle: 'preserve-3d' }}
+        animate={spinning ? { rotateX: 720, rotateY: 720 } : { rotateX: -25, rotateY: 45 }}
+        transition={spinning ? { repeat: Infinity, duration: 0.5, ease: "linear" } : { duration: 0.8, type: "spring" }}
+      >
+        {[
+            { rotateY: 0, translateZ: 24 }, { rotateY: 180, translateZ: 24 },
+            { rotateY: 90, translateZ: 24 }, { rotateY: -90, translateZ: 24 },
+            { rotateX: 90, translateZ: 24 }, { rotateX: -90, translateZ: 24 },
+        ].map((face, i) => (
+            <div 
+                key={i}
+                className={`absolute inset-0 border border-neon-green/50 bg-black/80 shadow-[0_0_15px_rgba(16,185,129,0.4)] backdrop-blur-md flex items-center justify-center`}
+                style={{ 
+                    transform: `rotateX(${face.rotateX || 0}deg) rotateY(${face.rotateY || 0}deg) translateZ(${face.translateZ}px)` 
+                }}
+            >
+                <div className="w-2 h-2 bg-neon-green rounded-full shadow-[0_0_10px_#10b981]"></div>
+            </div>
+        ))}
+        
+        {/* Core Light */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-8 h-8 bg-neon-green rounded-full blur-xl animate-pulse"></div>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
 
 const Dice: React.FC = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
@@ -14,20 +73,20 @@ const Dice: React.FC = () => {
   const [userId, setUserId] = useState('');
 
   // Game State
-  const [target, setTarget] = useState(50); // Roll Under target (0-100)
+  const [target, setTarget] = useState(50);
   const [isRolling, setIsRolling] = useState(false);
   const [displayResult, setDisplayResult] = useState(50.00);
   const [lastResult, setLastResult] = useState<{ val: number, win: boolean } | null>(null);
   const [betAmount, setBetAmount] = useState<string>('10');
   const [isMuted, setIsMuted] = useState(false);
-  const [rollDirection, setRollDirection] = useState<'under' | 'over'>('under'); // Default 'under'
+  const [rollDirection, setRollDirection] = useState<'under' | 'over'>('under');
 
   // Refs
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rangeRef = useRef<HTMLInputElement>(null);
 
-  // Calculated Values
-  // House Edge: 2% (Multiplier = 98 / WinChance)
+  // Logic: House Edge 2%
+  // Constrain Win Chance to 4% - 96% to prevent < 1.0x multipliers or infinite payout
   const winChance = rollDirection === 'under' ? target : (100 - target);
   const multiplier = winChance > 0 ? (98 / winChance) : 0;
   const potentialWin = parseFloat(betAmount || '0') * multiplier;
@@ -62,7 +121,6 @@ const Dice: React.FC = () => {
     }
   };
 
-  // --- SOUND ENGINE ---
   const getAudioContext = () => {
       if (!audioCtxRef.current) {
           const Ctx = window.AudioContext || (window as any).webkitAudioContext;
@@ -77,74 +135,85 @@ const Dice: React.FC = () => {
       const ctx = getAudioContext();
       if (!ctx) return;
       const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      const masterGain = ctx.createGain();
+      masterGain.connect(ctx.destination);
 
       if (type === 'roll') {
-          // Digital winding sound
-          osc.type = 'square';
+          const osc = ctx.createOscillator();
+          osc.type = 'sawtooth'; 
           osc.frequency.setValueAtTime(200, now);
-          osc.frequency.linearRampToValueAtTime(800, now + 0.1);
-          osc.frequency.linearRampToValueAtTime(0, now + 0.3);
-          gain.gain.setValueAtTime(0.05, now);
+          osc.frequency.linearRampToValueAtTime(1200, now + 0.3); 
+          
+          const filter = ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.Q.value = 5;
+          filter.frequency.setValueAtTime(400, now);
+          filter.frequency.linearRampToValueAtTime(3000, now + 0.3);
+
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.1, now);
           gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(masterGain);
           osc.start(now);
           osc.stop(now + 0.3);
+
       } else if (type === 'win') {
-          // High tech chime
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(523.25, now); // C5
-          osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
-          osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
-          osc.frequency.setValueAtTime(1046.50, now + 0.3); // C6
-          gain.gain.setValueAtTime(0.1, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
-          osc.start(now);
-          osc.stop(now + 0.8);
+          [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+              const osc = ctx.createOscillator();
+              osc.type = 'square';
+              osc.frequency.setValueAtTime(freq, now + i * 0.05);
+              const gain = ctx.createGain();
+              gain.gain.setValueAtTime(0.05, now + i * 0.05);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.3);
+              osc.connect(gain);
+              gain.connect(masterGain);
+              osc.start(now + i * 0.05);
+              osc.stop(now + i * 0.05 + 0.3);
+          });
       } else if (type === 'loss') {
-          // Low thud
+          const osc = ctx.createOscillator();
           osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(150, now);
-          osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+          osc.frequency.setValueAtTime(100, now);
+          osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+          const gain = ctx.createGain();
           gain.gain.setValueAtTime(0.1, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          gain.gain.linearRampToValueAtTime(0, now + 0.3);
+          osc.connect(gain);
+          gain.connect(masterGain);
           osc.start(now);
-          osc.stop(now + 0.2);
+          osc.stop(now + 0.3);
       } else if (type === 'slider') {
-          // Quick click
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(800, now);
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1200, now);
+          const gain = ctx.createGain();
           gain.gain.setValueAtTime(0.02, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+          osc.connect(gain);
+          gain.connect(masterGain);
           osc.start(now);
-          osc.stop(now + 0.05);
+          osc.stop(now + 0.02);
       }
   }, [isMuted]);
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = parseInt(e.target.value);
-      // Clamp values to avoid 0% or 100% win chance edge cases
-      if (rollDirection === 'under') {
-          if (val < 5) setTarget(5);
-          else if (val > 95) setTarget(95);
-          else setTarget(val);
-      } else {
-          if (val < 5) setTarget(5);
-          else if (val > 95) setTarget(95);
-          else setTarget(val);
-      }
+      // Constrain target to keep win chance between 4% and 96%
+      // Roll Under: Target 4 (4% win) to 96 (96% win)
+      // Roll Over: Target 4 (96% win) to 96 (4% win)
+      const clamped = Math.max(4, Math.min(96, val));
+      setTarget(clamped);
       playSound('slider');
   };
 
-  const toggleDirection = () => {
-      setRollDirection(prev => {
-          // Invert target to maintain similar win chance feeling
-          const newDir = prev === 'under' ? 'over' : 'under';
-          setTarget(100 - target); 
-          return newDir;
-      });
+  const setDirection = (dir: 'under' | 'over') => {
+      if (dir === rollDirection) return;
+      setRollDirection(dir);
+      // Invert target to keep approximate visual position but flip logic
+      setTarget(100 - target); 
       playSound('slider');
   };
 
@@ -152,14 +221,8 @@ const Dice: React.FC = () => {
       if (isRolling || !wallet) return;
 
       const bet = parseFloat(betAmount);
-      if (isNaN(bet) || bet <= 0) {
-          alert("Invalid bet amount");
-          return;
-      }
-      if (bet > wallet.balance) {
-          alert("Insufficient balance");
-          return;
-      }
+      if (isNaN(bet) || bet <= 0) { alert("Invalid bet amount"); return; }
+      if (bet > wallet.balance) { alert("Insufficient balance"); return; }
 
       setIsRolling(true);
       playSound('roll');
@@ -172,7 +235,7 @@ const Dice: React.FC = () => {
       const animInterval = setInterval(() => {
           setDisplayResult(Math.random() * 100);
           frame++;
-          if (frame > 10) { // Stop after ~300ms
+          if (frame > 15) { // ~450ms spin
               clearInterval(animInterval);
               finalizeRoll(bet);
           }
@@ -180,7 +243,6 @@ const Dice: React.FC = () => {
   };
 
   const finalizeRoll = async (bet: number) => {
-      // Generate cryptographic random in real app, here simple Math.random is used for demo
       const rawRoll = Math.random() * 100;
       const finalResult = parseFloat(rawRoll.toFixed(2));
       
@@ -191,24 +253,19 @@ const Dice: React.FC = () => {
           : finalResult > target;
 
       const payout = isWin ? (bet * multiplier) : 0;
-      const profit = payout - bet;
-
+      
       setLastResult({ val: finalResult, win: isWin });
       
       if (isWin) playSound('win');
       else playSound('loss');
 
       if (userId) {
-          // If lost, only bet is deducted (already done optimistically, but need DB update)
-          // If won, add payout
-          
-          // Sync with DB
-          await updateWallet(userId, bet, 'decrement', 'balance'); // Actual deduction
+          // DB Updates
+          await updateWallet(userId, bet, 'decrement', 'balance');
           if (isWin) {
               await updateWallet(userId, payout, 'increment', 'balance');
           }
           
-          // Fetch fresh wallet to ensure sync
           const { data } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
           if (data) setWallet(data as WalletData);
           window.dispatchEvent(new Event('wallet_updated'));
@@ -222,21 +279,17 @@ const Dice: React.FC = () => {
               `Rolled ${finalResult} (${rollDirection === 'under' ? '<' : '>'} ${target})`
           );
           
-          fetchData(); // Refresh history
+          fetchData();
       }
       
       setIsRolling(false);
   };
 
-  // Helper for visual track background
   const getTrackBackground = () => {
-      // Calculate percentage for gradient stop
       const p = target;
       if (rollDirection === 'under') {
-          // Green (0 to p), Red (p to 100)
           return `linear-gradient(to right, #10b981 0%, #10b981 ${p}%, #ef4444 ${p}%, #ef4444 100%)`;
       } else {
-          // Red (0 to p), Green (p to 100)
           return `linear-gradient(to right, #ef4444 0%, #ef4444 ${p}%, #10b981 ${p}%, #10b981 100%)`;
       }
   };
@@ -255,6 +308,7 @@ const Dice: React.FC = () => {
                     <button 
                        onClick={() => setIsMuted(!isMuted)} 
                        className={`p-2 rounded-lg border border-white/10 transition ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-white'}`}
+                       title={isMuted ? "Unmute" : "Mute"}
                    >
                        {isMuted ? <VolumeX size={16}/> : <Volume2 size={16}/>}
                    </button>
@@ -275,18 +329,22 @@ const Dice: React.FC = () => {
                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-neon-green to-transparent opacity-50"></div>
                
                {/* Main Result Display */}
-               <div className="relative z-10 text-center mb-12">
+               <div className="relative z-10 text-center mb-8">
+                   
+                   {/* Advanced Cyber Cube Animation */}
+                   <CyberCube spinning={isRolling} />
+
+                   {/* History Bar */}
                    <div className="flex justify-center mb-4">
-                        {/* History Pills */}
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 bg-black/30 p-2 rounded-xl border border-white/5">
                             {history.slice(0, 5).map((h) => (
-                                <div key={h.id} className={`w-1.5 h-8 rounded-full ${h.profit > 0 ? 'bg-neon-green shadow-[0_0_10px_#10b981]' : 'bg-gray-700'}`}></div>
+                                <div key={h.id} className={`w-2 h-8 rounded-full transition-all hover:scale-y-110 ${h.profit > 0 ? 'bg-neon-green shadow-[0_0_8px_#10b981]' : 'bg-gray-700 opacity-50'}`}></div>
                             ))}
                         </div>
                    </div>
                    
                    <div className="relative inline-block">
-                        <span className={`text-7xl sm:text-9xl font-black font-mono tracking-tighter transition-colors duration-100 ${
+                        <span className={`text-7xl sm:text-9xl font-black font-mono tracking-tighter transition-all duration-100 ${
                             isRolling ? 'text-white opacity-80 blur-[1px]' :
                             lastResult?.win ? 'text-neon-green drop-shadow-[0_0_25px_rgba(16,185,129,0.6)]' : 
                             lastResult ? 'text-gray-500' : 'text-white'
@@ -295,23 +353,45 @@ const Dice: React.FC = () => {
                         </span>
                         
                         {/* Win/Loss Badge */}
-                        {!isRolling && lastResult && (
-                            <motion.div 
-                                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                                className={`absolute -right-12 -top-4 px-3 py-1 rounded-lg font-bold text-xs uppercase tracking-wider transform rotate-12 ${
-                                    lastResult.win ? 'bg-neon-green text-black' : 'bg-red-500 text-white'
-                                }`}
-                            >
-                                {lastResult.win ? 'WIN' : 'LOSE'}
-                            </motion.div>
-                        )}
+                        <AnimatePresence>
+                            {!isRolling && lastResult && (
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 10, scale: 0.8 }} 
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className={`absolute -right-12 -top-4 px-3 py-1 rounded-lg font-bold text-xs uppercase tracking-wider transform rotate-12 shadow-lg ${
+                                        lastResult.win ? 'bg-neon-green text-black' : 'bg-red-500 text-white'
+                                    }`}
+                                >
+                                    {lastResult.win ? 'WIN' : 'LOSE'}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                    </div>
                </div>
 
                {/* Slider Section */}
                <div className="relative z-10 mb-8 px-2">
-                   <div className="bg-dark-950/50 rounded-2xl p-6 border border-white/10 shadow-inner">
-                        {/* Custom Slider */}
+                   
+                   {/* Roll Direction Toggle */}
+                   <div className="flex justify-center mb-6">
+                       <div className="bg-black/40 p-1 rounded-xl flex border border-white/10">
+                           <button 
+                               onClick={() => setDirection('under')} 
+                               className={`px-6 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${rollDirection === 'under' ? 'bg-white/10 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                           >
+                               <ArrowDown size={14} /> Roll Under
+                           </button>
+                           <button 
+                               onClick={() => setDirection('over')} 
+                               className={`px-6 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${rollDirection === 'over' ? 'bg-white/10 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                           >
+                               <ArrowUp size={14} /> Roll Over
+                           </button>
+                       </div>
+                   </div>
+
+                   <div className="bg-dark-950/50 rounded-2xl p-6 border border-white/10 shadow-inner relative">
                         <div className="relative h-12 flex items-center">
                             {/* Track */}
                             <div 
@@ -324,35 +404,38 @@ const Dice: React.FC = () => {
                                 <div className="absolute top-0 bottom-0 w-0.5 bg-black/20 left-[75%]"></div>
                             </div>
                             
-                            {/* Range Input (Invisible but interactive) */}
+                            {/* Range Input */}
                             <input 
                                 ref={rangeRef}
                                 type="range" 
-                                min="2" max="98" step="1"
+                                min="4" max="96" step="1"
                                 value={target}
                                 onChange={handleSliderChange}
                                 className="absolute inset-0 w-full opacity-0 cursor-pointer z-20"
                             />
                             
-                            {/* Custom Thumb (Visual) */}
+                            {/* Target Handle */}
                             <div 
-                                className="absolute h-10 w-12 bg-white rounded-xl border-4 border-dark-900 shadow-xl flex items-center justify-center z-10 pointer-events-none transition-all duration-75 ease-out"
-                                style={{ left: `calc(${target}% - 24px)` }}
+                                className="absolute h-10 w-14 bg-white rounded-xl border-4 border-dark-900 shadow-xl flex items-center justify-center z-10 pointer-events-none transition-all duration-75 ease-out"
+                                style={{ left: `calc(${target}% - 28px)` }}
                             >
-                                <div className="w-1 h-4 bg-gray-300 rounded-full mx-0.5"></div>
-                                <div className="w-1 h-4 bg-gray-300 rounded-full mx-0.5"></div>
+                                <span className="text-xs font-black text-dark-900">{target}</span>
                             </div>
 
-                            {/* Result Indicator (Visual) */}
+                            {/* Last Result Indicator (Ghost Marker) */}
                             {!isRolling && lastResult && (
                                 <div 
                                     className={`absolute w-4 h-4 rounded-full border-2 border-white shadow-lg z-10 transition-all duration-500 ${lastResult.win ? 'bg-neon-green' : 'bg-red-500'}`}
                                     style={{ left: `calc(${displayResult}% - 8px)`, top: '50%', transform: 'translateY(-50%)' }}
-                                ></div>
+                                >
+                                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] font-bold text-white bg-black/60 px-1.5 rounded whitespace-nowrap">
+                                        {displayResult.toFixed(0)}
+                                    </div>
+                                </div>
                             )}
                         </div>
 
-                        <div className="flex justify-between text-xs text-gray-400 font-bold mt-4 uppercase tracking-wider">
+                        <div className="flex justify-between text-xs text-gray-400 font-bold mt-4 uppercase tracking-wider px-1">
                             <span>0</span>
                             <span>25</span>
                             <span>50</span>
@@ -364,18 +447,15 @@ const Dice: React.FC = () => {
 
                {/* Info Stats */}
                <div className="grid grid-cols-3 gap-4 relative z-10">
-                   <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5 hover:border-neon-green/30 transition cursor-pointer" onClick={toggleDirection}>
-                       <div className="text-[10px] text-gray-400 uppercase mb-1 flex items-center justify-center gap-1">
-                           Target <Settings2 size={10} />
-                       </div>
+                   <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5">
+                       <div className="text-[10px] text-gray-400 uppercase mb-1">Target</div>
                        <div className="text-xl font-bold text-white">
                            {rollDirection === 'under' ? '<' : '>'} {target}
                        </div>
-                       <div className="text-[9px] text-neon-green mt-1">Click to Flip</div>
                    </div>
                    <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5">
                         <div className="text-[10px] text-gray-400 uppercase mb-1">Multiplier</div>
-                        <div className="text-xl font-bold text-white">{multiplier.toFixed(4)}x</div>
+                        <div className="text-xl font-bold text-white">{multiplier.toFixed(2)}x</div>
                    </div>
                    <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5">
                         <div className="text-[10px] text-gray-400 uppercase mb-1">Win Chance</div>
@@ -425,7 +505,9 @@ const Dice: React.FC = () => {
                         ) : (
                             <>
                                 <span className="text-2xl">ROLL</span>
-                                <span className="text-[10px] font-normal mt-1 opacity-80">Win ${potentialWin.toFixed(2)}</span>
+                                <span className="text-[10px] font-normal mt-1 opacity-80 flex items-center gap-1">
+                                    <Sparkles size={10}/> Win ${potentialWin.toFixed(2)}
+                                </span>
                             </>
                         )}
                     </button>

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { SpinItem } from '../../types';
-import { Plus, Trash2, Save, Loader2, PieChart } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2, PieChart, Ticket } from 'lucide-react';
 
 const SpinSettings: React.FC = () => {
   const [items, setItems] = useState<SpinItem[]>([]);
@@ -39,6 +39,17 @@ const SpinSettings: React.FC = () => {
           value: 0,
           probability: 0,
           color: '#3b82f6',
+          is_active: true
+      };
+      setItems([...items, newItem]);
+  };
+
+  const handleAddPreset = () => {
+      const newItem: any = {
+          label: 'Free Spin Token',
+          value: 0,
+          probability: 5,
+          color: '#FFD700',
           is_active: true
       };
       setItems([...items, newItem]);
@@ -183,12 +194,20 @@ const SpinSettings: React.FC = () => {
             ))}
         </div>
 
-        <button 
-            onClick={handleAddItem}
-            className="w-full py-3 bg-white/5 border border-dashed border-white/20 rounded-xl text-gray-400 hover:text-white hover:border-neon-green hover:bg-neon-green/5 transition flex items-center justify-center gap-2 font-bold"
-        >
-            <Plus size={18} /> Add New Reward
-        </button>
+        <div className="flex gap-3">
+            <button 
+                onClick={handleAddItem}
+                className="flex-1 py-3 bg-white/5 border border-dashed border-white/20 rounded-xl text-gray-400 hover:text-white hover:border-neon-green hover:bg-neon-green/5 transition flex items-center justify-center gap-2 font-bold"
+            >
+                <Plus size={18} /> Add New Reward
+            </button>
+            <button 
+                onClick={handleAddPreset}
+                className="flex-1 py-3 bg-yellow-500/10 border border-dashed border-yellow-500/20 rounded-xl text-yellow-500 hover:text-yellow-400 hover:border-yellow-500 hover:bg-yellow-500/20 transition flex items-center justify-center gap-2 font-bold"
+            >
+                <Ticket size={18} /> Add Free Spin Token
+            </button>
+        </div>
     </div>
   );
 };

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   TrendingUp, Gift, Zap, PlayCircle, Users, ArrowRight, Sparkles, Crown, 
-  Activity as ActivityIcon, AlertCircle, RefreshCw, Wallet, ArrowDownLeft, ArrowUpRight, Trophy
+  Activity as ActivityIcon, AlertCircle, RefreshCw, Wallet, ArrowDownLeft, ArrowUpRight, Trophy, Copy, Terminal
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import Loader from '../components/Loader';
@@ -36,7 +36,7 @@ const Home: React.FC = () => {
       if (!session) return;
 
       // 1. Try to fetch wallet directly first
-      let { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
+      let { data: walletData, error: walletFetchError } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).maybeSingle();
 
       // 2. If wallet is missing (Zombie Session), attempt recovery
       if (!walletData) {
@@ -50,8 +50,10 @@ const Home: React.FC = () => {
              // Retry fetch after creation
              const res = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
              walletData = res.data;
-         } catch (recErr) {
-             console.error("Recovery failed:", recErr);
+         } catch (recErr: any) {
+             const errMsg = recErr?.message || JSON.stringify(recErr);
+             console.error("Recovery failed:", errMsg);
+             throw new Error("Initialization failed: " + errMsg);
          }
       }
 
@@ -108,12 +110,17 @@ const Home: React.FC = () => {
            setChartData(chartHistory);
         }
       } else {
-        throw new Error("Failed to load wallet data. Please try logging out and back in.");
+        throw new Error("Failed to load wallet data.");
       }
 
     } catch (e: any) {
       console.error(e);
-      setError(e.message || "An unexpected error occurred");
+      // Extract meaningful error message
+      let msg = e.message || JSON.stringify(e);
+      if (typeof e === 'object' && e !== null && 'code' in e) {
+          msg = `Database Error: ${e.message} (Code: ${e.code})`;
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -127,6 +134,19 @@ const Home: React.FC = () => {
   const item = {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0 }
+  };
+
+  const copySqlFix = () => {
+      const sql = `ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;`;
+      navigator.clipboard.writeText(sql);
+      alert("SQL copied! Run this in Supabase SQL Editor.");
   };
 
   if (loading) {
@@ -188,21 +208,60 @@ const Home: React.FC = () => {
   }
   
   if (error || !wallet) {
+      const isRecursionError = error && (error.includes('Infinite Recursion') || error.includes('42P17'));
+
       return (
         <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
             <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">
                 <AlertCircle size={32} />
             </div>
-            <div>
+            <div className="max-w-md w-full">
                 <h2 className="text-xl font-bold text-white">Failed to load data</h2>
-                <p className="text-gray-400 text-sm max-w-xs mx-auto mt-1">{error || "Please check your connection and try again."}</p>
+                <p className="text-gray-400 text-xs font-mono bg-black/30 p-3 rounded mt-2 break-all border border-red-500/20">
+                    {error || "Unknown error occurred."}
+                </p>
+                
+                {isRecursionError && (
+                    <div className="mt-4 text-left bg-white/5 p-4 rounded-xl border border-white/10">
+                        <h3 className="text-white font-bold text-sm flex items-center gap-2 mb-2">
+                            <Terminal size={14} className="text-neon-green"/> Database Fix Required
+                        </h3>
+                        <p className="text-xs text-gray-400 mb-3">
+                            Your database policies are causing an infinite loop. Run this SQL in Supabase:
+                        </p>
+                        <div className="relative">
+                            <pre className="bg-black/50 p-3 rounded-lg text-[10px] text-gray-300 overflow-x-auto font-mono border border-white/5">
+                                {`ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
+... (click copy for full script)`}
+                            </pre>
+                            <button 
+                                onClick={copySqlFix}
+                                className="absolute top-2 right-2 p-1.5 bg-white/10 hover:bg-white/20 rounded text-white transition"
+                                title="Copy SQL"
+                            >
+                                <Copy size={14} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <p className="text-gray-500 text-xs mt-2">Try logging out or refreshing.</p>
             </div>
-            <button 
-                onClick={fetchData} 
-                className="flex items-center gap-2 px-6 py-3 bg-royal-600 text-white rounded-xl font-bold hover:bg-royal-700 transition active:scale-95"
-            >
-                <RefreshCw size={18} /> Retry
-            </button>
+            <div className="flex gap-2 mt-2">
+                <button 
+                    onClick={() => window.location.reload()} 
+                    className="flex items-center gap-2 px-6 py-3 bg-royal-600 text-white rounded-xl font-bold hover:bg-royal-700 transition active:scale-95"
+                >
+                    <RefreshCw size={18} /> Retry
+                </button>
+                <button 
+                    onClick={async () => { await supabase.auth.signOut(); window.location.href='/login'; }} 
+                    className="flex items-center gap-2 px-6 py-3 bg-white/5 text-white rounded-xl font-bold hover:bg-white/10 transition active:scale-95"
+                >
+                    Log Out
+                </button>
+            </div>
         </div>
       );
   }

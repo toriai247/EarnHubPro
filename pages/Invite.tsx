@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Users, Copy, Trophy, Crown, Share2, UserPlus, Calendar, Activity } from 'lucide-react';
+import { Users, Copy, Trophy, Crown, Share2, UserPlus, Calendar, Activity, Link as LinkIcon } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { ReferralStats } from '../types';
 import { motion } from 'framer-motion';
@@ -83,6 +83,42 @@ const Invite: React.FC = () => {
       }
   };
 
+  const getReferralLink = () => {
+      if (!stats?.code) return '';
+      // Construct link for HashRouter
+      return `${window.location.origin}/#/signup?ref=${stats.code}`;
+  };
+
+  const copyLink = () => {
+      const link = getReferralLink();
+      if (link) {
+          navigator.clipboard.writeText(link);
+          alert('Referral link copied to clipboard!');
+      }
+  };
+
+  const handleShare = async () => {
+      const link = getReferralLink();
+      if (!link) return;
+
+      const shareData = {
+          title: 'Join EarnHub Pro',
+          text: `Use my referral code ${stats?.code} to join EarnHub Pro and earn rewards!`,
+          url: link
+      };
+
+      if (navigator.share) {
+          try {
+              await navigator.share(shareData);
+          } catch (err) {
+              console.log('Share canceled');
+          }
+      } else {
+          // Fallback
+          copyLink();
+      }
+  };
+
   if (loading) {
       return (
         <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0">
@@ -124,12 +160,17 @@ const Invite: React.FC = () => {
                         <p className="text-[10px] text-gray-500 text-left mb-1 font-bold uppercase">Your Unique Code</p>
                         <span className="font-mono text-3xl text-white tracking-widest font-bold uppercase">{stats.code}</span>
                     </div>
-                    <button onClick={copyToClipboard} className="p-3 hover:bg-white/10 rounded-lg transition text-neon-green bg-neon-green/10 active:scale-95">
-                        <Copy size={20} />
-                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={copyLink} className="p-3 hover:bg-white/10 rounded-lg transition text-blue-400 bg-blue-500/10 active:scale-95" title="Copy Link">
+                            <LinkIcon size={20} />
+                        </button>
+                        <button onClick={copyToClipboard} className="p-3 hover:bg-white/10 rounded-lg transition text-neon-green bg-neon-green/10 active:scale-95" title="Copy Code">
+                            <Copy size={20} />
+                        </button>
+                    </div>
                 </div>
 
-                <button onClick={copyToClipboard} className="w-full py-3.5 bg-royal-600 rounded-xl font-bold text-white flex items-center justify-center gap-2 hover:bg-royal-700 transition shadow-lg active:scale-[0.98]">
+                <button onClick={handleShare} className="w-full py-3.5 bg-royal-600 rounded-xl font-bold text-white flex items-center justify-center gap-2 hover:bg-royal-700 transition shadow-lg active:scale-[0.98]">
                     <Share2 size={18} /> Share Link
                 </button>
             </GlassCard>
