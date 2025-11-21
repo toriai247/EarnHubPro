@@ -26,10 +26,9 @@ import Terms from './pages/Terms';
 import Leaderboard from './pages/Leaderboard';
 import Admin from './pages/admin/Admin';
 import { supabase } from './integrations/supabase/client';
-import { useSecurity } from './lib/security';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { UIProvider } from './context/UIContext';
-import { ThemeProvider } from './context/ThemeContext'; // Import ThemeProvider
+import { ThemeProvider } from './context/ThemeContext';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ session }: { session: any }) => {
@@ -43,25 +42,47 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // Activate Anti-Hack Security (High Level)
-  useSecurity();
+  // Security Disabled
+  // useSecurity();
 
   useEffect(() => {
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    }).catch(() => {
-      setLoading(false);
-    });
+    let mounted = true;
 
-    // Listen for auth changes
+    // 1. Setup Safety Timeout (Forces load after 6 seconds)
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn("Connection slow, forcing load...");
+        setLoading(false);
+      }
+    }, 6000);
+
+    // 2. Check Session
+    const initSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+          setSession(session);
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error("Session check failed", e);
+        if (mounted) setLoading(false);
+      }
+    };
+
+    initSession();
+
+    // 3. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
+      if (mounted) {
+        setSession(session);
+        setLoading(false);
+      }
     });
 
     return () => {
+        mounted = false;
+        clearTimeout(timeout);
         subscription.unsubscribe();
     };
   }, []);
@@ -71,7 +92,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-neon-green">
         <div className="w-12 h-12 border-4 border-royal-600 border-t-neon-green rounded-full animate-spin mb-4"></div>
         <div className="font-display font-bold tracking-wider">EARNHUB PRO</div>
-        <div className="text-xs text-gray-500 mt-2">Establishing Secure Connection...</div>
+        <div className="text-xs text-gray-500 mt-2">Connecting...</div>
       </div>
     );
   }
