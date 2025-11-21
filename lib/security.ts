@@ -1,5 +1,5 @@
 
-// Security features disabled by user request.
+// Security Module Disabled
 export const useSecurity = () => {
   // No-op
 };

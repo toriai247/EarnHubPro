@@ -41,58 +41,69 @@ const ProtectedRoute = ({ session }: { session: any }) => {
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Security Disabled
-  // useSecurity();
+  const [showRetry, setShowRetry] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
+    // 1. Show Retry Button if loading takes more than 3 seconds
+    const retryTimer = setTimeout(() => {
+        if (loading) setShowRetry(true);
+    }, 3000);
 
-    // 1. Setup Safety Timeout (Forces load after 6 seconds)
-    const timeout = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn("Connection slow, forcing load...");
-        setLoading(false);
-      }
-    }, 6000);
-
-    // 2. Check Session
-    const initSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (mounted) {
-          setSession(session);
-          setLoading(false);
+    // 2. Force Load after 7 seconds to prevent infinite spinner
+    const forceTimer = setTimeout(() => {
+        if (loading) {
+            console.warn("Force loading due to timeout");
+            setLoading(false);
         }
+    }, 7000);
+
+    // 3. Check Session
+    const checkSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+            console.error("Session error:", error);
+            // If error, we proceed as logged out
+        } 
+        setSession(data.session);
       } catch (e) {
-        console.error("Session check failed", e);
-        if (mounted) setLoading(false);
+        console.error("Unexpected auth error:", e);
+      } finally {
+        setLoading(false);
       }
     };
 
-    initSession();
+    checkSession();
 
-    // 3. Listen for auth changes
+    // 4. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) {
-        setSession(session);
-        setLoading(false);
-      }
+      setSession(session);
+      // Ensure loading stops on auth state change
+      setLoading(false);
     });
 
     return () => {
-        mounted = false;
-        clearTimeout(timeout);
+        clearTimeout(retryTimer);
+        clearTimeout(forceTimer);
         subscription.unsubscribe();
     };
   }, []);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-neon-green">
+      <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-neon-green p-4">
         <div className="w-12 h-12 border-4 border-royal-600 border-t-neon-green rounded-full animate-spin mb-4"></div>
-        <div className="font-display font-bold tracking-wider">EARNHUB PRO</div>
-        <div className="text-xs text-gray-500 mt-2">Connecting...</div>
+        <div className="font-display font-bold tracking-wider text-lg">EARNHUB PRO</div>
+        <div className="text-xs text-gray-500 mt-2 mb-6">Connecting...</div>
+        
+        {showRetry && (
+            <button 
+                onClick={() => setLoading(false)}
+                className="px-5 py-2 bg-white/10 border border-white/10 rounded-full text-xs text-white font-bold hover:bg-white/20 transition animate-pulse"
+            >
+                Taking too long? Tap to Enter
+            </button>
+        )}
       </div>
     );
   }
