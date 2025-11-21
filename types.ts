@@ -30,7 +30,7 @@ export interface Task {
 export interface Transaction {
   id: string;
   user_id: string;
-  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty';
+  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'fee' | 'transfer';
   amount: number;
   status: 'success' | 'pending' | 'failed';
   description?: string;
@@ -44,13 +44,31 @@ export interface Transaction {
 export interface WalletData {
   id: string;
   user_id: string;
-  balance: number;
-  deposit: number;
-  withdrawable: number;
+  
+  // Aggregates
+  total_assets?: number; // Calculated on frontend usually
+  
+  // The Main Withdrawable Wallet
+  main_balance: number; 
+  
+  // Sub Wallets
+  game_balance: number;
+  earning_balance: number;
+  investment_balance: number;
+  referral_balance: number;
+  commission_balance: number;
+  deposit_balance: number;
+  bonus_balance: number;
+
+  // Legacy / Stats fields
+  balance: number; // Keeping for backward compatibility map to main_balance
+  deposit: number; // Keeping for backward compatibility map to deposit_balance
+  withdrawable: number; // Usually maps to main_balance - pending
   total_earning: number;
   referral_earnings?: number;
   today_earning: number;
   pending_withdraw: number;
+  currency?: string;
 }
 
 export interface WalletMeta {

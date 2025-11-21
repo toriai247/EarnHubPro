@@ -1,14 +1,16 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Trophy, History, X, Sparkles, ArrowLeft, Loader2, Volume2, VolumeX, Zap } from 'lucide-react';
+import { Trophy, History, X, Sparkles, ArrowLeft, Loader2, Volume2, VolumeX, Zap, ChevronDown, Wallet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../integrations/supabase/client';
 import { WalletData, GameResult, SpinItem } from '../types';
 import { processGameResult, updateWallet } from '../lib/actions';
 import { Link } from 'react-router-dom';
+import { useUI } from '../context/UIContext';
 
 const Spin: React.FC = () => {
+  const { toast } = useUI();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [history, setHistory] = useState<GameResult[]>([]);
   const [userId, setUserId] = useState('');
@@ -16,7 +18,7 @@ const Spin: React.FC = () => {
   // Spin Logic States
   const [spinItems, setSpinItems] = useState<SpinItem[]>([]);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [isRevealing, setIsRevealing] = useState(false); // New state for highlight phase
+  const [isRevealing, setIsRevealing] = useState(false); 
   const [rotation, setRotation] = useState(0);
   const [showWinModal, setShowWinModal] = useState(false);
   const [winResult, setWinResult] = useState<{label: string, value: number} | null>(null);
@@ -25,6 +27,10 @@ const Spin: React.FC = () => {
   const [betAmount, setBetAmount] = useState<string>('10');
   const [isMuted, setIsMuted] = useState(false);
   
+  // Wallet Selection
+  const [betWallet, setBetWallet] = useState<'game_balance' | 'bonus_balance' | 'deposit_balance' | 'main_balance'>('game_balance');
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
+
   // Refs
   const audioCtxRef = useRef<AudioContext | null>(null);
 
@@ -58,6 +64,22 @@ const Spin: React.FC = () => {
             setSpinItems(spinRes.data as SpinItem[]);
         }
     }
+  };
+
+  // --- HELPER: Get Current Wallet Balance ---
+  const getCurrentBalance = () => {
+      if (!wallet) return 0;
+      return wallet[betWallet] || 0;
+  };
+
+  const getWalletLabel = (type: string) => {
+      switch(type) {
+          case 'game_balance': return 'Game Wallet';
+          case 'bonus_balance': return 'Bonus Wallet';
+          case 'deposit_balance': return 'Deposit Wallet';
+          case 'main_balance': return 'Main Wallet';
+          default: return 'Unknown';
+      }
   };
 
   // --- SOUND ENGINE (WEB AUDIO API) ---
@@ -107,11 +129,13 @@ const Spin: React.FC = () => {
     // 1. Validate Bet
     const bet = parseFloat(betAmount);
     if (isNaN(bet) || bet <= 0) {
-        alert("Invalid bet amount");
+        toast.error("Invalid bet amount");
         return;
     }
-    if (bet > wallet.balance) {
-        alert("Insufficient balance");
+    
+    const availableBalance = wallet[betWallet];
+    if (bet > availableBalance) {
+        toast.error(`Insufficient balance in ${getWalletLabel(betWallet)}`);
         return;
     }
 
@@ -120,9 +144,10 @@ const Spin: React.FC = () => {
     setIsRevealing(false);
     setShowWinModal(false);
     setWinResult(null);
+    setWalletMenuOpen(false);
     
     // Update local wallet state immediately for UX
-    setWallet(prev => prev ? {...prev, balance: prev.balance - bet} : null);
+    setWallet(prev => prev ? {...prev, [betWallet]: prev[betWallet] - bet} : null);
     
     // 3. Determine Winner (Probability Logic)
     const totalProb = spinItems.reduce((sum, item) => sum + Number(item.probability), 0);
@@ -138,7 +163,6 @@ const Spin: React.FC = () => {
         }
     }
     
-    // Fallback
     if (selectedIndex === 0 && random > accumulated) selectedIndex = spinItems.length - 1;
 
     // 4. Calculate Rotation
@@ -170,10 +194,16 @@ const Spin: React.FC = () => {
        const payout = Number(winItem.value);
        
        if (userId) {
-            // Update DB: Deduct Bet, Add Win
-            await updateWallet(userId, bet, 'decrement', 'balance'); 
+            // Update DB: Deduct Bet from SELECTED wallet
+            await updateWallet(userId, bet, 'decrement', betWallet); 
             
-            await processGameResult(userId, 'spin', 'Lucky Spin', bet, payout, `Won ${winItem.label}`);
+            // Add Winnings: Usually game winnings go to Game Wallet (which is transferrable)
+            // Even if played with Bonus or Deposit, winnings are "Real Money" -> Game Wallet
+            if (payout > 0) {
+                await updateWallet(userId, payout, 'increment', 'game_balance');
+            }
+            
+            await processGameResult(userId, 'spin', 'Lucky Spin', bet, payout, `Won ${winItem.label} (via ${getWalletLabel(betWallet)})`);
             
             // Fetch fresh wallet
             const { data } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
@@ -184,16 +214,15 @@ const Spin: React.FC = () => {
        if (payout > 0) playSound('win');
        
        setIsSpinning(false);
-       setIsRevealing(true); // Start reveal sequence
+       setIsRevealing(true); 
 
-       // Delay modal to let user see the highlight
        setTimeout(() => {
            setIsRevealing(false);
            setShowWinModal(true);
        }, 1500);
        
        fetchData(); // Refresh history
-    }, 5000); // Match CSS duration
+    }, 5000);
   };
 
   const getWheelBackground = () => {
@@ -225,10 +254,6 @@ const Spin: React.FC = () => {
                    >
                        {isMuted ? <VolumeX size={16}/> : <Volume2 size={16}/>}
                    </button>
-                   <div className="bg-dark-900 px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
-                       <Trophy size={14} className="text-yellow-400"/>
-                       <span className="font-mono font-bold text-white text-sm">${wallet?.balance.toFixed(2)}</span>
-                   </div>
                </div>
            </header>
            
@@ -298,10 +323,9 @@ const Spin: React.FC = () => {
                    })}
                </div>
 
-                {/* Winner Highlight Overlay - Appears after spin */}
+                {/* Winner Highlight Overlay */}
                 {!isSpinning && winResult && (
                    <div className="absolute inset-[12px] rounded-full z-20 pointer-events-none animate-pulse-fast">
-                        {/* Glowing Wedge */}
                         <div 
                             className="absolute inset-0 rounded-full"
                             style={{
@@ -310,17 +334,10 @@ const Spin: React.FC = () => {
                                 mixBlendMode: 'overlay'
                             }}
                         />
-                        {/* Border Lines for sharpness */}
-                        <div className="absolute inset-0 flex justify-center">
-                             <div className="h-1/2 w-0.5 bg-white/80 origin-bottom shadow-[0_0_10px_white]" style={{ transform: `rotate(-${segmentAngle/2}deg) translateY(0%)` }}></div>
-                        </div>
-                         <div className="absolute inset-0 flex justify-center">
-                             <div className="h-1/2 w-0.5 bg-white/80 origin-bottom shadow-[0_0_10px_white]" style={{ transform: `rotate(${segmentAngle/2}deg) translateY(0%)` }}></div>
-                        </div>
                    </div>
                )}
 
-               {/* Center Hub with Spin Button (Desktop Only) */}
+               {/* Center Hub */}
                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 hidden sm:block">
                     <div className="w-16 h-16 bg-white rounded-full border-4 border-gray-200 shadow-xl flex items-center justify-center">
                         <span className="font-black text-dark-900">SPIN</span>
@@ -333,11 +350,38 @@ const Spin: React.FC = () => {
        <div className="shrink-0 px-3 pb-3 z-20">
            <GlassCard className="bg-dark-900/90 border-purple-500/20 p-3 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
                <div className="flex gap-3 items-end">
-                    <div className="flex-1">
-                        <div className="flex justify-between mb-1">
-                            <label className="text-[10px] text-gray-400 font-bold uppercase">Bet Amount</label>
-                            <span className="text-[10px] text-neon-green font-bold cursor-pointer hover:underline" onClick={() => setBetAmount(wallet.balance.toString())}>Max: ${wallet.balance.toFixed(2)}</span>
+                    <div className="flex-1 space-y-2">
+                        
+                        {/* Wallet Selector */}
+                        <div className="relative">
+                            <button 
+                                onClick={() => !isSpinning && setWalletMenuOpen(!walletMenuOpen)}
+                                className="w-full flex justify-between items-center bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-bold text-gray-300 hover:bg-white/5 transition"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <Wallet size={14} className="text-purple-400"/> {getWalletLabel(betWallet)}
+                                </span>
+                                <ChevronDown size={14}/>
+                            </button>
+                            
+                            {walletMenuOpen && (
+                                <div className="absolute bottom-full left-0 right-0 bg-dark-900 border border-white/10 rounded-xl mb-2 p-1 shadow-xl z-50">
+                                    {['game_balance', 'bonus_balance', 'deposit_balance', 'main_balance'].map((key) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => { setBetWallet(key as any); setWalletMenuOpen(false); }}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs flex justify-between items-center hover:bg-white/10 ${betWallet === key ? 'bg-purple-500/20 text-purple-300' : 'text-gray-400'}`}
+                                        >
+                                            <span>{getWalletLabel(key)}</span>
+                                            {/* @ts-ignore */}
+                                            <span className="font-mono font-bold">${(wallet[key] || 0).toFixed(2)}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
+
+                        {/* Bet Input */}
                         <div className="relative flex items-center">
                              <span className="absolute left-3 text-gray-400 font-bold">$</span>
                              <input 
@@ -348,23 +392,20 @@ const Spin: React.FC = () => {
                                 className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-7 pr-3 text-white font-bold text-lg focus:border-neon-green outline-none"
                              />
                         </div>
-                        <div className="flex gap-2 mt-2">
-                            {[10, 50, 100, 500].map(amt => (
-                                <button 
-                                    key={amt}
-                                    onClick={() => setBetAmount(amt.toString())}
-                                    className="flex-1 py-1.5 bg-white/5 rounded-lg text-[10px] font-bold text-gray-400 hover:bg-white/10 transition"
-                                >
-                                    ${amt}
-                                </button>
-                            ))}
+                        
+                        <div className="flex justify-between items-center text-[10px] text-gray-500 px-1">
+                            <span>Balance: <span className="text-white font-bold">${getCurrentBalance().toFixed(2)}</span></span>
+                            <div className="flex gap-2">
+                                <button onClick={() => setBetAmount('10')} className="hover:text-white">Min</button>
+                                <button onClick={() => setBetAmount(getCurrentBalance().toString())} className="text-neon-green hover:underline">Max</button>
+                            </div>
                         </div>
                     </div>
                     
                     <button 
                         onClick={handleSpin}
                         disabled={isSpinning || isRevealing}
-                        className={`h-[76px] w-1/3 rounded-xl font-black text-xl shadow-lg transition-all flex flex-col items-center justify-center leading-none ${
+                        className={`h-[100px] w-1/3 rounded-xl font-black text-xl shadow-lg transition-all flex flex-col items-center justify-center leading-none ${
                             (isSpinning || isRevealing) 
                             ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
                             : 'bg-gradient-to-br from-neon-green to-emerald-500 text-black hover:scale-[1.02] active:scale-95 shadow-[0_0_20px_rgba(16,185,129,0.3)]'

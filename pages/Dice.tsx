@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../integrations/supabase/client';
 import { WalletData, GameResult } from '../types';
 import { processGameResult, updateWallet } from '../lib/actions';
+import { useUI } from '../context/UIContext';
 
 // --- DICE FACE COMPONENT ---
 const DiceFace = ({ val }: { val: number }) => {
@@ -114,6 +115,7 @@ const CyberCube = ({ spinning }: { spinning: boolean }) => {
 }
 
 const Dice: React.FC = () => {
+  const { toast } = useUI();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [history, setHistory] = useState<GameResult[]>([]);
   const [userId, setUserId] = useState('');
@@ -264,8 +266,8 @@ const Dice: React.FC = () => {
       if (isRolling || !wallet) return;
 
       const bet = parseFloat(betAmount);
-      if (isNaN(bet) || bet <= 0) { alert("Invalid bet amount"); return; }
-      if (bet > wallet.balance) { alert("Insufficient balance"); return; }
+      if (isNaN(bet) || bet <= 0) { toast.error("Invalid bet amount"); return; }
+      if (bet > wallet.balance) { toast.error("Insufficient balance"); return; }
 
       setIsRolling(true);
       playSound('roll');

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" class="dark">
   <head>
@@ -19,6 +20,8 @@
             },
             colors: {
               royal: {
+                100: '#dbeafe',
+                200: '#bfdbfe',
                 500: '#3b82f6', // Blue
                 600: '#2563eb',
                 900: '#1e3a8a',
@@ -28,14 +31,17 @@
                 glow: '#34d399',
               },
               dark: {
+                800: '#1e293b',
                 900: '#0f172a',
                 950: '#020617',
-                800: '#1e293b',
               }
             },
             backgroundImage: {
               'gradient-royal': 'linear-gradient(135deg, #1e3a8a 0%, #172554 100%)',
               'gradient-glow': 'linear-gradient(to right, #3b82f6, #10b981)',
+            },
+            animation: {
+                'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             }
           }
         }
@@ -43,10 +49,19 @@
     </script>
     <style>
       body {
-        background-color: #020617;
+        /* Default Dark */
+        background-color: #020617; 
         color: #ffffff;
         -webkit-tap-highlight-color: transparent;
+        transition: background-color 0.5s ease, color 0.5s ease;
       }
+      
+      /* Light Mode Override applied when HTML does NOT have 'dark' class */
+      html:not(.dark) body {
+        background-color: #f8fafc; /* slate-50 */
+        color: #0f172a; /* slate-900 */
+      }
+
       /* Custom Scrollbar for Webkit */
       ::-webkit-scrollbar {
         width: 6px;
@@ -58,17 +73,34 @@
         background: #334155;
         border-radius: 3px;
       }
+      html:not(.dark) ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+      }
+
       .glass-panel {
         background: rgba(30, 41, 59, 0.4);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.08);
       }
+      
+      html:not(.dark) .glass-panel {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+      }
+
       .glass-card-hover:hover {
         background: rgba(30, 41, 59, 0.6);
         border-color: rgba(59, 130, 246, 0.4);
         box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
       }
+      
+      html:not(.dark) .glass-card-hover:hover {
+        background: rgba(255, 255, 255, 0.9);
+        border-color: rgba(59, 130, 246, 0.3);
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.1);
+      }
+
       .neon-text {
         text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
       }

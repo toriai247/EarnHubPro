@@ -5,6 +5,58 @@ import { Task, ActiveInvestment } from '../types';
 // Helper to create a random referral code
 const generateReferralCode = () => 'EH' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
+export const createTransaction = async (userId: string, type: string, amount: number, description: string) => {
+  const { error } = await supabase.from('transactions').insert({
+    user_id: userId,
+    type: type as any,
+    amount,
+    status: 'success',
+    description
+  });
+  
+  if (error) {
+    console.error("Failed to create transaction log:", JSON.stringify(error));
+  }
+};
+
+// Updated to support dynamic columns
+export const updateWallet = async (
+    userId: string, 
+    amount: number, 
+    type: 'increment' | 'decrement', 
+    field: string = 'main_balance' // Default to main_balance
+) => {
+  const { data: wallet, error: fetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
+  
+  if (fetchError || !wallet) {
+      console.error("Wallet fetch error in updateWallet:", JSON.stringify(fetchError));
+      throw new Error("Wallet not found");
+  }
+
+  const updates: any = {};
+  // @ts-ignore
+  const currentVal = wallet[field] || 0;
+  
+  if (type === 'increment') {
+      updates[field] = currentVal + amount;
+  } else {
+      updates[field] = Math.max(0, currentVal - amount);
+  }
+
+  // Legacy sync for backward compatibility (optional)
+  if (field === 'main_balance') {
+      updates.balance = updates[field];
+      updates.withdrawable = Math.max(0, updates.balance - (wallet.pending_withdraw || 0));
+  }
+  
+  const { error: updateError } = await supabase.from('wallets').update(updates).eq('user_id', userId);
+  
+  if (updateError) {
+      console.error("Wallet update error:", JSON.stringify(updateError));
+      throw new Error("Failed to update wallet balance");
+  }
+};
+
 export const createUserProfile = async (userId: string, email: string, fullName: string, referralCode?: string) => {
   const myRefCode = generateReferralCode();
   let referredBy = null;
@@ -42,9 +94,17 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   // 2. Create Wallet safely
   const { error: walletError } = await supabase.from('wallets').upsert({
     user_id: userId,
-    balance: welcomeBonus,
-    deposit: 0,
-    withdrawable: welcomeBonus, 
+    main_balance: 0,
+    bonus_balance: welcomeBonus, // Welcome bonus goes to Bonus Wallet
+    deposit_balance: 0,
+    game_balance: 0,
+    earning_balance: 0,
+    investment_balance: 0,
+    referral_balance: 0,
+    commission_balance: 0,
+    balance: 0, // Legacy
+    deposit: 0, // Legacy
+    withdrawable: 0, 
     total_earning: 0,
     today_earning: 0,
     pending_withdraw: 0,
@@ -97,45 +157,6 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   }
 };
 
-export const createTransaction = async (userId: string, type: string, amount: number, description: string) => {
-  const { error } = await supabase.from('transactions').insert({
-    user_id: userId,
-    type: type as any,
-    amount,
-    status: 'success',
-    description
-  });
-  
-  if (error) {
-    console.error("Failed to create transaction log:", JSON.stringify(error));
-  }
-};
-
-export const updateWallet = async (userId: string, amount: number, type: 'increment' | 'decrement', field: 'balance' | 'deposit' | 'withdrawable' = 'balance') => {
-  const { data: wallet, error: fetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
-  
-  if (fetchError || !wallet) {
-      console.error("Wallet fetch error in updateWallet:", JSON.stringify(fetchError));
-      throw new Error("Wallet not found");
-  }
-
-  const updates: any = {};
-  if (type === 'increment') updates[field] = wallet[field] + amount;
-  else updates[field] = Math.max(0, wallet[field] - amount);
-
-  if (field === 'balance') {
-      const newBalance = updates.balance;
-      updates.withdrawable = Math.max(0, newBalance - wallet.pending_withdraw);
-  }
-  
-  const { error: updateError } = await supabase.from('wallets').update(updates).eq('user_id', userId);
-  
-  if (updateError) {
-      console.error("Wallet update error:", JSON.stringify(updateError));
-      throw new Error("Failed to update wallet balance");
-  }
-};
-
 // --- REFERRAL COMMISSION LOGIC ---
 const distributeReferralReward = async (userId: string, earningAmount: number) => {
     if (earningAmount <= 0) return;
@@ -155,8 +176,7 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
     const { data: rWallet } = await supabase.from('wallets').select('*').eq('user_id', referrerProfile.id).single();
     if (rWallet) {
         await supabase.from('wallets').update({
-            balance: rWallet.balance + commission,
-            withdrawable: rWallet.withdrawable + commission,
+            commission_balance: (rWallet.commission_balance || 0) + commission, // Goes to Commission Wallet
             total_earning: rWallet.total_earning + commission,
             referral_earnings: (rWallet.referral_earnings || 0) + commission
         }).eq('user_id', referrerProfile.id);
@@ -177,7 +197,7 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
         await supabase.from('notifications').insert({
             user_id: referrerProfile.id,
             title: 'Commission Earned! 💸',
-            message: `You earned $${commission.toFixed(4)} from ${userProfile.name_1 || 'Team Member'}. Keep growing your network!`,
+            message: `You earned $${commission.toFixed(4)} (5%) commission. Check your Commission Wallet.`,
             type: 'success'
         });
     }
@@ -230,17 +250,15 @@ export const claimTask = async (userId: string, task: Task) => {
     const { data: w, error: walletFetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
     if (walletFetchError || !w) throw new Error("Wallet not found");
 
-    const currentBal = Number(w.balance) || 0;
+    const currentBal = Number(w.earning_balance) || 0; // Task rewards go to Earning Wallet
     const reward = Number(task.reward) || 0;
-    const pending = Number(w.pending_withdraw) || 0;
     const totalEarn = Number(w.total_earning) || 0;
     const todayEarn = Number(w.today_earning) || 0;
 
     const newBalance = currentBal + reward;
 
     const { error: updateError } = await supabase.from('wallets').update({
-        balance: newBalance,
-        withdrawable: Math.max(0, newBalance - pending),
+        earning_balance: newBalance,
         total_earning: totalEarn + reward,
         today_earning: todayEarn + reward
     }).eq('user_id', userId);
@@ -269,7 +287,10 @@ export const claimInvestmentReturn = async (userId: string, investment: ActiveIn
 
     const dailyProfit = investment.daily_return;
     
-    await updateWallet(userId, dailyProfit, 'increment', 'balance');
+    // ROI goes to Investment Wallet or Main. Let's put in Main for instant access or Earning.
+    // User rule: "Deposit khoros kore ja profit korbe sheta withdraw korte parbe" implies profit is withdrawable.
+    // Let's put profit in 'earning_balance' or 'main_balance'.
+    await updateWallet(userId, dailyProfit, 'increment', 'earning_balance');
     
     const nextDate = new Date();
     nextDate.setHours(nextDate.getHours() + 24);
@@ -287,7 +308,8 @@ export const claimInvestmentReturn = async (userId: string, investment: ActiveIn
 
     const endDate = new Date(investment.end_date);
     if (now >= endDate && investment.status === 'active') {
-        await updateWallet(userId, investment.amount, 'increment', 'balance');
+        // Return principal to Main or Deposit? Usually returned to Main as unlocked capital.
+        await updateWallet(userId, investment.amount, 'increment', 'main_balance');
         await createTransaction(userId, 'earn', investment.amount, `Capital Return: ${investment.plan_name}`);
         await supabase.from('investments').update({ status: 'completed' }).eq('id', investment.id);
     }
@@ -301,11 +323,11 @@ export const saveWithdrawMethod = async (userId: string, method: string, number:
 
     if (existing) {
         if (existing.account_number !== number) {
-            const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', userId).single();
-            if (!wallet || wallet.balance < fee) {
-                throw new Error(`Insufficient balance. Changing the saved number costs ${fee} TK.`);
+            const { data: wallet } = await supabase.from('wallets').select('main_balance').eq('user_id', userId).single();
+            if (!wallet || wallet.main_balance < fee) {
+                throw new Error(`Insufficient Main Balance. Changing the saved number costs ${fee} TK.`);
             }
-            await updateWallet(userId, fee, 'decrement', 'balance');
+            await updateWallet(userId, fee, 'decrement', 'main_balance');
             await createTransaction(userId, 'penalty', fee, 'Withdrawal ID Change Fee');
         }
 
@@ -325,47 +347,24 @@ export const saveWithdrawMethod = async (userId: string, method: string, number:
     }
 };
 
+// UPDATED: Now calls robust database function via RPC
 export const requestWithdrawal = async (userId: string, amount: number, method: string) => {
-    const { data: profile } = await supabase.from('profiles').select('is_withdraw_blocked, is_kyc_1').eq('id', userId).single();
-    const { data: settings } = await supabase.from('withdrawal_settings').select('*').maybeSingle();
-    
-    if (profile?.is_withdraw_blocked) throw new Error("Withdrawals are blocked for this account.");
-    if (settings?.kyc_required && !profile?.is_kyc_1) throw new Error("KYC Verification required.");
-    
-    let withdrawalFee = 0;
-    if (settings) {
-        if (amount < settings.min_withdraw) throw new Error(`Minimum withdrawal is $${settings.min_withdraw}`);
-        if (amount > settings.max_withdraw) throw new Error(`Maximum withdrawal is $${settings.max_withdraw}`);
-        
-        const today = new Date().toISOString().split('T')[0];
-        const { data: dailyTx } = await supabase.from('transactions').select('amount').eq('user_id', userId).eq('type', 'withdraw').gte('created_at', `${today}T00:00:00`);
-        
-        const dailyTotal = (dailyTx || []).reduce((sum, t) => sum + t.amount, 0);
-        if ((dailyTotal + amount) > settings.daily_limit) throw new Error(`Daily limit exceeded.`);
+    const { data, error } = await supabase.rpc('request_withdrawal', {
+        p_user_id: userId,
+        p_amount: amount,
+        p_method: method
+    });
 
-        if (settings.withdraw_fee_percent > 0) {
-            withdrawalFee = (amount * settings.withdraw_fee_percent) / 100;
-        }
+    if (error) {
+        console.error("RPC Error:", error);
+        throw new Error(error.message);
     }
 
-    const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
-    if (!wallet || wallet.withdrawable < amount) throw new Error("Insufficient withdrawable balance.");
+    if (data && data.success === false) {
+        throw new Error(data.message);
+    }
 
-    const { error } = await supabase.from('withdraw_requests').insert({
-        user_id: userId,
-        amount: amount, 
-        method,
-        status: 'pending'
-    });
-    if (error) throw error;
-
-    await supabase.from('wallets').update({
-        pending_withdraw: wallet.pending_withdraw + amount,
-        withdrawable: wallet.withdrawable - amount
-    }).eq('user_id', userId);
-
-    const feeText = withdrawalFee > 0 ? ` (Inc. $${withdrawalFee.toFixed(2)} fee)` : '';
-    await createTransaction(userId, 'withdraw', amount, `Withdraw request via ${method}${feeText}`);
+    return data;
 };
 
 export const processMonthlyPayment = async (userId: string, balance: number, method: string) => {
@@ -373,7 +372,8 @@ export const processMonthlyPayment = async (userId: string, balance: number, met
     const totalPayout = balance + bonus;
     
     const { error: wErr } = await supabase.from('wallets').update({
-        balance: 0, 
+        main_balance: 0, 
+        balance: 0,
         withdrawable: 0,
         pending_withdraw: 0
     }).eq('user_id', userId);

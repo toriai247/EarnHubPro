@@ -7,6 +7,7 @@ import { WalletData } from '../types';
 import { processGameResult, updateWallet } from '../lib/actions';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUI } from '../context/UIContext';
 
 // --- CONFIGURATION ---
 const BETTING_DURATION_MS = 13000; // 13 Seconds Betting Time
@@ -32,6 +33,7 @@ interface Star {
 }
 
 const Crash: React.FC = () => {
+  const { toast } = useUI();
   // User State
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [userId, setUserId] = useState('');
@@ -329,11 +331,11 @@ const Crash: React.FC = () => {
       playSound('bet');
       const amount = parseFloat(betAmount);
       if (isNaN(amount) || amount <= 0) {
-           alert("Invalid bet amount");
+           toast.error("Invalid bet amount");
            return;
       }
       if (amount > wallet.balance) {
-          alert("Insufficient balance");
+          toast.error("Insufficient balance");
           return;
       }
 

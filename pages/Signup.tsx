@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, X, Ticket, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
@@ -14,7 +14,41 @@ const Signup: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Extract referral code from URL query parameter
+    const searchParams = new URLSearchParams(location.search);
+    const refParam = searchParams.get('ref');
+    if (refParam) {
+      setReferralCode(refParam.toUpperCase());
+    }
+  }, [location]);
+
+  const getFriendlyErrorMessage = (errorMsg: string) => {
+    const msg = errorMsg.toLowerCase();
+
+    if (msg.includes('user already registered') || msg.includes('unique constraint')) {
+      return 'This email is already associated with an account. Please sign in instead.';
+    }
+    if (msg.includes('password') && msg.includes('character')) {
+      return 'Password is too short. Please use at least 6 characters.';
+    }
+    if (msg.includes('validation failed') || msg.includes('valid email')) {
+      return 'Please enter a valid email address.';
+    }
+    if (msg.includes('too many requests') || msg.includes('rate limit')) {
+      return 'Too many sign-up attempts. Please wait a few minutes before trying again.';
+    }
+    if (msg.includes('network') || msg.includes('fetch') || msg.includes('connection')) {
+      return 'Network error. Please check your internet connection.';
+    }
+
+    // Return capitalized message or default
+    return errorMsg ? (errorMsg.charAt(0).toUpperCase() + errorMsg.slice(1)) : 'Registration failed. Please try again.';
+  };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +83,7 @@ const Signup: React.FC = () => {
            navigate('/');
         } catch (dbError: any) {
            console.error("DB Init Error:", dbError);
+           // Even if DB init fails partially, the auth user exists, so navigate home to let recovery logic handle it
            navigate('/'); 
         }
       } else {
@@ -57,9 +92,8 @@ const Signup: React.FC = () => {
       }
 
     } catch (err: any) {
-      let msg = err.message || 'Registration failed';
-      if (msg.includes("User already registered")) msg = "This email is already registered. Please login.";
-      setError(msg);
+      console.error('Signup Error:', err);
+      setError(getFriendlyErrorMessage(err.message));
       setIsLoading(false);
     }
   };

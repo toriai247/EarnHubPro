@@ -9,6 +9,7 @@ import GlassCard from '../components/GlassCard';
 import Loader from '../components/Loader';
 import Skeleton from '../components/Skeleton';
 import TrendChart from '../components/TrendChart';
+import BalanceDisplay from '../components/BalanceDisplay';
 import { motion } from 'framer-motion';
 import { Activity, WalletData, UserProfile } from '../types';
 import { supabase } from '../integrations/supabase/client';
@@ -304,7 +305,7 @@ DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
               <div>
                 <p className="text-royal-200 text-xs font-bold uppercase tracking-wider mb-1">Total Asset Balance</p>
                 <h1 className="text-4xl font-display font-bold text-white tracking-tight">
-                  ${wallet.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <BalanceDisplay amount={wallet.balance} />
                 </h1>
               </div>
               <div className="bg-white/10 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10 text-xs font-medium text-neon-glow flex items-center gap-1">
@@ -319,15 +320,15 @@ DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
             <div className="grid grid-cols-3 gap-2 mb-6">
               <div className="bg-black/20 rounded-xl p-2.5 backdrop-blur-sm">
                 <p className="text-[10px] text-gray-400 mb-1">Deposit</p>
-                <p className="font-bold text-white text-sm">${wallet.deposit.toFixed(2)}</p>
+                <p className="font-bold text-white text-sm"><BalanceDisplay amount={wallet.deposit} /></p>
               </div>
               <div className="bg-black/20 rounded-xl p-2.5 backdrop-blur-sm">
                 <p className="text-[10px] text-gray-400 mb-1">Withdrawable</p>
-                <p className="font-bold text-white text-sm">${wallet.withdrawable.toFixed(2)}</p>
+                <p className="font-bold text-white text-sm"><BalanceDisplay amount={wallet.withdrawable} /></p>
               </div>
               <div className="bg-neon-green/10 rounded-xl p-2.5 backdrop-blur-sm border border-neon-green/20">
                 <p className="text-[10px] text-neon-glow mb-1">Today Earn</p>
-                <p className="font-bold text-white text-sm">+${wallet.today_earning.toFixed(2)}</p>
+                <p className="font-bold text-white text-sm">+<BalanceDisplay amount={wallet.today_earning} /></p>
               </div>
             </div>
 
@@ -402,7 +403,8 @@ DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
                  </div>
                  {act.amount && (
                    <span className={`text-xs font-bold font-mono ${act.type === 'withdraw' || act.type === 'invest' || act.type === 'game_loss' ? 'text-white' : 'text-neon-glow'}`}>
-                     {act.type === 'withdraw' || act.type === 'invest' || act.type === 'game_loss' ? '-' : '+'}${act.amount.toFixed(2)}
+                     {act.type === 'withdraw' || act.type === 'invest' || act.type === 'game_loss' ? '-' : '+'}
+                     <BalanceDisplay amount={act.amount} />
                    </span>
                  )}
               </GlassCard>

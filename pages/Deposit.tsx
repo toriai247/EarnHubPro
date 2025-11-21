@@ -6,8 +6,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { PaymentMethod } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUI } from '../context/UIContext';
 
 const Deposit: React.FC = () => {
+  const { toast } = useUI();
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [amount, setAmount] = useState('');
@@ -28,24 +30,25 @@ const Deposit: React.FC = () => {
 
   const copyToClipboard = (text: string) => {
       navigator.clipboard.writeText(text);
-      alert('Copied to clipboard!');
+      toast.success('Account number copied!');
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           if (e.target.files[0].size > 5 * 1024 * 1024) {
-              alert("File size too large. Max 5MB.");
+              toast.warning("File size too large. Max 5MB.");
               return;
           }
           setScreenshot(e.target.files[0]);
+          toast.info("Screenshot selected.");
       }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!selectedMethod) return;
-      if (!amount || parseFloat(amount) <= 0) { alert("Invalid amount"); return; }
-      if (!transactionId) { alert("Transaction ID is required"); return; }
+      if (!amount || parseFloat(amount) <= 0) { toast.error("Invalid amount"); return; }
+      if (!transactionId) { toast.error("Transaction ID is required"); return; }
 
       setLoading(true);
       try {
@@ -86,7 +89,7 @@ const Deposit: React.FC = () => {
 
       } catch (e: any) {
           console.error(e);
-          alert("Submission Failed: " + e.message);
+          toast.error("Submission Failed: " + e.message);
           setStatus('error');
       } finally {
           setLoading(false);

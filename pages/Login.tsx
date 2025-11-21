@@ -14,10 +14,23 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
 
   const getFriendlyErrorMessage = (errorMsg: string) => {
-    if (errorMsg.includes('Invalid login credentials')) return 'Incorrect email or password.';
-    if (errorMsg.includes('Email not confirmed')) return 'Please verify your email address.';
-    if (errorMsg.includes('Too many requests')) return 'Too many attempts. Please try again later.';
-    return errorMsg || 'An unexpected error occurred.';
+    const msg = errorMsg.toLowerCase();
+    
+    if (msg.includes('invalid login credentials')) {
+      return 'Incorrect email or password. Please double-check your credentials.';
+    }
+    if (msg.includes('email not confirmed')) {
+      return 'Your email address is not verified. Please check your inbox for the confirmation link.';
+    }
+    if (msg.includes('too many requests') || msg.includes('rate limit')) {
+      return 'Too many login attempts. Please wait a few minutes before trying again.';
+    }
+    if (msg.includes('network') || msg.includes('fetch') || msg.includes('connection')) {
+      return 'Network error. Please check your internet connection.';
+    }
+    
+    // Default fallback
+    return errorMsg || 'An unexpected error occurred. Please try again.';
   };
 
   const handleLogin = async (e: React.FormEvent) => {

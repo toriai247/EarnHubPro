@@ -6,10 +6,12 @@ import Skeleton from '../components/Skeleton';
 import { supabase } from '../integrations/supabase/client';
 import { WalletData, ActiveInvestment, InvestmentPlan } from '../types';
 import { updateWallet, createTransaction, claimInvestmentReturn } from '../lib/actions';
-import { Clock, TrendingUp, DollarSign, ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Clock, TrendingUp, DollarSign, ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUI } from '../context/UIContext';
 
 const Invest: React.FC = () => {
+  const { toast } = useUI();
   const [activeTab, setActiveTab] = useState<'market' | 'portfolio'>('market');
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [plans, setPlans] = useState<InvestmentPlan[]>([]);
@@ -17,7 +19,7 @@ const Invest: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<InvestmentPlan | null>(null);
   const [userId, setUserId] = useState('');
   const [loading, setLoading] = useState(true);
-  const [claimLoading, setClaimLoading] = useState<string | null>(null); // ID of investment being claimed
+  const [claimLoading, setClaimLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -45,7 +47,7 @@ const Invest: React.FC = () => {
   const handleInvest = async () => {
     if (!selectedPlan) return;
     if (!wallet || wallet.balance < selectedPlan.min_invest) {
-        alert("Insufficient balance");
+        toast.error("Insufficient balance for this plan.");
         return;
     }
 
@@ -56,7 +58,6 @@ const Invest: React.FC = () => {
         const endDate = new Date();
         endDate.setDate(endDate.getDate() + selectedPlan.duration);
         
-        // First claim available 24h from now
         const nextClaim = new Date();
         nextClaim.setHours(nextClaim.getHours() + 24);
 
@@ -76,12 +77,12 @@ const Invest: React.FC = () => {
 
         await createTransaction(userId, 'invest', selectedPlan.min_invest, `Invested in ${selectedPlan.name}`);
 
-        alert('Investment successful! Your first return will be available in 24 hours.');
+        toast.success('Investment successful! First return in 24h.');
         fetchData();
         setActiveTab('portfolio');
         setSelectedPlan(null);
     } catch (e: any) {
-        alert(e.message);
+        toast.error(e.message || "Investment failed");
     }
   };
 
@@ -89,19 +90,18 @@ const Invest: React.FC = () => {
       setClaimLoading(investment.id);
       try {
           await claimInvestmentReturn(userId, investment);
-          // Wait a moment for DB to sync
+          toast.success(`Claimed $${investment.daily_return.toFixed(2)} profit!`);
           setTimeout(() => {
               fetchData();
               setClaimLoading(null);
               window.dispatchEvent(new Event('wallet_updated'));
           }, 1000);
       } catch (e: any) {
-          alert(e.message);
+          toast.error(e.message || "Claim failed");
           setClaimLoading(null);
       }
   };
 
-  // Format time remaining for next claim
   const getTimeUntilClaim = (dateStr: string) => {
       const now = new Date();
       const target = new Date(dateStr);
@@ -114,6 +114,16 @@ const Invest: React.FC = () => {
       return `${hours}h ${minutes}m`;
   };
 
+  const getTheme = (index: number) => {
+      const themes = [
+          { border: 'border-blue-500/30', bg: 'bg-blue-500/5', glow: 'shadow-blue-500/20', accent: 'text-blue-400', badge: 'STARTER' },
+          { border: 'border-yellow-500/30', bg: 'bg-yellow-500/5', glow: 'shadow-yellow-500/20', accent: 'text-yellow-400', badge: 'GOLD' },
+          { border: 'border-purple-500/30', bg: 'bg-purple-500/5', glow: 'shadow-purple-500/20', accent: 'text-purple-400', badge: 'VIP' },
+          { border: 'border-emerald-500/30', bg: 'bg-emerald-500/5', glow: 'shadow-emerald-500/20', accent: 'text-emerald-400', badge: 'ROYAL' },
+      ];
+      return themes[index % themes.length];
+  };
+
   if (loading) {
     return (
         <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0">
@@ -124,12 +134,10 @@ const Invest: React.FC = () => {
                </div>
                <Skeleton variant="text" className="w-20 h-6" />
            </div>
-           
            <div className="flex gap-2">
                <Skeleton variant="rectangular" className="flex-1 h-10" />
                <Skeleton variant="rectangular" className="flex-1 h-10" />
            </div>
-
            <div className="space-y-4">
                {[1, 2, 3].map(i => (
                    <div key={i} className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-4">
@@ -168,7 +176,6 @@ const Invest: React.FC = () => {
          </div>
       </header>
 
-      {/* Tabs */}
       <div className="px-4 sm:px-0">
           <div className="flex p-1 bg-white/5 rounded-xl border border-white/5">
             <button onClick={() => setActiveTab('market')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'market' ? 'bg-royal-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}>Market Plans</button>
@@ -184,54 +191,55 @@ const Invest: React.FC = () => {
                    <p className="text-gray-400">No investment plans available right now.</p>
                </div>
           ) : (
-              plans.map((plan) => (
-                <GlassCard key={plan.id} className="relative overflow-hidden group border border-white/5 hover:border-neon-green/30 transition-all duration-300">
+              plans.map((plan, index) => {
+                const theme = getTheme(index);
+                
+                return (
+                <GlassCard key={plan.id} className={`relative overflow-hidden group transition-all duration-300 border ${theme.border} ${theme.bg} hover:shadow-[0_0_30px_rgba(0,0,0,0.3)] hover:scale-[1.01]`}>
                    {/* Background Decoration */}
-                   <div className="absolute -right-10 -top-10 w-32 h-32 bg-royal-500/10 rounded-full blur-3xl group-hover:bg-neon-green/10 transition"></div>
+                   <div className="absolute -right-10 -top-10 w-32 h-32 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition"></div>
                    
-                   {plan.badge_tag && (
-                       <div className="absolute top-0 right-0 bg-yellow-500 text-black text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-lg uppercase tracking-wider">
-                           {plan.badge_tag}
-                       </div>
-                   )}
+                   <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl shadow-lg uppercase tracking-wider text-[9px] font-bold text-white flex items-center gap-1 ${index === 1 ? 'bg-yellow-500' : index === 2 ? 'bg-purple-500' : 'bg-gray-700'}`}>
+                       {plan.badge_tag || theme.badge} <Star size={8} fill="currentColor" />
+                   </div>
 
-                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 relative z-10">
+                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 relative z-10 pt-2">
                       <div>
                          <h3 className="text-xl font-bold text-white mb-1">{plan.name}</h3>
-                         <p className="text-gray-400 text-xs max-w-xs">{plan.description || "High yield investment opportunity."}</p>
+                         <p className="text-gray-400 text-xs max-w-xs line-clamp-2">{plan.description || "Secure high-yield daily returns."}</p>
                       </div>
-                      <div className="text-left sm:text-right">
-                         <div className="text-3xl font-bold text-neon-green">{plan.daily_return}%</div>
+                      <div className="text-left sm:text-right bg-black/20 p-2 rounded-lg sm:bg-transparent sm:p-0">
+                         <div className={`text-3xl font-bold ${theme.accent}`}>{plan.daily_return}%</div>
                          <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Daily Return</div>
                       </div>
                    </div>
 
                    <div className="grid grid-cols-3 gap-3 mb-6 relative z-10">
-                      <div className="bg-black/30 rounded-lg p-2 text-center border border-white/5">
-                          <Clock size={16} className="mx-auto text-royal-400 mb-1" />
+                      <div className="bg-black/30 rounded-xl p-3 text-center border border-white/5 group-hover:border-white/10 transition">
+                          <Clock size={18} className={`mx-auto mb-1 ${theme.accent}`} />
                           <p className="text-sm font-bold text-white">{plan.duration} Days</p>
-                          <p className="text-[10px] text-gray-500">Duration</p>
+                          <p className="text-[9px] text-gray-500 uppercase">Duration</p>
                       </div>
-                      <div className="bg-black/30 rounded-lg p-2 text-center border border-white/5">
-                          <DollarSign size={16} className="mx-auto text-royal-400 mb-1" />
+                      <div className="bg-black/30 rounded-xl p-3 text-center border border-white/5 group-hover:border-white/10 transition">
+                          <DollarSign size={18} className={`mx-auto mb-1 ${theme.accent}`} />
                           <p className="text-sm font-bold text-white">${plan.min_invest}</p>
-                          <p className="text-[10px] text-gray-500">Min Invest</p>
+                          <p className="text-[9px] text-gray-500 uppercase">Min Invest</p>
                       </div>
-                      <div className="bg-black/30 rounded-lg p-2 text-center border border-white/5">
-                          <TrendingUp size={16} className="mx-auto text-royal-400 mb-1" />
+                      <div className="bg-black/30 rounded-xl p-3 text-center border border-white/5 group-hover:border-white/10 transition">
+                          <TrendingUp size={18} className={`mx-auto mb-1 ${theme.accent}`} />
                           <p className="text-sm font-bold text-white">{plan.total_roi}%</p>
-                          <p className="text-[10px] text-gray-500">Total ROI</p>
+                          <p className="text-[9px] text-gray-500 uppercase">Total ROI</p>
                       </div>
                    </div>
                    
                    <button 
                         onClick={() => setSelectedPlan(plan)} 
-                        className="w-full py-3.5 bg-white text-black rounded-xl font-bold hover:bg-neon-green transition shadow-lg active:scale-[0.98] relative z-10"
+                        className="w-full py-3.5 bg-white text-black rounded-xl font-bold hover:bg-gray-200 transition shadow-lg active:scale-[0.98] relative z-10 flex items-center justify-center gap-2"
                    >
-                       Invest Now
+                       Invest Now <TrendingUp size={16} />
                    </button>
                 </GlassCard>
-              ))
+              )})
           )}
         </div>
       )}
@@ -248,8 +256,6 @@ const Invest: React.FC = () => {
              ) : (
                 myInvestments.map(inv => {
                    const isReadyToClaim = new Date() >= new Date(inv.next_claim_at) && inv.status === 'active';
-                   const progress = Math.min(100, (inv.total_earned / ((inv.amount * inv.daily_return)/100 * 100)) * 100); // Simplified progress
-                   const endDate = new Date(inv.end_date);
                    const now = new Date();
                    const totalDuration = new Date(inv.end_date).getTime() - new Date(inv.start_date).getTime();
                    const elapsed = now.getTime() - new Date(inv.start_date).getTime();

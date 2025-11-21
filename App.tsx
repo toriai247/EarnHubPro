@@ -14,6 +14,8 @@ import Dice from './pages/Dice';
 import Wallet from './pages/Wallet';
 import Deposit from './pages/Deposit';
 import Withdraw from './pages/Withdraw';
+import Transfer from './pages/Transfer';
+import Exchange from './pages/Exchange'; 
 import Profile from './pages/Profile';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -24,7 +26,10 @@ import Terms from './pages/Terms';
 import Leaderboard from './pages/Leaderboard';
 import Admin from './pages/admin/Admin';
 import { supabase } from './integrations/supabase/client';
-import { useSecurity } from './lib/security'; // Import Security
+import { useSecurity } from './lib/security';
+import { CurrencyProvider } from './context/CurrencyContext';
+import { UIProvider } from './context/UIContext';
+import { ThemeProvider } from './context/ThemeContext'; // Import ThemeProvider
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ session }: { session: any }) => {
@@ -42,23 +47,15 @@ const App: React.FC = () => {
   useSecurity();
 
   useEffect(() => {
-    // Initialize Theme
-    document.documentElement.classList.add('dark');
-
-    // Initial session check
+    // We no longer force 'dark' class here, ThemeContext handles it
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
-
-    // Auth state change listener
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
@@ -72,41 +69,44 @@ const App: React.FC = () => {
   }
 
   return (
-    <Router>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
-        <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
+    <ThemeProvider>
+      <UIProvider>
+        <CurrencyProvider>
+          <Router>
+            <Routes>
+              <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+              <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
+              <Route path="/admin" element={session ? <Admin /> : <Navigate to="/login" />} />
 
-        {/* Admin Route */}
-        <Route path="/admin" element={session ? <Admin /> : <Navigate to="/login" />} />
-
-        {/* Protected Routes */}
-        <Route element={<ProtectedRoute session={session} />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/invest" element={<Invest />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/invite" element={<Invite />} />
-          <Route path="/video" element={<Video />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
-          
-          {/* Game Routes */}
-          <Route path="/games" element={<Games />} />
-          <Route path="/games/spin" element={<Spin />} />
-          <Route path="/games/crash" element={<Crash />} />
-          <Route path="/games/dice" element={<Dice />} />
-          
-          <Route path="/wallet" element={<Wallet />} />
-          <Route path="/deposit" element={<Deposit />} />
-          <Route path="/withdraw" element={<Withdraw />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/support" element={<Support />} />
-          <Route path="/faq" element={<FAQ />} />
-          <Route path="/terms" element={<Terms />} />
-        </Route>
-      </Routes>
-    </Router>
+              <Route element={<ProtectedRoute session={session} />}>
+                <Route path="/" element={<Home />} />
+                <Route path="/invest" element={<Invest />} />
+                <Route path="/tasks" element={<Tasks />} />
+                <Route path="/invite" element={<Invite />} />
+                <Route path="/video" element={<Video />} />
+                <Route path="/leaderboard" element={<Leaderboard />} />
+                <Route path="/games" element={<Games />} />
+                <Route path="/games/spin" element={<Spin />} />
+                <Route path="/games/crash" element={<Crash />} />
+                <Route path="/games/dice" element={<Dice />} />
+                
+                <Route path="/wallet" element={<Wallet />} />
+                <Route path="/deposit" element={<Deposit />} />
+                <Route path="/withdraw" element={<Withdraw />} />
+                <Route path="/transfer" element={<Transfer />} />
+                <Route path="/exchange" element={<Exchange />} />
+                
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/notifications" element={<Notifications />} />
+                <Route path="/support" element={<Support />} />
+                <Route path="/faq" element={<FAQ />} />
+                <Route path="/terms" element={<Terms />} />
+              </Route>
+            </Routes>
+          </Router>
+        </CurrencyProvider>
+      </UIProvider>
+    </ThemeProvider>
   );
 };
 

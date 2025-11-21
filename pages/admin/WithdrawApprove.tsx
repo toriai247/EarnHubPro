@@ -4,8 +4,10 @@ import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { WithdrawRequest } from '../../types';
 import { Loader2, CheckCircle, XCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import { useUI } from '../../context/UIContext';
 
 const WithdrawApprove: React.FC = () => {
+  const { toast, confirm } = useUI();
   const [withdrawals, setWithdrawals] = useState<WithdrawRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -27,7 +29,8 @@ const WithdrawApprove: React.FC = () => {
   };
 
   const handleProcess = async (id: string, status: 'approved' | 'rejected') => {
-      if(!confirm(`Are you sure you want to ${status.toUpperCase()} this withdrawal?`)) return;
+      const isConfirmed = await confirm(`Are you sure you want to ${status.toUpperCase()} this withdrawal request?`, 'Confirm Action');
+      if (!isConfirmed) return;
       
       setProcessingId(id);
       try {
@@ -39,11 +42,11 @@ const WithdrawApprove: React.FC = () => {
 
           if (error) throw error;
 
-          alert(`Withdrawal ${status} successfully.`);
+          toast.success(`Withdrawal ${status} successfully.`);
           fetchWithdrawals();
       } catch (e: any) {
           console.error(e);
-          alert('Error processing request: ' + e.message);
+          toast.error('Error processing request: ' + e.message);
       } finally {
           setProcessingId(null);
       }

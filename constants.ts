@@ -34,7 +34,7 @@ export const TASKS: Task[] = [
   { id: '1', title: 'Join Telegram Channel', reward: 5.00, sponsor_rate: 8.00, icon: 'send', difficulty: 'Easy', status: 'available', type: 'social', frequency: 'once' },
   { id: '2', title: 'Watch Promo Video', reward: 2.50, sponsor_rate: 4.00, icon: 'play', difficulty: 'Easy', status: 'available', type: 'video', frequency: 'daily' },
   { id: '3', title: 'Install Partner App', reward: 15.00, sponsor_rate: 20.00, icon: 'download', difficulty: 'Medium', status: 'available', type: 'app', frequency: 'once' },
-  { id: '4', title: 'Invite 3 Friends', reward: 50.00, sponsor_rate: 50.00, icon: 'users', difficulty: 'Hard', status: 'available', type: 'social', frequency: 'once' },
+  { id: '4', title: 'Invite 3 Friends', reward: 75.00, sponsor_rate: 80.00, icon: 'users', difficulty: 'Hard', status: 'available', type: 'social', frequency: 'once' },
 ];
 
 export const GAMES: Game[] = [

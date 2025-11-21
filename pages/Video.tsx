@@ -5,8 +5,10 @@ import { PlayCircle, UploadCloud, Plus, X } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateWallet, createTransaction } from '../lib/actions';
+import { useUI } from '../context/UIContext';
 
 const Video: React.FC = () => {
+  const { toast } = useUI();
   const [watching, setWatching] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
@@ -18,7 +20,7 @@ const Video: React.FC = () => {
          if (session) {
              await updateWallet(session.user.id, 0.50, 'increment', 'balance');
              await createTransaction(session.user.id, 'earn', 0.50, 'Watched Video');
-             alert('You earned $0.50!');
+             toast.success('You earned $0.50! 🎉');
          }
          setWatching(false);
      }, 3000);
@@ -26,10 +28,13 @@ const Video: React.FC = () => {
 
   const handleUpload = (e: React.FormEvent) => {
       e.preventDefault();
-      if(!videoUrl) return;
+      if(!videoUrl) {
+          toast.error('Please enter a URL');
+          return;
+      }
       setShowUpload(false);
       setVideoUrl('');
-      alert('Video submitted for review! Rewards will be credited upon approval.');
+      toast.success('Video submitted for review! Rewards soon.');
   };
 
   return (
@@ -75,7 +80,6 @@ const Video: React.FC = () => {
                                  onChange={e => setVideoUrl(e.target.value)}
                                  placeholder="https://..."
                                  className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-white text-sm"
-                                 required
                                />
                            </div>
                            <div className="border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center text-gray-500 hover:border-neon-green/50 hover:text-neon-green transition cursor-pointer">
