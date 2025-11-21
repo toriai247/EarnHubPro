@@ -43,20 +43,35 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // Activate Anti-Hack Security
+  // Activate Anti-Hack Security (Lite Version)
   useSecurity();
 
   useEffect(() => {
-    // We no longer force 'dark' class here, ThemeContext handles it
+    // Safety Timeout: If Supabase takes too long (e.g. network issue), force load the app
+    // This prevents being stuck on the loading spinner forever.
+    const timeoutId = setTimeout(() => {
+        setLoading(false);
+    }, 3000); // 3 seconds max wait time
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
+      clearTimeout(timeoutId);
+    }).catch(() => {
+      // Even if there's an error, stop loading so user sees Login screen
+      setLoading(false);
+      clearTimeout(timeoutId);
     });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+        subscription.unsubscribe();
+        clearTimeout(timeoutId);
+    };
   }, []);
 
   if (loading) {
