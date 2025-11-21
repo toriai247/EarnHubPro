@@ -4,7 +4,7 @@ import GlassCard from '../components/GlassCard';
 import Loader from '../components/Loader';
 import { 
   ArrowDownLeft, ArrowUpRight, Wallet as WalletIcon, ShieldCheck, 
-  Zap, Trophy, Gamepad2, Target, TrendingUp, Users, PieChart, Gift, ArrowRightLeft 
+  Zap, Trophy, Gamepad2, Target, TrendingUp, Users, PieChart, Gift, ArrowRightLeft, RefreshCw, AlertCircle 
 } from 'lucide-react';
 import { WalletData, Activity } from '../types';
 import { supabase } from '../integrations/supabase/client';
@@ -17,12 +17,26 @@ const Wallet: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalAssets, setTotalAssets] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState<'all' | 'deposit' | 'withdraw' | 'earn' | 'transfer'>('all');
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Safety Timeout
+  useEffect(() => {
+      if (loading) {
+          const timer = setTimeout(() => {
+              if (loading) {
+                  setLoading(false);
+                  if (!wallet) setError("Failed to load wallet data.");
+              }
+          }, 15000);
+          return () => clearTimeout(timer);
+      }
+  }, [loading, wallet]);
 
   useEffect(() => {
       if (wallet) {
@@ -41,6 +55,7 @@ const Wallet: React.FC = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    setError(null);
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
        try {
@@ -68,6 +83,7 @@ const Wallet: React.FC = () => {
            }
        } catch (e: any) {
            console.error(e);
+           setError(e.message);
        }
     }
     setLoading(false);
@@ -102,7 +118,16 @@ const Wallet: React.FC = () => {
   ];
 
   if (loading) return <div className="p-10"><Loader /></div>;
-  if (!wallet) return <div className="p-10 text-center text-red-500">Wallet Error</div>;
+  if (error || !wallet) return (
+      <div className="p-10 flex flex-col items-center justify-center text-center">
+          <AlertCircle className="text-red-500 mb-3" size={40} />
+          <h3 className="text-xl font-bold text-white mb-2">Wallet Error</h3>
+          <p className="text-gray-400 text-sm mb-6">{error || "Could not load wallet data."}</p>
+          <button onClick={fetchData} className="px-6 py-3 bg-royal-600 text-white rounded-xl font-bold flex items-center gap-2">
+              <RefreshCw size={18} /> Retry
+          </button>
+      </div>
+  );
 
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 relative">
@@ -113,6 +138,9 @@ const Wallet: React.FC = () => {
              <ShieldCheck size={14} className="text-green-500" /> Multi-Wallet System
            </p>
          </div>
+         <button onClick={fetchData} className="p-2 bg-white/10 rounded-xl text-gray-400 hover:text-white transition">
+             <RefreshCw size={20} />
+         </button>
       </header>
 
       {/* MAIN BALANCE CARD */}

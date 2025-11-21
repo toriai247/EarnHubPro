@@ -20,28 +20,48 @@ const Invest: React.FC = () => {
   const [userId, setUserId] = useState('');
   const [loading, setLoading] = useState(true);
   const [claimLoading, setClaimLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
   }, []);
 
+  // Safety Timeout
+  useEffect(() => {
+      if (loading) {
+          const timer = setTimeout(() => {
+              if (loading) {
+                  setLoading(false);
+                  if (!wallet) setError("Investment data failed to load.");
+              }
+          }, 15000);
+          return () => clearTimeout(timer);
+      }
+  }, [loading, wallet]);
+
   const fetchData = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-       setUserId(session.user.id);
-       
-       const [walletRes, planRes, invRes] = await Promise.all([
-           supabase.from('wallets').select('*').eq('user_id', session.user.id).single(),
-           supabase.from('investment_plans').select('*').eq('is_active', true).order('min_invest', {ascending: true}),
-           supabase.from('investments').select('*').eq('user_id', session.user.id).order('created_at', {ascending: false})
-       ]);
+    setError(null);
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+           setUserId(session.user.id);
+           
+           const [walletRes, planRes, invRes] = await Promise.all([
+               supabase.from('wallets').select('*').eq('user_id', session.user.id).single(),
+               supabase.from('investment_plans').select('*').eq('is_active', true).order('min_invest', {ascending: true}),
+               supabase.from('investments').select('*').eq('user_id', session.user.id).order('created_at', {ascending: false})
+           ]);
 
-       if(walletRes.data) setWallet(walletRes.data as WalletData);
-       if(planRes.data) setPlans(planRes.data as InvestmentPlan[]);
-       if(invRes.data) setMyInvestments(invRes.data as ActiveInvestment[]);
+           if(walletRes.data) setWallet(walletRes.data as WalletData);
+           if(planRes.data) setPlans(planRes.data as InvestmentPlan[]);
+           if(invRes.data) setMyInvestments(invRes.data as ActiveInvestment[]);
+        }
+    } catch (e: any) {
+        setError(e.message);
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleInvest = async () => {
@@ -146,7 +166,18 @@ const Invest: React.FC = () => {
     );
   }
 
-  if (!wallet) return null;
+  if (error || !wallet) {
+      return (
+          <div className="flex flex-col items-center justify-center p-10 text-center min-h-[60vh]">
+              <AlertTriangle size={40} className="text-amber-500 mb-4" />
+              <h3 className="text-white font-bold text-xl mb-2">Unable to Load Plans</h3>
+              <p className="text-gray-400 text-sm mb-6">{error}</p>
+              <button onClick={fetchData} className="bg-royal-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2">
+                  <RefreshCw size={18} /> Retry
+              </button>
+          </div>
+      );
+  }
 
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6">
@@ -155,7 +186,7 @@ const Invest: React.FC = () => {
            <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white mb-1">Investment Hub</h1>
            <p className="text-slate-500 dark:text-gray-400 text-sm">Grow your wealth with secured plans.</p>
          </div>
-         <div className="text-right hidden sm:block">
+         <div className="text-right flex flex-col items-end">
            <p className="text-xs text-slate-500 dark:text-gray-400">Available Balance</p>
            <p className="text-xl font-bold text-royal-600 dark:text-neon-glow font-mono">${wallet.balance.toFixed(2)}</p>
          </div>

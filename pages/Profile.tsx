@@ -6,7 +6,7 @@ import {
   Edit2, LogOut, Bell, Shield, Settings, Twitter, Send, LayoutDashboard, 
   Copy, Award, Zap, CreditCard, Smartphone, Lock, ChevronRight, X, 
   User as UserIcon, Crown, History, ArrowDownLeft, ArrowUpRight, 
-  Wallet as WalletIcon, Users, XCircle, Camera, CheckCircle2, ShieldCheck
+  Wallet as WalletIcon, Users, XCircle, Camera, CheckCircle2, ShieldCheck, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { UserProfile, WalletData, ReferralStats, Transaction } from '../types';
 import { supabase } from '../integrations/supabase/client';
@@ -123,6 +123,16 @@ const Profile: React.FC = () => {
     fetchData();
   }, []);
 
+  // Safety Timeout
+  useEffect(() => {
+      if (loading) {
+          const timer = setTimeout(() => {
+              if (loading) setLoading(false);
+          }, 15000);
+          return () => clearTimeout(timer);
+      }
+  }, [loading]);
+
   useEffect(() => {
     if (user) {
       setEditForm({
@@ -223,7 +233,17 @@ const Profile: React.FC = () => {
       );
   }
 
-  if (!user || !wallet) return null;
+  if (!user || !wallet) {
+      return (
+          <div className="pb-24 sm:pl-20 sm:pt-6 px-4 flex flex-col items-center justify-center min-h-[50vh] text-center">
+              <AlertCircle size={48} className="text-slate-500 mb-4" />
+              <h2 className="text-xl font-bold text-white mb-2">Failed to load profile</h2>
+              <button onClick={fetchData} className="px-6 py-2 bg-royal-600 rounded-xl text-white font-bold flex items-center gap-2">
+                  <RefreshCw size={18} /> Retry
+              </button>
+          </div>
+      );
+  }
 
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 min-h-screen relative overflow-x-hidden">

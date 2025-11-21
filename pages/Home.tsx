@@ -28,6 +28,19 @@ const Home: React.FC = () => {
     fetchData();
   }, []);
 
+  // Safety Timeout: If data fetching hangs for 15 seconds, force stop loading
+  useEffect(() => {
+      if (loading) {
+          const timer = setTimeout(() => {
+              if (loading) {
+                  setLoading(false);
+                  if (!wallet) setError("Network timeout. Please swipe down or tap refresh.");
+              }
+          }, 15000);
+          return () => clearTimeout(timer);
+      }
+  }, [loading, wallet]);
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -147,9 +160,11 @@ const Home: React.FC = () => {
                 <AlertCircle size={32} />
             </div>
             <div className="max-w-md w-full">
-                <h2 className="text-xl font-bold text-slate-800 dark:text-white">Failed to load data</h2>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white">Connection Issue</h2>
                 <p className="text-slate-500 dark:text-gray-400 text-xs mt-2">{error}</p>
-                <button onClick={() => window.location.reload()} className="mt-4 px-6 py-2 bg-royal-600 text-white rounded-lg text-sm font-bold">Retry</button>
+                <button onClick={fetchData} className="mt-4 px-6 py-3 bg-royal-600 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-royal-700 transition flex items-center justify-center gap-2 mx-auto">
+                    <RefreshCw size={18} /> Retry Connection
+                </button>
             </div>
         </div>
       );
@@ -179,10 +194,9 @@ const Home: React.FC = () => {
             </div>
           </div>
         </div>
-        <Link to="/profile" className="p-2.5 glass-panel rounded-xl text-royal-600 dark:text-royal-400 hover:bg-slate-100 dark:hover:text-white transition relative group shadow-sm">
-          <Crown size={20} />
-          {user && user.level_1 > 1 && <span className="absolute top-2 right-2 w-2 h-2 bg-amber-400 rounded-full border-2 border-white dark:border-dark-900"></span>}
-        </Link>
+        <button onClick={fetchData} className="p-2.5 glass-panel rounded-xl text-royal-600 dark:text-royal-400 hover:bg-slate-100 dark:hover:text-white transition relative group shadow-sm">
+          <RefreshCw size={20} />
+        </button>
       </motion.div>
 
       {/* Main Balance Card */}
