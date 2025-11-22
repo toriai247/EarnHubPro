@@ -105,9 +105,15 @@ export interface UserProfile {
 export interface Game {
   id: string;
   name: string;
-  image: string;
+  image?: string;
   players: number;
-  type: 'crash' | 'wheel' | 'slots';
+  type: 'crash' | 'wheel' | 'slots' | 'ludo';
+  path?: string;
+  color?: string;
+  bgColor?: string;
+  status?: string;
+  description?: string;
+  icon?: any;
 }
 
 export interface VideoShort {
@@ -251,4 +257,11 @@ export interface AppNotification {
     created_at: string;
     read: boolean;
     is_read?: boolean; // DB field
+}
+
+export interface BotProfile {
+    id: string;
+    name: string;
+    avatar: string;
+    is_active: boolean;
 }

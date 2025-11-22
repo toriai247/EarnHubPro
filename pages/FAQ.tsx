@@ -1,8 +1,9 @@
-
 import React, { useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const MotionDiv = motion.div as any;
 
 const FAQs = [
     { q: "How do I deposit funds?", a: "Go to the Wallet page and click on 'Deposit'. Select your preferred payment method (Bkash, Nagad, or Crypto), enter the amount, and follow the instructions." },
@@ -37,14 +38,14 @@ const FAQ: React.FC = () => {
                   </button>
                   <AnimatePresence>
                       {openIndex === idx && (
-                          <motion.div 
+                          <MotionDiv 
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
                             className="px-4 pb-4 text-sm text-gray-400 border-t border-white/5 pt-2"
                           >
                               {faq.a}
-                          </motion.div>
+                          </MotionDiv>
                       )}
                   </AnimatePresence>
               </GlassCard>

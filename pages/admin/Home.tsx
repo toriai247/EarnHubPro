@@ -5,14 +5,14 @@ import {
   TrendingUp, Gift, Zap, PlayCircle, Users, ArrowRight, Sparkles, Crown, 
   Activity as ActivityIcon, AlertCircle, RefreshCw, Wallet, ArrowDownLeft, ArrowUpRight, Trophy, Copy, Terminal
 } from 'lucide-react';
-import GlassCard from '../components/GlassCard';
-import Skeleton from '../components/Skeleton';
-import TrendChart from '../components/TrendChart';
-import BalanceDisplay from '../components/BalanceDisplay';
+import GlassCard from '../../components/GlassCard';
+import Skeleton from '../../components/Skeleton';
+import TrendChart from '../../components/TrendChart';
+import BalanceDisplay from '../../components/BalanceDisplay';
 import { motion } from 'framer-motion';
-import { Activity, WalletData, UserProfile } from '../types';
-import { supabase } from '../integrations/supabase/client';
-import { createUserProfile } from '../lib/actions';
+import { Activity, WalletData, UserProfile } from '../../types';
+import { supabase } from '../../integrations/supabase/client';
+import { createUserProfile } from '../../lib/actions';
 
 const MotionDiv = motion.div as any;
 
@@ -30,7 +30,7 @@ const Home: React.FC = () => {
     fetchData();
   }, []);
 
-  // Safety Timeout
+  // Safety Timeout: If data fetching hangs for 15 seconds, force stop loading
   useEffect(() => {
       if (loading) {
           const timer = setTimeout(() => {

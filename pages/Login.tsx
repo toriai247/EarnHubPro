@@ -1,9 +1,11 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Mail, LogIn, AlertCircle, Loader2, X, ChevronRight, Shield } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
+
+const MotionDiv = motion.div as any;
+const MotionButton = motion.button as any;
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -66,7 +68,7 @@ const Login: React.FC = () => {
         <div className="absolute top-[40%] left-[40%] w-[30%] h-[30%] bg-purple-600/10 rounded-full blur-[100px] animate-pulse-slow" style={{ animationDelay: '4s' }}></div>
       </div>
 
-      <motion.div 
+      <MotionDiv 
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: 'spring', damping: 20, stiffness: 100 }}
@@ -80,7 +82,7 @@ const Login: React.FC = () => {
           <div className="p-8">
             {/* Header */}
             <div className="text-center mb-8">
-              <motion.div 
+              <MotionDiv 
                 initial={{ scale: 0 }} animate={{ scale: 1 }} 
                 transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }}
                 className="w-16 h-16 mx-auto bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-4 shadow-lg group hover:border-neon-green/50 transition duration-500"
@@ -88,7 +90,7 @@ const Login: React.FC = () => {
                 <div className="text-2xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-tr from-royal-400 to-neon-green group-hover:scale-110 transition transform">
                   E
                 </div>
-              </motion.div>
+              </MotionDiv>
               <h1 className="text-3xl font-display font-bold text-white mb-2 tracking-tight">Welcome Back</h1>
               <p className="text-gray-400 text-sm">Access your secure earning dashboard.</p>
             </div>
@@ -96,7 +98,7 @@ const Login: React.FC = () => {
             <form onSubmit={handleLogin} className="space-y-5">
               <AnimatePresence mode="wait">
                 {error && (
-                  <motion.div 
+                  <MotionDiv 
                     initial={{ opacity: 0, height: 0, y: -10 }}
                     animate={{ opacity: 1, height: 'auto', y: 0 }}
                     exit={{ opacity: 0, height: 0, y: -10 }}
@@ -105,7 +107,7 @@ const Login: React.FC = () => {
                     <AlertCircle size={18} className="mt-0.5 shrink-0" />
                     <span className="flex-1 font-medium">{error}</span>
                     <button type="button" onClick={() => setError('')}><X size={16} className="opacity-50 hover:opacity-100" /></button>
-                  </motion.div>
+                  </MotionDiv>
                 )}
               </AnimatePresence>
 
@@ -158,7 +160,7 @@ const Login: React.FC = () => {
                 </div>
               </div>
 
-              <motion.button 
+              <MotionButton 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 type="submit" 
@@ -169,7 +171,7 @@ const Login: React.FC = () => {
                 <span className="relative z-10 flex items-center gap-2">
                   {isLoading ? <Loader2 className="animate-spin" size={20} /> : <><LogIn size={20} /> Login Now</>}
                 </span>
-              </motion.button>
+              </MotionButton>
             </form>
 
             {/* Footer */}
@@ -189,7 +191,7 @@ const Login: React.FC = () => {
           <Shield size={12} /> 
           <span>Secure 256-bit Encrypted Connection</span>
         </div>
-      </motion.div>
+      </MotionDiv>
     </div>
   );
 };

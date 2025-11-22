@@ -17,7 +17,8 @@
     "@google/genai": "^1.30.0",
     "@supabase/supabase-js": "^2.83.0",
     "@vitejs/plugin-react": "^5.1.1",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "path": "^0.12.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

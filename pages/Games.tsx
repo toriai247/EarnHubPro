@@ -1,12 +1,14 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
 import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Game } from '../types';
+
+const MotionDiv = motion.div as any;
 
 const Games: React.FC = () => {
-  const games = [
+  const games: Game[] = [
     {
       id: 'spin',
       name: 'Lucky Spin',
@@ -16,7 +18,8 @@ const Games: React.FC = () => {
       bgColor: 'bg-purple-500/20',
       path: '/games/spin',
       status: 'active',
-      players: 1205
+      players: 1205,
+      type: 'wheel'
     },
     {
       id: 'crash',
@@ -26,8 +29,9 @@ const Games: React.FC = () => {
       color: 'text-red-400',
       bgColor: 'bg-red-500/20',
       path: '/games/crash',
-      status: 'active', // Enabled
-      players: 4203
+      status: 'active', 
+      players: 4203,
+      type: 'crash'
     },
     {
       id: 'dice',
@@ -37,19 +41,21 @@ const Games: React.FC = () => {
       color: 'text-neon-green',
       bgColor: 'bg-neon-green/20',
       path: '/games/dice',
-      status: 'active', // Enabled
-      players: 850
+      status: 'active', 
+      players: 850,
+      type: 'slots' // Using slots type as placeholder for dice
     },
     {
       id: 'ludo',
       name: 'Ludo King',
-      description: 'Classic board game tournament with real rewards.',
+      description: 'Classic board game. PvP with Bot. Win 70% of pot.',
       icon: Grid,
       color: 'text-yellow-400',
       bgColor: 'bg-yellow-500/20',
       path: '/games/ludo',
-      status: 'coming_soon',
-      players: 310
+      status: 'active',
+      players: 310,
+      type: 'ludo'
     }
   ];
 
@@ -81,18 +87,18 @@ const Games: React.FC = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {games.map((game, index) => (
-          <motion.div
+          <MotionDiv
             key={game.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
           >
             {game.status === 'active' ? (
-              <Link to={game.path}>
+              <Link to={game.path || '#'}>
                 <GlassCard className="h-full flex flex-col group hover:bg-white/5 transition duration-300 border border-white/5 hover:border-royal-500/50">
                   <div className="flex justify-between items-start mb-4">
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${game.bgColor} ${game.color}`}>
-                      <game.icon size={24} />
+                      {game.icon && <game.icon size={24} />}
                     </div>
                     <div className="bg-black/30 px-2 py-1 rounded-lg text-[10px] text-gray-400 flex items-center gap-1">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
@@ -111,7 +117,7 @@ const Games: React.FC = () => {
                    </div>
                   <div className="flex justify-between items-start mb-4">
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${game.bgColor} ${game.color}`}>
-                      <game.icon size={24} />
+                      {game.icon && <game.icon size={24} />}
                     </div>
                   </div>
                   <h3 className="text-lg font-bold text-white mb-1">{game.name}</h3>
@@ -119,7 +125,7 @@ const Games: React.FC = () => {
                 </GlassCard>
               </div>
             )}
-          </motion.div>
+          </MotionDiv>
         ))}
       </div>
     </div>

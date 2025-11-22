@@ -8,6 +8,7 @@ import { WalletData, GameResult, SpinItem } from '../types';
 import { processGameResult, updateWallet } from '../lib/actions';
 import { Link } from 'react-router-dom';
 import { useUI } from '../context/UIContext';
+import BalanceDisplay from '../components/BalanceDisplay';
 
 const Spin: React.FC = () => {
   const { toast } = useUI();
@@ -263,7 +264,7 @@ const Spin: React.FC = () => {
                     <div key={h.id} className={`shrink-0 px-3 py-1 rounded-lg border flex flex-col items-center min-w-[60px] ${h.profit > 0 ? 'bg-green-500/10 border-green-500/20' : 'bg-white/5 border-white/5'}`}>
                         <span className="text-[9px] text-gray-500">{new Date(h.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
                         <span className={`text-xs font-bold ${h.profit > 0 ? 'text-neon-green' : 'text-gray-400'}`}>
-                             {h.profit > 0 ? `+$${h.profit.toFixed(2)}` : `-$${h.bet}`}
+                             {h.profit > 0 ? '+' : '-'}<BalanceDisplay amount={Math.abs(h.profit > 0 ? h.profit : h.bet)} />
                         </span>
                     </div>
                 ))}
@@ -374,7 +375,7 @@ const Spin: React.FC = () => {
                                         >
                                             <span>{getWalletLabel(key)}</span>
                                             {/* @ts-ignore */}
-                                            <span className="font-mono font-bold">${(wallet[key] || 0).toFixed(2)}</span>
+                                            <span className="font-mono font-bold"><BalanceDisplay amount={wallet[key] || 0} /></span>
                                         </button>
                                     ))}
                                 </div>
@@ -394,7 +395,7 @@ const Spin: React.FC = () => {
                         </div>
                         
                         <div className="flex justify-between items-center text-[10px] text-gray-500 px-1">
-                            <span>Balance: <span className="text-white font-bold">${getCurrentBalance().toFixed(2)}</span></span>
+                            <span>Balance: <span className="text-white font-bold"><BalanceDisplay amount={getCurrentBalance()} /></span></span>
                             <div className="flex gap-2">
                                 <button onClick={() => setBetAmount('10')} className="hover:text-white">Min</button>
                                 <button onClick={() => setBetAmount(getCurrentBalance().toString())} className="text-neon-green hover:underline">Max</button>

@@ -1,10 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, X, Ticket, CheckCircle2, Database } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
+
+const MotionDiv = motion.div as any;
+const MotionButton = motion.button as any;
+const MotionH2 = motion.h2 as any;
+const MotionP = motion.p as any;
 
 const Signup: React.FC = () => {
   const [name, setName] = useState('');
@@ -120,7 +124,7 @@ const Signup: React.FC = () => {
         <div className="absolute bottom-[10%] left-[10%] w-[40%] h-[40%] bg-royal-600/20 rounded-full blur-[100px] animate-pulse-slow" style={{ animationDelay: '1.5s' }}></div>
       </div>
 
-      <motion.div 
+      <MotionDiv 
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, type: 'spring' }}
@@ -130,28 +134,28 @@ const Signup: React.FC = () => {
           
           <div className="px-8 pt-10 pb-8">
             <div className="mb-8">
-              <motion.h2 
+              <MotionH2 
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.3 }}
                 className="text-3xl font-display font-bold text-white mb-2"
               >
                 Create Account
-              </motion.h2>
-              <motion.p 
+              </MotionH2>
+              <MotionP 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
                 className="text-gray-400 text-sm"
               >
                 Join the future of earning. It's free.
-              </motion.p>
+              </MotionP>
             </div>
 
             <form onSubmit={handleSignup} className="space-y-4">
               <AnimatePresence mode="wait">
                 {error && (
-                  <motion.div 
+                  <MotionDiv 
                     initial={{ opacity: 0, height: 0, scale: 0.9 }}
                     animate={{ opacity: 1, height: 'auto', scale: 1 }}
                     exit={{ opacity: 0, height: 0, scale: 0.9 }}
@@ -160,12 +164,12 @@ const Signup: React.FC = () => {
                     {error.includes('sent') ? <CheckCircle2 size={18} className="mt-0.5"/> : error.includes('Database') ? <Database size={18} className="mt-0.5 shrink-0"/> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
                     <span className="flex-1 font-medium leading-relaxed">{error}</span>
                     <button type="button" onClick={() => setError('')}><X size={16} className="opacity-50 hover:opacity-100" /></button>
-                  </motion.div>
+                  </MotionDiv>
                 )}
               </AnimatePresence>
 
               {/* Name Field */}
-              <motion.div 
+              <MotionDiv 
                 variants={inputVariants} 
                 animate={focusedField === 'name' ? 'focus' : 'blur'}
                 className="relative group"
@@ -183,10 +187,10 @@ const Signup: React.FC = () => {
                   className={`w-full bg-black/30 border rounded-2xl py-4 pl-12 pr-4 text-white placeholder-gray-600 transition-all outline-none ${focusedField === 'name' ? 'border-neon-green/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/10'}`}
                   placeholder="Full Name"
                 />
-              </motion.div>
+              </MotionDiv>
 
               {/* Email Field */}
-              <motion.div 
+              <MotionDiv 
                 variants={inputVariants} 
                 animate={focusedField === 'email' ? 'focus' : 'blur'}
                 className="relative group"
@@ -204,10 +208,10 @@ const Signup: React.FC = () => {
                   className={`w-full bg-black/30 border rounded-2xl py-4 pl-12 pr-4 text-white placeholder-gray-600 transition-all outline-none ${focusedField === 'email' ? 'border-neon-green/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/10'}`}
                   placeholder="Email Address"
                 />
-              </motion.div>
+              </MotionDiv>
 
               {/* Password Field */}
-              <motion.div 
+              <MotionDiv 
                 variants={inputVariants} 
                 animate={focusedField === 'password' ? 'focus' : 'blur'}
                 className="relative group"
@@ -225,10 +229,10 @@ const Signup: React.FC = () => {
                   className={`w-full bg-black/30 border rounded-2xl py-4 pl-12 pr-4 text-white placeholder-gray-600 transition-all outline-none ${focusedField === 'password' ? 'border-neon-green/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/10'}`}
                   placeholder="Password (Min 6 chars)"
                 />
-              </motion.div>
+              </MotionDiv>
 
               {/* Referral Field */}
-              <motion.div 
+              <MotionDiv 
                 variants={inputVariants} 
                 animate={focusedField === 'ref' ? 'focus' : 'blur'}
                 className="relative group"
@@ -246,10 +250,10 @@ const Signup: React.FC = () => {
                   placeholder="REF CODE (OPTIONAL)"
                   maxLength={10}
                 />
-              </motion.div>
+              </MotionDiv>
 
               <div className="pt-4">
-                <motion.button 
+                <MotionButton 
                     whileHover={{ scale: 1.02, backgroundColor: '#34d399', color: '#000' }}
                     whileTap={{ scale: 0.98 }}
                     type="submit" 
@@ -257,7 +261,7 @@ const Signup: React.FC = () => {
                     className="w-full py-4 bg-white text-black font-bold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                     {isLoading ? <Loader2 className="animate-spin" size={20} /> : <>Create Account <ArrowRight size={20} /></>}
-                </motion.button>
+                </MotionButton>
               </div>
             </form>
 
@@ -271,7 +275,7 @@ const Signup: React.FC = () => {
             </div>
           </div>
         </div>
-      </motion.div>
+      </MotionDiv>
     </div>
   );
 };

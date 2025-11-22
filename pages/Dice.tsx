@@ -8,6 +8,7 @@ import { supabase } from '../integrations/supabase/client';
 import { WalletData, GameResult } from '../types';
 import { processGameResult, updateWallet } from '../lib/actions';
 import { useUI } from '../context/UIContext';
+import BalanceDisplay from '../components/BalanceDisplay';
 
 // --- DICE FACE COMPONENT ---
 const DiceFace = ({ val }: { val: number }) => {
@@ -359,7 +360,7 @@ const Dice: React.FC = () => {
                    </button>
                    <div className="bg-dark-900 px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
                        <Trophy size={14} className="text-yellow-400"/>
-                       <span className="font-mono font-bold text-white text-sm">${wallet?.balance.toFixed(2)}</span>
+                       <span className="font-mono font-bold text-white text-sm"><BalanceDisplay amount={wallet?.balance || 0} /></span>
                    </div>
                </div>
            </header>
@@ -517,7 +518,7 @@ const Dice: React.FC = () => {
                         <div className="flex justify-between mb-1">
                             <label className="text-[10px] text-gray-400 font-bold uppercase">Bet Amount</label>
                             <span className="text-[10px] text-neon-green font-bold cursor-pointer hover:underline" onClick={() => setBetAmount(wallet?.balance.toString() || '0')}>
-                                Max: ${wallet?.balance.toFixed(2)}
+                                Max: <BalanceDisplay amount={wallet?.balance || 0} />
                             </span>
                         </div>
                         <div className="relative flex items-center">
@@ -551,7 +552,7 @@ const Dice: React.FC = () => {
                             <>
                                 <span className="text-2xl">ROLL</span>
                                 <span className="text-[10px] font-normal mt-1 opacity-80 flex items-center gap-1">
-                                    <Sparkles size={10}/> Win ${potentialWin.toFixed(2)}
+                                    <Sparkles size={10}/> Win <BalanceDisplay amount={potentialWin} />
                                 </span>
                             </>
                         )}

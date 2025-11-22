@@ -11,6 +11,8 @@ import Games from './pages/Games';
 import Spin from './pages/Spin';
 import Crash from './pages/Crash';
 import Dice from './pages/Dice';
+import LudoLobby from './pages/LudoLobby';
+import LudoKing from './pages/LudoKing';
 import Wallet from './pages/Wallet';
 import Deposit from './pages/Deposit';
 import Withdraw from './pages/Withdraw';
@@ -129,6 +131,8 @@ const App: React.FC = () => {
                 <Route path="/games/spin" element={<Spin />} />
                 <Route path="/games/crash" element={<Crash />} />
                 <Route path="/games/dice" element={<Dice />} />
+                <Route path="/games/ludo" element={<LudoLobby />} />
+                <Route path="/games/ludo/play/:stake" element={<LudoKing />} />
                 
                 <Route path="/wallet" element={<Wallet />} />
                 <Route path="/deposit" element={<Deposit />} />

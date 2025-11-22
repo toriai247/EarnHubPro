@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import Skeleton from '../components/Skeleton';
@@ -14,6 +13,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BADGES } from '../constants';
 import { createUserProfile } from '../lib/actions';
+import BalanceDisplay from '../components/BalanceDisplay';
+
+const MotionDiv = motion.div as any;
 
 // --- COMPONENTS ---
 
@@ -83,7 +85,7 @@ const CyberCard = ({ balance, holder, number }: { balance: number, holder: strin
             <div>
                 <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Asset Balance</p>
                 <h3 className="text-3xl font-display font-bold text-white tracking-tight text-shadow-glow">
-                    ${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    <BalanceDisplay amount={balance} />
                 </h3>
             </div>
 
@@ -306,7 +308,7 @@ const Profile: React.FC = () => {
                     >
                         {tab.label}
                         {activeTab === tab.id && (
-                            <motion.div 
+                            <MotionDiv 
                                 layoutId="activeTab"
                                 className="absolute bottom-0 left-0 right-0 h-0.5 bg-royal-600 dark:bg-neon-green shadow-sm"
                             />
@@ -322,7 +324,7 @@ const Profile: React.FC = () => {
                 
                 {/* OVERVIEW TAB */}
                 {activeTab === 'overview' && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+                    <MotionDiv initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
                         
                         <GlassCard>
                             <div className="flex justify-between items-start mb-2">
@@ -376,12 +378,12 @@ const Profile: React.FC = () => {
                                 <span className="text-sm font-medium text-slate-600 dark:text-gray-300 group-hover:text-slate-900 dark:group-hover:text-white">Telegram</span>
                             </a>
                         </div>
-                    </motion.div>
+                    </MotionDiv>
                 )}
 
                 {/* WALLET TAB */}
                 {activeTab === 'wallet' && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                    <MotionDiv initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
                         <CyberCard 
                             balance={wallet.balance} 
                             holder={user.name_1 || ''} 
@@ -409,7 +411,7 @@ const Profile: React.FC = () => {
                             </h3>
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">${referral?.totalEarned.toFixed(2)}</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white"><BalanceDisplay amount={referral?.totalEarned || 0} /></p>
                                     <p className="text-xs text-slate-500 dark:text-gray-500">From {referral?.invitedUsers} friends</p>
                                 </div>
                                 <button 
@@ -420,12 +422,12 @@ const Profile: React.FC = () => {
                                 </button>
                             </div>
                         </GlassCard>
-                    </motion.div>
+                    </MotionDiv>
                 )}
 
                 {/* HISTORY TAB */}
                 {activeTab === 'history' && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
+                    <MotionDiv initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
                         {transactions.length === 0 ? (
                             <div className="text-center py-12 text-slate-400 dark:text-gray-500">No transactions yet.</div>
                         ) : (
@@ -452,17 +454,17 @@ const Profile: React.FC = () => {
                                         ? 'text-emerald-600 dark:text-neon-green' 
                                         : 'text-slate-800 dark:text-white'
                                     }`}>
-                                        {['deposit', 'earn', 'bonus', 'game_win', 'referral'].includes(tx.type) ? '+' : '-'}${tx.amount.toFixed(2)}
+                                        {['deposit', 'earn', 'bonus', 'game_win', 'referral'].includes(tx.type) ? '+' : '-'}<BalanceDisplay amount={tx.amount} />
                                     </span>
                                 </div>
                             ))
                         )}
-                    </motion.div>
+                    </MotionDiv>
                 )}
 
                 {/* BADGES TAB */}
                 {activeTab === 'badges' && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-2 gap-3">
+                    <MotionDiv initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-2 gap-3">
                         {BADGES.map(badge => {
                             const isEarned = (user.badges_1 || []).includes(badge.id) || badge.id === 'early_adopter';
                             return (
@@ -477,7 +479,7 @@ const Profile: React.FC = () => {
                                 </div>
                             )
                         })}
-                    </motion.div>
+                    </MotionDiv>
                 )}
 
             </AnimatePresence>
@@ -487,12 +489,12 @@ const Profile: React.FC = () => {
         <AnimatePresence>
             {isEditing && (
                 <div className="fixed inset-0 z-50 flex justify-end sm:items-center sm:justify-center">
-                    <motion.div 
+                    <MotionDiv 
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="absolute inset-0 bg-slate-900/20 dark:bg-black/80 backdrop-blur-sm"
                         onClick={() => setIsEditing(false)}
                     />
-                    <motion.div 
+                    <MotionDiv 
                         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                         className="relative z-10 w-full sm:max-w-md bg-white dark:bg-dark-900 border-t sm:border border-slate-200 dark:border-white/10 rounded-t-3xl sm:rounded-3xl p-6 max-h-[85vh] overflow-y-auto custom-scrollbar shadow-2xl"
@@ -543,7 +545,7 @@ const Profile: React.FC = () => {
                                 <CheckCircle2 size={18} /> Save Changes
                             </button>
                         </div>
-                    </motion.div>
+                    </MotionDiv>
                 </div>
             )}
         </AnimatePresence>

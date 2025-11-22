@@ -11,6 +11,8 @@ import { useTheme } from '../context/ThemeContext';
 import BalanceDisplay from './BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const MotionDiv = motion.div as any;
+
 interface LayoutProps {
   children: React.ReactNode;
 }
@@ -102,7 +104,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 className="p-2.5 rounded-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-yellow-400 transition active:scale-90 shadow-sm hover:shadow-md"
             >
                 <AnimatePresence mode='wait'>
-                    <motion.div
+                    <MotionDiv
                         key={theme}
                         initial={{ rotate: -90, opacity: 0 }}
                         animate={{ rotate: 0, opacity: 1 }}
@@ -110,7 +112,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         transition={{ duration: 0.2 }}
                     >
                         {theme === 'dark' ? <Moon size={18} className="fill-current"/> : <Sun size={18} className="text-orange-500 fill-current"/>}
-                    </motion.div>
+                    </MotionDiv>
                 </AnimatePresence>
             </button>
 
@@ -188,12 +190,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <AnimatePresence>
           {isMenuOpen && (
               <>
-                  <motion.div 
+                  <MotionDiv 
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       onClick={() => setIsMenuOpen(false)}
                       className="fixed inset-0 bg-slate-900/20 dark:bg-black/80 z-50 backdrop-blur-sm"
                   />
-                  <motion.div 
+                  <MotionDiv 
                       initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                       className="fixed top-0 left-0 bottom-0 w-[80%] max-w-[300px] bg-white dark:bg-dark-950 border-r border-slate-200 dark:border-white/10 z-50 flex flex-col shadow-2xl"
@@ -238,7 +240,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                               EarnHub Pro v3.0.0
                           </div>
                       </div>
-                  </motion.div>
+                  </MotionDiv>
               </>
           )}
       </AnimatePresence>

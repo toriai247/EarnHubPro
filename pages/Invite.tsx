@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { Users, Copy, Trophy, Crown, Share2, UserPlus, Calendar, Activity, Link as LinkIcon, TrendingUp, Search, Wallet, Percent, User } from 'lucide-react';
@@ -7,6 +6,9 @@ import { ReferralStats } from '../types';
 import { motion } from 'framer-motion';
 import Skeleton from '../components/Skeleton';
 import { useUI } from '../context/UIContext';
+import BalanceDisplay from '../components/BalanceDisplay';
+
+const MotionDiv = motion.div as any;
 
 interface ReferredUser {
     id: string;
@@ -149,7 +151,7 @@ const Invite: React.FC = () => {
        </header>
 
        {activeTab === 'invite' && (
-         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6 px-4 sm:px-0">
+         <MotionDiv initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6 px-4 sm:px-0">
             <GlassCard className="text-center p-8 relative overflow-hidden border-neon-green/20 bg-gradient-to-b from-royal-900/40 to-transparent">
                 <div className="absolute top-0 right-0 w-40 h-40 bg-neon-green/10 blur-3xl rounded-full"></div>
                 
@@ -191,15 +193,15 @@ const Invite: React.FC = () => {
                 </GlassCard>
                 <GlassCard className="text-center py-6 bg-gradient-to-br from-white/5 to-neon-green/10 border-neon-green/30 relative overflow-hidden">
                     <div className="absolute -right-4 -bottom-4 opacity-10 text-neon-green"><TrendingUp size={60}/></div>
-                    <div className="text-3xl font-display font-bold text-neon-glow mb-1">${stats.totalEarned.toFixed(1)}</div>
+                    <div className="text-3xl font-display font-bold text-neon-glow mb-1"><BalanceDisplay amount={stats.totalEarned} /></div>
                     <div className="text-xs text-gray-400 font-bold uppercase">Total Earned</div>
                 </GlassCard>
             </div>
-         </motion.div>
+         </MotionDiv>
        )}
 
        {activeTab === 'network' && (
-           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4 px-4 sm:px-0">
+           <MotionDiv initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4 px-4 sm:px-0">
                
                {/* Search & Stats Bar */}
                <div className="flex items-center gap-3">
@@ -269,13 +271,13 @@ const Invite: React.FC = () => {
                                        </div>
                                        <div>
                                            <p className="text-[9px] text-gray-500 uppercase font-bold">Deposited Est.</p>
-                                           <p className="text-white font-bold text-xs">${user.volumeEst.toFixed(2)}</p>
+                                           <p className="text-white font-bold text-xs"><BalanceDisplay amount={user.volumeEst} /></p>
                                        </div>
                                    </div>
                                    <div className="text-right bg-neon-green/5 px-3 py-1.5 rounded-lg border border-neon-green/10">
                                        <p className="text-[9px] text-neon-green uppercase font-bold">Earned (5%)</p>
                                        <p className={`font-mono font-bold text-sm ${user.earnedFrom > 0 ? 'text-white' : 'text-gray-600'}`}>
-                                           +${user.earnedFrom.toFixed(2)}
+                                           +<BalanceDisplay amount={user.earnedFrom} />
                                        </p>
                                    </div>
                                </div>
@@ -283,7 +285,7 @@ const Invite: React.FC = () => {
                        ))}
                    </div>
                )}
-           </motion.div>
+           </MotionDiv>
        )}
     </div>
   );

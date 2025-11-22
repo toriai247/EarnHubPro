@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { CheckCircle2, ChevronRight, ExternalLink, Sparkles, Clock, RefreshCw } from 'lucide-react';
@@ -9,17 +8,20 @@ import { claimTask } from '../lib/actions';
 import Loader from '../components/Loader';
 import Skeleton from '../components/Skeleton';
 
-// Helper Component for Countdown
+const MotionDiv = motion.div as any;
+
+// Helper Component for Countdown (Resets at UTC Midnight)
 const TaskTimer = () => {
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
     const calculateTimeLeft = () => {
       const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setHours(24, 0, 0, 0); // Set to next midnight
+      // Create a date object for the next UTC midnight
+      const nextMidnightUTC = new Date(now);
+      nextMidnightUTC.setUTCHours(24, 0, 0, 0); 
       
-      const diff = tomorrow.getTime() - now.getTime();
+      const diff = nextMidnightUTC.getTime() - now.getTime();
       
       if (diff <= 0) return "00h 00m 00s";
 
@@ -73,13 +75,20 @@ const Tasks: React.FC = () => {
 
              if (history.length > 0) {
                  if (t.frequency === 'once') {
+                     // One-time tasks are permanently completed
                      status = 'completed';
                  } else if (t.frequency === 'daily') {
-                     // Check if completed today
+                     // Check if completed today (UTC)
                      const lastCompletion = new Date(history[history.length - 1].completed_at);
                      const today = new Date();
-                     if (lastCompletion.toDateString() === today.toDateString()) {
-                         status = 'completed'; // Logically completed for today
+                     
+                     const isSameDayUTC = 
+                        lastCompletion.getUTCFullYear() === today.getUTCFullYear() &&
+                        lastCompletion.getUTCMonth() === today.getUTCMonth() &&
+                        lastCompletion.getUTCDate() === today.getUTCDate();
+
+                     if (isSameDayUTC) {
+                         status = 'completed'; // Completed today (UTC)
                      }
                  }
              }
@@ -169,7 +178,7 @@ const Tasks: React.FC = () => {
             <p className="text-gray-400 text-sm">Complete tasks to earn real rewards.</p>
          </div>
          <div className="bg-white/5 px-3 py-1 rounded-lg text-xs text-gray-400 flex items-center gap-1">
-             <RefreshCw size={12} /> Refreshes Daily
+             <RefreshCw size={12} /> Refreshes Daily (UTC)
          </div>
       </header>
 
@@ -180,7 +189,7 @@ const Tasks: React.FC = () => {
              const isRecent = recentlyCompleted === task.id;
              
              return (
-                <motion.div
+                <MotionDiv
                    key={task.id}
                    layout
                    initial={{ opacity: 0, y: 10 }}
@@ -257,32 +266,32 @@ const Tasks: React.FC = () => {
                            )}
                         </div>
                      </GlassCard>
-                </motion.div>
+                </MotionDiv>
              );
           })}
       </div>
 
       <AnimatePresence>
           {selectedTask && (
-             <motion.div 
+             <MotionDiv 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4"
                 onClick={() => claimStatus !== 'verifying' && setSelectedTask(null)}
              >
-                 <motion.div 
+                 <MotionDiv 
                     initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
                     className="bg-dark-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 pb-10 sm:pb-6 min-h-[450px] flex flex-col justify-center relative overflow-hidden"
-                    onClick={e => e.stopPropagation()}
+                    onClick={(e: MouseEvent) => e.stopPropagation()}
                  >
                      {claimStatus === 'success' ? (
                         <div className="flex flex-col items-center justify-center py-4 text-center relative z-10">
-                             <motion.div 
+                             <MotionDiv 
                                initial={{ scale: 0 }} animate={{ scale: 1 }} 
                                transition={{ type: 'spring', damping: 12, stiffness: 200 }}
                                className="w-24 h-24 bg-gradient-to-tr from-neon-green to-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(16,185,129,0.5)]"
                              >
                                  <CheckCircle2 size={48} className="text-white" />
-                             </motion.div>
+                             </MotionDiv>
                              <h2 className="text-2xl font-bold text-white mb-2">Reward Claimed!</h2>
                              <div className="flex items-center gap-2 text-4xl font-bold text-neon-glow">
                                  <Sparkles size={28} className="text-yellow-400" />
@@ -341,8 +350,8 @@ const Tasks: React.FC = () => {
                             {claimStatus === 'error' && <p className="text-red-500 text-xs text-center mt-2 font-bold">Verification failed. Try again.</p>}
                         </>
                      )}
-                 </motion.div>
-             </motion.div>
+                 </MotionDiv>
+             </MotionDiv>
           )}
       </AnimatePresence>
     </div>

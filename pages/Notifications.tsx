@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import Skeleton from '../components/Skeleton';
@@ -6,6 +5,8 @@ import { Bell, CheckCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { AppNotification } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const MotionDiv = motion.div as any;
 
 const Notifications: React.FC = () => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -84,7 +85,7 @@ const Notifications: React.FC = () => {
                 </div>
             ) : (
                 notifications.map((notif) => (
-                    <motion.div
+                    <MotionDiv
                         key={notif.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -115,7 +116,7 @@ const Notifications: React.FC = () => {
                                 </div>
                             </div>
                         </GlassCard>
-                    </motion.div>
+                    </MotionDiv>
                 ))
             )}
          </AnimatePresence>

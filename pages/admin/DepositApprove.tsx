@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
@@ -6,6 +5,8 @@ import { DepositRequest } from '../../types';
 import { Eye, CheckCircle, XCircle, Loader2, RefreshCw, Search, DollarSign, AlertTriangle, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../../context/UIContext';
+
+const MotionDiv = motion.div as any;
 
 const DepositApprove: React.FC = () => {
   const { toast } = useUI();
@@ -152,7 +153,7 @@ const DepositApprove: React.FC = () => {
         ) : (
             <div className="space-y-4">
                 {filteredRequests.map(req => (
-                    <motion.div 
+                    <MotionDiv 
                         layout
                         initial={{ opacity: 0, y: 20 }} 
                         animate={{ opacity: 1, y: 0 }}
@@ -231,7 +232,7 @@ const DepositApprove: React.FC = () => {
                                 </div>
                             </div>
                         </GlassCard>
-                    </motion.div>
+                    </MotionDiv>
                 ))}
             </div>
         )}
@@ -240,7 +241,7 @@ const DepositApprove: React.FC = () => {
         <AnimatePresence>
             {rejectId && (
                 <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-                    <motion.div 
+                    <MotionDiv 
                         initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                         className="bg-dark-900 border border-red-500/30 w-full max-w-sm rounded-2xl p-6 shadow-2xl"
                     >
@@ -268,7 +269,7 @@ const DepositApprove: React.FC = () => {
                                 Confirm Reject
                             </button>
                         </div>
-                    </motion.div>
+                    </MotionDiv>
                 </div>
             )}
         </AnimatePresence>

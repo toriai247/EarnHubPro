@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { PlayCircle, UploadCloud, Plus, X } from 'lucide-react';
@@ -6,6 +5,8 @@ import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateWallet, createTransaction } from '../lib/actions';
 import { useUI } from '../context/UIContext';
+
+const MotionDiv = motion.div as any;
 
 const Video: React.FC = () => {
   const { toast } = useUI();
@@ -62,7 +63,7 @@ const Video: React.FC = () => {
 
        <AnimatePresence>
            {showUpload && (
-               <motion.div 
+               <MotionDiv 
                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                  className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
                >
@@ -89,7 +90,7 @@ const Video: React.FC = () => {
                            <button type="submit" className="w-full py-3 bg-royal-600 text-white font-bold rounded-xl">Submit</button>
                        </form>
                    </div>
-               </motion.div>
+               </MotionDiv>
            )}
        </AnimatePresence>
     </div>

@@ -1,14 +1,17 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import GlassCard from '../components/GlassCard';
 import Skeleton from '../components/Skeleton';
 import { supabase } from '../integrations/supabase/client';
 import { WalletData, ActiveInvestment, InvestmentPlan } from '../types';
 import { updateWallet, createTransaction, claimInvestmentReturn } from '../lib/actions';
-import { Clock, TrendingUp, DollarSign, ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw, Star } from 'lucide-react';
+import { Clock, TrendingUp, DollarSign, ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw, Star, Activity, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../context/UIContext';
 import Loader from '../components/Loader';
+import BalanceDisplay from '../components/BalanceDisplay';
+import TrendChart from '../components/TrendChart';
+
+const MotionDiv = motion.div as any;
 
 const Invest: React.FC = () => {
   const { toast } = useUI();
@@ -22,8 +25,28 @@ const Invest: React.FC = () => {
   const [claimLoading, setClaimLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Market Simulation State
+  const [marketPulse, setMarketPulse] = useState(1.0);
+  const [marketIndices, setMarketIndices] = useState([
+      { name: 'Global Yield', value: 4.2, change: 0.15 },
+      { name: 'Crypto Sentiment', value: 68, change: 2.4 },
+      { name: 'Stablecoin Vol', value: 0.05, change: -0.01 }
+  ]);
+
   useEffect(() => {
     fetchData();
+    
+    // Start Market Simulation
+    const interval = setInterval(() => {
+        setMarketPulse(prev => 1.0 + (Math.random() * 0.04 - 0.02)); // +/- 2% jitter
+        setMarketIndices(prev => prev.map(idx => ({
+            ...idx,
+            value: idx.value + (Math.random() * 0.1 - 0.05),
+            change: idx.change + (Math.random() * 0.2 - 0.1)
+        })));
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Safety Timeout
@@ -111,7 +134,7 @@ const Invest: React.FC = () => {
       setClaimLoading(investment.id);
       try {
           await claimInvestmentReturn(userId, investment);
-          toast.success(`Claimed $${investment.daily_return.toFixed(2)} profit!`);
+          toast.success(`Claimed profit!`);
           setTimeout(() => {
               fetchData();
               setClaimLoading(null);
@@ -137,12 +160,28 @@ const Invest: React.FC = () => {
 
   const getTheme = (index: number) => {
       const themes = [
-          { border: 'border-blue-200 dark:border-blue-500/30', bg: 'bg-blue-50 dark:bg-blue-500/5', accent: 'text-blue-600 dark:text-blue-400', badge: 'STARTER' },
-          { border: 'border-amber-200 dark:border-yellow-500/30', bg: 'bg-amber-50 dark:bg-yellow-500/5', accent: 'text-amber-600 dark:text-yellow-400', badge: 'GOLD' },
-          { border: 'border-purple-200 dark:border-purple-500/30', bg: 'bg-purple-50 dark:bg-purple-500/5', accent: 'text-purple-600 dark:text-purple-400', badge: 'VIP' },
-          { border: 'border-emerald-200 dark:border-emerald-500/30', bg: 'bg-emerald-50 dark:bg-emerald-500/5', accent: 'text-emerald-600 dark:text-emerald-400', badge: 'ROYAL' },
+          { border: 'border-blue-200 dark:border-blue-500/30', bg: 'bg-blue-50 dark:bg-blue-500/5', accent: 'text-blue-600 dark:text-blue-400', hex: '#3b82f6', badge: 'STARTER' },
+          { border: 'border-amber-200 dark:border-yellow-500/30', bg: 'bg-amber-50 dark:bg-yellow-500/5', accent: 'text-amber-600 dark:text-yellow-400', hex: '#eab308', badge: 'GOLD' },
+          { border: 'border-purple-200 dark:border-purple-500/30', bg: 'bg-purple-50 dark:bg-purple-500/5', accent: 'text-purple-600 dark:text-purple-400', hex: '#a855f7', badge: 'VIP' },
+          { border: 'border-emerald-200 dark:border-emerald-500/30', bg: 'bg-emerald-50 dark:bg-emerald-500/5', accent: 'text-emerald-600 dark:text-emerald-400', hex: '#10b981', badge: 'ROYAL' },
       ];
       return themes[index % themes.length];
+  };
+
+  const generateChartData = (seed: string, volatility: number = 5) => {
+      // Deterministic pseudo-random based on string seed
+      let hash = 0;
+      for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+      
+      const data = [];
+      let current = 100;
+      for (let i = 0; i < 20; i++) {
+          const rnd = Math.sin(hash + i) * 0.5 + 0.5; // 0-1
+          const change = (rnd - 0.4) * volatility; // Slight upward bias
+          current += change;
+          data.push(current);
+      }
+      return data;
   };
 
   if (loading) {
@@ -188,9 +227,34 @@ const Invest: React.FC = () => {
          </div>
          <div className="text-right flex flex-col items-end">
            <p className="text-xs text-slate-500 dark:text-gray-400">Available Balance</p>
-           <p className="text-xl font-bold text-royal-600 dark:text-neon-glow font-mono">${wallet.balance.toFixed(2)}</p>
+           <p className="text-xl font-bold text-royal-600 dark:text-neon-glow font-mono"><BalanceDisplay amount={wallet.balance} /></p>
          </div>
       </header>
+
+      {/* Live Market Ticker */}
+      <div className="px-4 sm:px-0">
+          <GlassCard className="p-3 border-white/5 bg-gradient-to-r from-slate-100 to-white dark:from-white/5 dark:to-transparent">
+              <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-bold text-slate-500 dark:text-gray-400 flex items-center gap-2">
+                      <Activity size={14} className="text-neon-green" /> Live Market Trends
+                  </h3>
+                  <span className="text-[10px] text-slate-400 dark:text-gray-500 animate-pulse">Updating...</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto no-scrollbar">
+                  {marketIndices.map((idx, i) => (
+                      <div key={i} className="shrink-0 pr-6 border-r border-slate-200 dark:border-white/10 last:border-0">
+                          <p className="text-[10px] text-slate-500 dark:text-gray-400 uppercase font-bold">{idx.name}</p>
+                          <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-slate-800 dark:text-white">{idx.value.toFixed(2)}</span>
+                              <span className={`text-[10px] font-bold flex items-center ${idx.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                  {idx.change >= 0 ? <ArrowUpRight size={10}/> : <ArrowDownRight size={10}/>} {Math.abs(idx.change).toFixed(2)}%
+                              </span>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </GlassCard>
+      </div>
 
       <div className="px-4 sm:px-0">
           <div className="flex p-1 bg-slate-200 dark:bg-white/5 rounded-xl border border-slate-300 dark:border-white/5">
@@ -209,6 +273,8 @@ const Invest: React.FC = () => {
           ) : (
               plans.map((plan, index) => {
                 const theme = getTheme(index);
+                const chartData = generateChartData(plan.name + plan.id, plan.daily_return * 2);
+                const liveRate = (plan.daily_return * marketPulse).toFixed(2);
                 
                 return (
                 <GlassCard key={plan.id} className={`relative overflow-hidden group transition-all duration-300 border ${theme.border} ${theme.bg} hover:shadow-md`}>
@@ -217,15 +283,26 @@ const Invest: React.FC = () => {
                        {plan.badge_tag || theme.badge} <Star size={8} fill="currentColor" />
                    </div>
 
-                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 relative z-10 pt-2">
+                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-2 relative z-10 pt-2">
                       <div>
                          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">{plan.name}</h3>
                          <p className="text-slate-500 dark:text-gray-400 text-xs max-w-xs line-clamp-2">{plan.description || "Secure high-yield daily returns."}</p>
                       </div>
                       <div className="text-left sm:text-right bg-white/50 dark:bg-black/20 p-2 rounded-lg sm:bg-transparent sm:p-0">
-                         <div className={`text-3xl font-bold ${theme.accent}`}>{plan.daily_return}%</div>
-                         <div className="text-[10px] text-slate-400 dark:text-gray-500 uppercase font-bold tracking-wider">Daily Return</div>
+                         <div className={`text-3xl font-bold ${theme.accent} flex items-center gap-2 justify-end`}>
+                             {plan.daily_return}% 
+                             <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-slate-500 dark:text-gray-400 flex items-center font-mono">
+                                <Activity size={10} className="mr-1" /> {liveRate}%
+                             </span>
+                         </div>
+                         <div className="text-[10px] text-slate-400 dark:text-gray-500 uppercase font-bold tracking-wider">Daily Return (Live)</div>
                       </div>
+                   </div>
+
+                   {/* Historical Chart */}
+                   <div className="h-20 w-full mb-4 relative opacity-80 group-hover:opacity-100 transition-opacity">
+                       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-50/50 dark:to-black/10 pointer-events-none"></div>
+                       <TrendChart data={chartData} color={theme.hex} height={80} />
                    </div>
 
                    <div className="grid grid-cols-3 gap-3 mb-6 relative z-10">
@@ -236,7 +313,7 @@ const Invest: React.FC = () => {
                       </div>
                       <div className="bg-white/60 dark:bg-black/30 rounded-xl p-3 text-center border border-slate-100 dark:border-white/5">
                           <DollarSign size={18} className={`mx-auto mb-1 ${theme.accent}`} />
-                          <p className="text-sm font-bold text-slate-800 dark:text-white">${plan.min_invest}</p>
+                          <p className="text-sm font-bold text-slate-800 dark:text-white"><BalanceDisplay amount={plan.min_invest} /></p>
                           <p className="text-[9px] text-slate-400 dark:text-gray-500 uppercase">Min Invest</p>
                       </div>
                       <div className="bg-white/60 dark:bg-black/30 rounded-xl p-3 text-center border border-slate-100 dark:border-white/5">
@@ -285,10 +362,10 @@ const Invest: React.FC = () => {
                                         {inv.status}
                                     </span>
                                  </div>
-                                 <p className="text-xs text-slate-500 dark:text-gray-400">Invested: <span className="text-slate-900 dark:text-white font-bold">${inv.amount}</span></p>
+                                 <p className="text-xs text-slate-500 dark:text-gray-400">Invested: <span className="text-slate-900 dark:text-white font-bold"><BalanceDisplay amount={inv.amount} /></span></p>
                              </div>
                              <div className="text-right">
-                                 <p className="text-2xl font-bold text-emerald-600 dark:text-neon-green">+${inv.total_earned.toFixed(2)}</p>
+                                 <p className="text-2xl font-bold text-emerald-600 dark:text-neon-green">+<BalanceDisplay amount={inv.total_earned} /></p>
                                  <p className="text-[10px] text-slate-400 dark:text-gray-500 uppercase">Total Profit</p>
                              </div>
                           </div>
@@ -319,7 +396,7 @@ const Invest: React.FC = () => {
                                       <Loader className="w-5 h-5" />
                                   ) : isReadyToClaim ? (
                                       <>
-                                        <ShieldCheck size={18} /> Claim Daily Profit (+${inv.daily_return.toFixed(2)})
+                                        <ShieldCheck size={18} /> Claim Daily Profit (+<BalanceDisplay amount={inv.daily_return} />)
                                       </>
                                   ) : (
                                       <>
@@ -342,15 +419,15 @@ const Invest: React.FC = () => {
       {/* Confirmation Modal */}
       <AnimatePresence>
           {selectedPlan && (
-             <motion.div 
+             <MotionDiv 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="fixed inset-0 z-[100] bg-slate-900/50 dark:bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4"
                 onClick={() => setSelectedPlan(null)}
              >
-                 <motion.div 
+                 <MotionDiv 
                     initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
                     className="bg-white dark:bg-dark-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-white/10 p-6 pb-10 sm:pb-6 shadow-2xl"
-                    onClick={e => e.stopPropagation()}
+                    onClick={(e: MouseEvent) => e.stopPropagation()}
                  >
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Confirm Investment</h3>
                     
@@ -361,15 +438,15 @@ const Invest: React.FC = () => {
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-slate-500 dark:text-gray-400">Amount to Lock</span>
-                            <span className="text-slate-900 dark:text-white font-bold">${selectedPlan.min_invest}</span>
+                            <span className="text-slate-900 dark:text-white font-bold"><BalanceDisplay amount={selectedPlan.min_invest} /></span>
                         </div>
                          <div className="flex justify-between text-sm">
                             <span className="text-slate-500 dark:text-gray-400">Daily Profit</span>
-                            <span className="text-emerald-600 dark:text-neon-green font-bold">+${((selectedPlan.min_invest * selectedPlan.daily_return)/100).toFixed(2)}</span>
+                            <span className="text-emerald-600 dark:text-neon-green font-bold">+<BalanceDisplay amount={(selectedPlan.min_invest * selectedPlan.daily_return)/100} /></span>
                         </div>
                         <div className="flex justify-between text-sm pt-2 border-t border-slate-200 dark:border-white/10">
                             <span className="text-slate-500 dark:text-gray-400">Total Return</span>
-                            <span className="text-slate-900 dark:text-white font-bold">${(selectedPlan.min_invest + (selectedPlan.min_invest * selectedPlan.total_roi)/100).toFixed(2)}</span>
+                            <span className="text-slate-900 dark:text-white font-bold"><BalanceDisplay amount={selectedPlan.min_invest + (selectedPlan.min_invest * selectedPlan.total_roi)/100} /></span>
                         </div>
                     </div>
 
@@ -377,10 +454,10 @@ const Invest: React.FC = () => {
                         onClick={handleInvest}
                         className="w-full py-4 bg-royal-600 text-white font-bold rounded-xl hover:bg-royal-700 transition flex items-center justify-center gap-2 shadow-lg"
                     >
-                        Confirm & Pay ${selectedPlan.min_invest}
+                        Confirm & Pay <BalanceDisplay amount={selectedPlan.min_invest} />
                     </button>
-                 </motion.div>
-             </motion.div>
+                 </MotionDiv>
+             </MotionDiv>
           )}
       </AnimatePresence>
     </div>

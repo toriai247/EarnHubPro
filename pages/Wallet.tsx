@@ -187,7 +187,7 @@ const Wallet: React.FC = () => {
                       <div className="relative z-10">
                           <p className="text-[10px] text-slate-500 dark:text-gray-400 uppercase font-bold mb-1">{w.name}</p>
                           <p className={`text-lg font-bold ${w.color}`}>
-                              $<BalanceDisplay amount={w.val || 0} />
+                              <BalanceDisplay amount={w.val || 0} />
                           </p>
                       </div>
                   </GlassCard>
@@ -223,7 +223,7 @@ const Wallet: React.FC = () => {
              filteredActivities.map((tx) => {
                 const config = getTxConfig(tx.type);
                 return (
-                <GlassCard key={tx.id} className="flex items-center justify-between py-3 px-4 group hover:bg-slate-50 dark:hover:bg-white/5 transition">
+                <GlassCard key={tx.id} className="flex items-center justify-between py-3 px-4 group hover:bg-slate-50 dark:hover:bg-white/10 transition">
                    <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${config.bg} ${config.color}`}>
                         <config.icon size={18} />

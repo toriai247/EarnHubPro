@@ -8,6 +8,7 @@ import { processGameResult, updateWallet } from '../lib/actions';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../context/UIContext';
+import BalanceDisplay from '../components/BalanceDisplay';
 
 // --- CONFIGURATION ---
 const BETTING_DURATION_MS = 13000; // 13 Seconds Betting Time
@@ -59,7 +60,7 @@ const Crash: React.FC = () => {
   // Refs for Animation & Logic
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const crashPointRef = useRef<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -639,7 +640,7 @@ const Crash: React.FC = () => {
                    </button>
                    <div className="bg-dark-900 px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
                        <Trophy size={14} className="text-yellow-400"/>
-                       <span className="font-mono font-bold text-white text-sm">${wallet?.balance.toFixed(2) || '0.00'}</span>
+                       <span className="font-mono font-bold text-white text-sm"><BalanceDisplay amount={wallet?.balance || 0} /></span>
                    </div>
                </div>
            </header>
@@ -711,11 +712,11 @@ const Crash: React.FC = () => {
                            {hasBet ? (
                                cashedOut ? (
                                    <div className="bg-green-500/20 text-green-400 px-3 py-1 rounded-xl font-bold border border-green-500/30 text-xs sm:text-base">
-                                       You Won ${profit.toFixed(2)}
+                                       You Won <BalanceDisplay amount={profit} />
                                    </div>
                                ) : (
                                    <div className="bg-red-500/20 text-red-400 px-3 py-1 rounded-xl font-bold border border-red-500/30 text-xs sm:text-base">
-                                       You Lost ${betAmount}
+                                       You Lost <BalanceDisplay amount={parseFloat(betAmount)} />
                                    </div>
                                )
                            ) : (
@@ -798,7 +799,7 @@ const Crash: React.FC = () => {
                                    className="w-full py-3.5 bg-yellow-400 text-black font-black text-lg rounded-xl shadow-[0_0_40px_rgba(250,204,21,0.5)] hover:bg-yellow-300 hover:scale-[1.02] transition active:scale-95 leading-none flex flex-col items-center"
                                >
                                    CASHOUT
-                                   <span className="text-[10px] font-mono mt-0.5">${(parseFloat(betAmount) * multiplier).toFixed(2)}</span>
+                                   <span className="text-[10px] font-mono mt-0.5"><BalanceDisplay amount={parseFloat(betAmount) * multiplier} /></span>
                                </button>
                            ) : (
                                <button disabled className="w-full py-3.5 bg-gray-800 text-gray-500 font-bold text-lg rounded-xl cursor-not-allowed border border-white/5">

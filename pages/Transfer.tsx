@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { ArrowLeft, ArrowRightLeft, Wallet, ChevronDown, ArrowDown, ShieldCheck, AlertCircle, CheckCircle2, X } from 'lucide-react';
@@ -190,7 +189,7 @@ const Transfer: React.FC = () => {
                             <div className="text-right">
                                 <p className="text-xs text-gray-400 mb-0.5">Balance</p>
                                 <p className={`font-mono font-bold ${fromWalletData?.color}`}>
-                                    $<BalanceDisplay amount={getBalance(fromWallet)} />
+                                    <BalanceDisplay amount={getBalance(fromWallet)} />
                                 </p>
                             </div>
                         </div>
@@ -223,7 +222,7 @@ const Transfer: React.FC = () => {
                                 <div className="text-right">
                                     <p className="text-xs text-gray-400 mb-0.5">Balance</p>
                                     <p className={`font-mono font-bold ${toWalletData?.color}`}>
-                                        $<BalanceDisplay amount={getBalance(toWallet)} />
+                                        <BalanceDisplay amount={getBalance(toWallet)} />
                                     </p>
                                 </div>
                             )}
@@ -239,7 +238,7 @@ const Transfer: React.FC = () => {
             <GlassCard className="mt-4 p-6">
                 <div className="flex justify-between text-xs text-gray-400 mb-3 font-bold uppercase tracking-wider">
                     <span>Enter Amount</span>
-                    <span>Available: $<BalanceDisplay amount={getBalance(fromWallet)} /></span>
+                    <span>Available: <BalanceDisplay amount={getBalance(fromWallet)} /></span>
                 </div>
                 
                 <div className="relative mb-6">
@@ -281,80 +280,67 @@ const Transfer: React.FC = () => {
             {/* Info Text based on Source */}
             <div className="flex items-start gap-2 bg-yellow-500/5 p-4 mt-4 rounded-xl border border-yellow-500/10">
                 <AlertCircle size={18} className="text-yellow-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-gray-400 leading-relaxed">
-                    {fromWallet === 'deposit' && "Deposit balance cannot be withdrawn. Transfer to Game or Investment wallets to earn profit."}
-                    {fromWallet === 'bonus' && "Bonus balance cannot be transferred. Use it to play games and win real money!"}
+                <div className="text-xs text-gray-400">
+                    {fromWallet === 'bonus' && "Bonus funds cannot be transferred directly. You must play games to move winnings to Game Wallet."}
+                    {fromWallet === 'deposit' && "Deposit funds can only be moved to Game or Investment wallets for usage."}
                     {fromWallet === 'game' && "Game winnings can be transferred to Main Wallet for withdrawal."}
-                    {!['deposit','bonus','game'].includes(fromWallet) && "Only funds in the Main Wallet can be withdrawn."}
-                </p>
+                    {!['bonus', 'deposit', 'game'].includes(fromWallet) && "Check transfer rules before proceeding."}
+                </div>
             </div>
         </div>
 
-        {/* CUSTOM WALLET SELECTOR MODAL */}
+        {/* Wallet Selector Modal */}
         <AnimatePresence>
             {selectorOpen && (
-                <>
-                    <motion.div 
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm"
-                        onClick={() => setSelectorOpen(false)}
-                    />
+                <motion.div 
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+                    onClick={() => setSelectorOpen(false)}
+                >
                     <motion.div 
                         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="fixed bottom-0 left-0 right-0 bg-dark-900 z-[70] rounded-t-3xl border-t border-white/10 max-h-[80vh] overflow-hidden flex flex-col sm:max-w-md sm:mx-auto sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 sm:rounded-3xl"
+                        className="bg-dark-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 max-h-[80vh] overflow-y-auto custom-scrollbar"
+                        onClick={e => e.stopPropagation()}
                     >
-                        <div className="p-5 border-b border-white/10 flex justify-between items-center shrink-0">
-                            <h3 className="text-lg font-bold text-white">Select {selectorType === 'from' ? 'Source' : 'Destination'}</h3>
-                            <button onClick={() => setSelectorOpen(false)} className="p-2 bg-white/5 rounded-full text-gray-400 hover:text-white">
-                                <X size={18} />
-                            </button>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold text-white">Select Wallet</h3>
+                            <button onClick={() => setSelectorOpen(false)}><X size={20} className="text-gray-500"/></button>
                         </div>
                         
-                        <div className="p-4 overflow-y-auto custom-scrollbar space-y-2">
+                        <div className="space-y-2">
                             {wallets.map(w => {
-                                let isValid = true;
-                                
-                                if (selectorType === 'to') {
-                                    isValid = allowedDests.includes(w.id);
-                                }
-
-                                const isSelected = selectorType === 'from' ? fromWallet === w.id : toWallet === w.id;
+                                const isAllowed = selectorType === 'to' ? allowedDests.includes(w.id) : true;
+                                if (!isAllowed) return null;
 
                                 return (
                                     <button
                                         key={w.id}
-                                        onClick={() => isValid && handleSelectWallet(w.id)}
-                                        disabled={!isValid}
-                                        className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
-                                            isSelected 
-                                            ? 'bg-royal-600/20 border-royal-500 ring-1 ring-royal-500' 
-                                            : !isValid
-                                                ? 'opacity-30 bg-transparent border-transparent cursor-not-allowed grayscale'
-                                                : 'bg-white/5 border-white/5 hover:bg-white/10'
+                                        onClick={() => handleSelectWallet(w.id)}
+                                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition ${
+                                            (selectorType === 'from' ? fromWallet : toWallet) === w.id 
+                                            ? 'bg-royal-600/20 border-royal-500/50' 
+                                            : 'bg-white/5 border-white/5 hover:bg-white/10'
                                         }`}
                                     >
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${w.bg} ${w.color}`}>
-                                                <w.icon size={20} />
-                                            </div>
-                                            <div className="text-left">
-                                                <p className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-gray-300'}`}>{w.label}</p>
-                                                <p className="text-[10px] text-gray-500 uppercase tracking-wider">{w.desc}</p>
-                                            </div>
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${w.bg} ${w.color}`}>
+                                            <w.icon size={20} />
                                         </div>
-                                        <div className="text-right">
-                                            <p className={`font-mono font-bold ${isSelected ? 'text-white' : w.color}`}>
-                                                $<BalanceDisplay amount={getBalance(w.id)} />
-                                            </p>
-                                            {isSelected && <CheckCircle2 size={16} className="text-royal-400 ml-auto mt-1" />}
+                                        <div className="flex-1 text-left">
+                                            <p className="text-sm font-bold text-white">{w.label}</p>
+                                            <p className="text-[10px] text-gray-500">{w.desc}</p>
                                         </div>
+                                        <p className={`text-sm font-mono font-bold ${w.color}`}>
+                                            <BalanceDisplay amount={getBalance(w.id)} />
+                                        </p>
                                     </button>
-                                );
+                                )
                             })}
+                            {selectorType === 'to' && allowedDests.length === 0 && (
+                                <p className="text-center text-gray-500 py-4 text-sm">No valid destinations for this source.</p>
+                            )}
                         </div>
                     </motion.div>
-                </>
+                </motion.div>
             )}
         </AnimatePresence>
     </div>
