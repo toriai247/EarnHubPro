@@ -54,7 +54,13 @@ const SAFE_SPOTS = [0, 8, 13, 21, 26, 34, 39, 47];
 
 // --- COMPONENTS ---
 
-const Pawn = ({ color, onClick, active }: { color: string, onClick?: () => void, active?: boolean }) => (
+interface PawnProps {
+    color: string;
+    onClick?: () => void;
+    active?: boolean;
+}
+
+const Pawn: React.FC<PawnProps> = ({ color, onClick, active }) => (
     <motion.div
         layout
         onClick={(e) => { if(active && onClick) { e.stopPropagation(); onClick(); } }}
@@ -369,7 +375,7 @@ const LudoKing: React.FC = () => {
     const renderTokensAt = (r: number, c: number) => {
         if (!gameStarted) return null;
         
-        const tokensHere: any[] = [];
+        const tokensHere: { p: Player, t: Token, idx: number }[] = [];
         players.forEach(p => {
             if (!p.isActive) return;
             p.tokens.forEach((t, idx) => {

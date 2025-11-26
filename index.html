@@ -2,13 +2,13 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#020617" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#050505" />
     <title>EarnHub Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -16,39 +16,51 @@
           extend: {
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
-              display: ['Poppins', 'sans-serif'],
+              display: ['Montserrat', 'sans-serif'],
             },
             colors: {
-              royal: {
-                50: '#eff6ff',
-                100: '#dbeafe',
-                200: '#bfdbfe',
-                300: '#93c5fd',
-                400: '#60a5fa',
-                500: '#3b82f6', // Blue
-                600: '#2563eb',
-                700: '#1d4ed8',
-                800: '#1e40af',
-                900: '#1e3a8a',
-                950: '#172554',
+              // Neo-Brutalism Dark Palette
+              'void': '#050505',       // Main Background
+              'surface': '#121212',    // Card Background
+              'surface-hover': '#1A1A1A',
+              'border-neo': '#333333', // Distinct Border
+              
+              // Accents
+              'electric': {
+                400: '#3399FF',
+                500: '#0066FF', // Primary Brand Color
+                600: '#0052CC', // Darker Shade for 3D depth
               },
-              neon: {
-                green: '#10b981', // Emerald/Green
-                glow: '#34d399',
-              },
-              dark: {
-                800: '#1e293b',
-                900: '#0f172a',
-                950: '#020617',
-              }
+              
+              // Functional
+              'neo-green': '#00E096',
+              'neo-red': '#FF3366',
+              'neo-yellow': '#FFCC00',
             },
             backgroundImage: {
-              'gradient-royal': 'linear-gradient(135deg, #1e3a8a 0%, #172554 100%)',
-              'gradient-glow': 'linear-gradient(to right, #3b82f6, #10b981)',
-              'mesh-light': 'radial-gradient(at 40% 20%, hsla(228,100%,74%,0.1) 0px, transparent 50%), radial-gradient(at 80% 0%, hsla(189,100%,56%,0.1) 0px, transparent 50%), radial-gradient(at 0% 50%, hsla(340,100%,76%,0.1) 0px, transparent 50%)',
+              'grid-pattern': "linear-gradient(to right, #1a1a1a 1px, transparent 1px), linear-gradient(to bottom, #1a1a1a 1px, transparent 1px)",
+              'gradient-metallic': 'linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%)',
+            },
+            backgroundSize: {
+              'grid': '40px 40px',
+            },
+            boxShadow: {
+              // Hard Shadows for Neo-Brutalism
+              'neo': '5px 5px 0px 0px #000000',
+              'neo-sm': '3px 3px 0px 0px #000000',
+              'neo-lg': '8px 8px 0px 0px #000000',
+              'neo-accent': '4px 4px 0px 0px #004499', // Blue shadow for primary buttons
+              'neo-green': '4px 4px 0px 0px #008f5d',
+              'neo-red': '4px 4px 0px 0px #991f3d',
             },
             animation: {
-                'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 6s ease-in-out infinite',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-10px)' },
+              }
             }
           }
         }
@@ -56,78 +68,37 @@
     </script>
     <style>
       body {
-        /* Default Dark */
-        background-color: #020617; 
-        color: #f1f5f9;
+        background-color: #050505;
+        color: #F0F0F0;
         -webkit-tap-highlight-color: transparent;
-        transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       }
       
-      /* Light Mode Override */
-      html:not(.dark) body {
-        background-color: #f8fafc; /* slate-50 */
-        background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
-        background-size: 24px 24px;
-        color: #0f172a; /* slate-900 */
-      }
-
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: transparent;
+        background: #050505;
       }
       ::-webkit-scrollbar-thumb {
-        background: #334155;
-        border-radius: 10px;
+        background: #333;
+        border-radius: 0; /* Square for brutalism */
       }
-      html:not(.dark) ::-webkit-scrollbar-thumb {
-        background: #94a3b8;
-      }
-      html:not(.dark) ::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
+      ::-webkit-scrollbar-thumb:hover {
+        background: #0066FF;
       }
 
-      /* Glass Panel Logic */
-      .glass-panel {
-        background: rgba(30, 41, 59, 0.4);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+      /* Neo-Brutalism Button Classes */
+      .btn-neo {
+        transition: all 0.1s ease;
+        position: relative;
       }
-      
-      html:not(.dark) .glass-panel {
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid #e2e8f0; /* slate-200 */
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      .btn-neo:active {
+        transform: translate(2px, 2px);
+        box-shadow: 0px 0px 0px 0px !important;
       }
 
-      /* Hover Effects */
-      .glass-card-hover:hover {
-        background: rgba(30, 41, 59, 0.6);
-        border-color: rgba(59, 130, 246, 0.4);
-        box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
-      }
-      
-      html:not(.dark) .glass-card-hover:hover {
-        background: #ffffff;
-        border-color: #cbd5e1;
-        transform: translateY(-2px);
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
-      }
-
-      .neon-text {
-        text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
-      }
-      html:not(.dark) .neon-text {
-        text-shadow: none; /* Cleaner text in light mode */
-        color: #059669; /* emerald-600 */
-      }
-      
       .no-scrollbar::-webkit-scrollbar {
         display: none;
       }
@@ -136,13 +107,8 @@
         scrollbar-width: none;
       }
       
-      /* Safe Area Spacing for Notch Phones */
-      .pb-safe {
-        padding-bottom: env(safe-area-inset-bottom);
-      }
-      .pt-safe {
-        padding-top: env(safe-area-inset-top);
-      }
+      .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+      .pt-safe { padding-top: env(safe-area-inset-top); }
     </style>
   <script type="importmap">
 {

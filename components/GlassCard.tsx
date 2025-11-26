@@ -1,10 +1,9 @@
-
 import React from 'react';
 
 interface GlassCardProps {
   children: React.ReactNode;
   className?: string;
-  glow?: boolean;
+  glow?: boolean; // Retained prop for API compatibility, used for accent border
   onClick?: () => void;
 }
 
@@ -13,29 +12,14 @@ const GlassCard: React.FC<GlassCardProps> = ({ children, className = '', glow = 
     <div 
       onClick={onClick}
       className={`
-        relative overflow-hidden rounded-2xl p-5 transition-all duration-300
-        
-        /* Light Mode Styles */
-        bg-white border-slate-200 shadow-sm
-        hover:shadow-md hover:border-royal-200
-        
-        /* Dark Mode Styles (Overrides) */
-        dark:bg-slate-900/40 
-        dark:backdrop-blur-md
-        dark:border-white/10
-        dark:shadow-none
-        dark:hover:bg-slate-900/60 
-        dark:hover:border-royal-500/30
-        
-        border
-        ${glow ? 'shadow-[0_0_25px_rgba(59,130,246,0.15)] dark:shadow-[0_0_25px_rgba(37,99,235,0.15)] border-royal-200 dark:border-royal-500/30' : ''}
-        ${onClick ? 'cursor-pointer active:scale-[0.99]' : ''}
+        relative overflow-hidden rounded-xl p-6 transition-all duration-200
+        bg-surface border border-border-neo shadow-neo
+        ${glow ? 'border-electric-500 shadow-[5px_5px_0px_0px_#004499]' : ''}
+        ${onClick ? 'cursor-pointer hover:-translate-y-1 hover:shadow-neo-lg active:translate-y-0 active:shadow-none' : ''}
         ${className}
       `}
     >
-      {glow && (
-        <div className="absolute -top-10 -right-10 w-24 h-24 bg-royal-500/5 dark:bg-royal-500/20 blur-2xl rounded-full pointer-events-none"></div>
-      )}
+      {/* Content */}
       <div className="relative z-10 h-full w-full">
         {children}
       </div>

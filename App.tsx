@@ -26,6 +26,7 @@ import Support from './pages/Support';
 import FAQ from './pages/FAQ';
 import Terms from './pages/Terms';
 import Leaderboard from './pages/Leaderboard';
+import BiometricSetup from './pages/BiometricSetup';
 import Admin from './pages/admin/Admin';
 import { supabase } from './integrations/supabase/client';
 import { CurrencyProvider } from './context/CurrencyContext';
@@ -142,6 +143,7 @@ const App: React.FC = () => {
                 
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/notifications" element={<Notifications />} />
+                <Route path="/biometric-setup" element={<BiometricSetup />} />
                 <Route path="/support" element={<Support />} />
                 <Route path="/faq" element={<FAQ />} />
                 <Route path="/terms" element={<Terms />} />

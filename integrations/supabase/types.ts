@@ -325,6 +325,15 @@ export interface Database {
           referral_earnings: number
           today_earning: number
           pending_withdraw: number
+          main_balance: number
+          deposit_balance: number
+          game_balance: number
+          earning_balance: number
+          investment_balance: number
+          referral_balance: number
+          commission_balance: number
+          bonus_balance: number
+          currency: string
           created_at: string
           updated_at: string | null
         }
@@ -338,6 +347,15 @@ export interface Database {
           referral_earnings?: number
           today_earning?: number
           pending_withdraw?: number
+          main_balance?: number
+          deposit_balance?: number
+          game_balance?: number
+          earning_balance?: number
+          investment_balance?: number
+          referral_balance?: number
+          commission_balance?: number
+          bonus_balance?: number
+          currency?: string
           created_at?: string
           updated_at?: string | null
         }
@@ -351,6 +369,15 @@ export interface Database {
           referral_earnings?: number
           today_earning?: number
           pending_withdraw?: number
+          main_balance?: number
+          deposit_balance?: number
+          game_balance?: number
+          earning_balance?: number
+          investment_balance?: number
+          referral_balance?: number
+          commission_balance?: number
+          bonus_balance?: number
+          currency?: string
           created_at?: string
           updated_at?: string | null
         }
@@ -617,6 +644,98 @@ export interface Database {
           referred_id?: string
           status?: 'pending' | 'completed'
           earned?: number
+          created_at?: string
+        }
+      }
+      ludo_cards: {
+        Row: {
+          id: string
+          amount: number
+          players: number
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          amount: number
+          players?: number
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          amount?: number
+          players?: number
+          is_active?: boolean
+          created_at?: string
+        }
+      }
+      bot_profiles: {
+        Row: {
+          id: string
+          name: string
+          avatar: string
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          avatar: string
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          avatar?: string
+          is_active?: boolean
+          created_at?: string
+        }
+      }
+      player_rigging: {
+        Row: {
+          user_id: string
+          force_loss_count: number
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          force_loss_count: number
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          force_loss_count?: number
+          updated_at?: string
+        }
+      }
+      user_biometrics: {
+        Row: {
+          id: string
+          user_id: string
+          fingerprint_id: string
+          email_enc: string
+          password_enc: string
+          device_name: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          fingerprint_id: string
+          email_enc: string
+          password_enc: string
+          device_name?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          fingerprint_id?: string
+          email_enc?: string
+          password_enc?: string
+          device_name?: string | null
           created_at?: string
         }
       }

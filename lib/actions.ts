@@ -5,7 +5,24 @@ import { Task, ActiveInvestment } from '../types';
 // Helper to create a random referral code
 const generateReferralCode = () => 'EH' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
+// Helper to validate UUID format (basic check)
+const isValidUUID = (uuid: string) => {
+    const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return regex.test(uuid);
+};
+
 export const createTransaction = async (userId: string, type: string, amount: number, description: string) => {
+  if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn(`Skipping transaction log: Invalid userId "${userId}"`);
+      return;
+  }
+  
+  // Optional: Strict UUID check if your DB strictly enforces it and you want to avoid network calls for bad IDs
+  if (!isValidUUID(userId)) { 
+      console.warn("Skipping invalid UUID transaction for ID:", userId); 
+      return; 
+  }
+
   const { error } = await supabase.from('transactions').insert({
     user_id: userId,
     type: type as any,
@@ -26,6 +43,11 @@ export const updateWallet = async (
     type: 'increment' | 'decrement', 
     field: string = 'main_balance' // Default to main_balance
 ) => {
+  if (!isValidUUID(userId)) {
+      console.error("Invalid userId passed to updateWallet:", userId);
+      throw new Error("Invalid User ID");
+  }
+
   const { data: wallet, error: fetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
   
   if (fetchError || !wallet) {
@@ -58,6 +80,11 @@ export const updateWallet = async (
 };
 
 export const createUserProfile = async (userId: string, email: string, fullName: string, referralCode?: string) => {
+  if (!userId || !isValidUUID(userId)) {
+      console.error("Invalid userId for createUserProfile");
+      return;
+  }
+
   const myRefCode = generateReferralCode();
   let referredBy = null;
   let welcomeBonus = 120.00; // Standard Welcome Bonus
@@ -120,37 +147,40 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   }
 
   // 3. Check and Create Transactions (Prevent Duplicates)
-  const { count: txCount } = await supabase.from('transactions')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('description', 'Welcome Bonus');
+  // Ensure userId is valid before creating transactions
+  if (userId) {
+      const { count: txCount } = await supabase.from('transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('description', 'Welcome Bonus');
 
-  if (!txCount) {
-      await createTransaction(userId, 'bonus', 120.00, 'Welcome Bonus');
-      
-      if (referrerId) {
-          const { count: refTxCount } = await supabase.from('transactions')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', userId)
-            .ilike('description', 'Referral Bonus%');
+      if (!txCount) {
+          await createTransaction(userId, 'bonus', 120.00, 'Welcome Bonus');
+          
+          if (referrerId && isValidUUID(referrerId)) {
+              const { count: refTxCount } = await supabase.from('transactions')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId)
+                .ilike('description', 'Referral Bonus%');
 
-          if (!refTxCount) {
-              await createTransaction(userId, 'bonus', 50.00, `Referral Bonus (Code: ${referralCode})`);
-              
-              const { error: refError } = await supabase.from('referrals').upsert({
-                  referrer_id: referrerId,
-                  referred_id: userId,
-                  status: 'completed',
-                  earned: 0
-              }, { onConflict: 'referred_id', ignoreDuplicates: true });
-              
-              if (!refError) {
-                  await supabase.from('notifications').insert({
-                      user_id: referrerId,
-                      title: 'New Recruit! 🚀',
-                      message: `${fullName || 'A new user'} joined your team using code ${referralCode}.`,
-                      type: 'success'
-                  });
+              if (!refTxCount) {
+                  await createTransaction(userId, 'bonus', 50.00, `Referral Bonus (Code: ${referralCode})`);
+                  
+                  const { error: refError } = await supabase.from('referrals').upsert({
+                      referrer_id: referrerId,
+                      referred_id: userId,
+                      status: 'completed',
+                      earned: 0
+                  }, { onConflict: 'referred_id', ignoreDuplicates: true });
+                  
+                  if (!refError) {
+                      await supabase.from('notifications').insert({
+                          user_id: referrerId,
+                          title: 'New Recruit! 🚀',
+                          message: `${fullName || 'A new user'} joined your team using code ${referralCode}.`,
+                          type: 'success'
+                      });
+                  }
               }
           }
       }
@@ -205,6 +235,8 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
 
 // --- GAME LOGIC ---
 export const processGameResult = async (userId: string, gameId: string, gameName: string, bet: number, payout: number, details: string) => {
+    if (!isValidUUID(userId)) return;
+
     let finalPayout = payout;
     const initialProfit = payout - bet;
     
@@ -247,6 +279,8 @@ export const processGameResult = async (userId: string, gameId: string, gameName
 };
 
 export const claimTask = async (userId: string, task: Task) => {
+    if (!isValidUUID(userId)) throw new Error("Invalid User ID");
+
     const { data: w, error: walletFetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
     if (walletFetchError || !w) throw new Error("Wallet not found");
 
@@ -278,6 +312,8 @@ export const claimTask = async (userId: string, task: Task) => {
 }
 
 export const claimInvestmentReturn = async (userId: string, investment: ActiveInvestment) => {
+    if (!isValidUUID(userId)) throw new Error("Invalid User ID");
+
     const now = new Date();
     const nextClaim = new Date(investment.next_claim_at);
 
@@ -287,9 +323,6 @@ export const claimInvestmentReturn = async (userId: string, investment: ActiveIn
 
     const dailyProfit = investment.daily_return;
     
-    // ROI goes to Investment Wallet or Main. Let's put in Main for instant access or Earning.
-    // User rule: "Deposit khoros kore ja profit korbe sheta withdraw korte parbe" implies profit is withdrawable.
-    // Let's put profit in 'earning_balance' or 'main_balance'.
     await updateWallet(userId, dailyProfit, 'increment', 'earning_balance');
     
     const nextDate = new Date();
@@ -316,6 +349,8 @@ export const claimInvestmentReturn = async (userId: string, investment: ActiveIn
 };
 
 export const saveWithdrawMethod = async (userId: string, method: string, number: string, isAuto: boolean) => {
+    if (!isValidUUID(userId)) throw new Error("Invalid User ID");
+
     const { data: settings } = await supabase.from('withdrawal_settings').select('*').maybeSingle();
     const fee = settings?.id_change_fee || 30;
 
@@ -349,6 +384,8 @@ export const saveWithdrawMethod = async (userId: string, method: string, number:
 
 // UPDATED: Now calls robust database function via RPC
 export const requestWithdrawal = async (userId: string, amount: number, method: string) => {
+    if (!isValidUUID(userId)) throw new Error("Invalid User ID");
+
     const { data, error } = await supabase.rpc('request_withdrawal', {
         p_user_id: userId,
         p_amount: amount,
@@ -368,6 +405,8 @@ export const requestWithdrawal = async (userId: string, amount: number, method: 
 };
 
 export const processMonthlyPayment = async (userId: string, balance: number, method: string) => {
+    if (!isValidUUID(userId)) return;
+
     const bonus = Number((balance * 0.02).toFixed(2));
     const totalPayout = balance + bonus;
     
