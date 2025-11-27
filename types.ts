@@ -265,3 +265,16 @@ export interface BotProfile {
     avatar: string;
     is_active: boolean;
 }
+
+export interface SystemConfig {
+    id: string;
+    is_tasks_enabled: boolean;
+    is_games_enabled: boolean;
+    is_invest_enabled: boolean;
+    is_invite_enabled: boolean;
+    is_video_enabled: boolean;
+    is_deposit_enabled: boolean;
+    is_withdraw_enabled: boolean;
+    maintenance_mode: boolean;
+    global_alert: string | null;
+}

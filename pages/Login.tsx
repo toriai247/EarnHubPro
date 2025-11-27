@@ -47,23 +47,49 @@ const Login: React.FC = () => {
       setIsBiometricLoading(true);
 
       try {
-          // 1. Trigger "Discoverable Credential" flow (Usernameless)
-          // We ask the browser: "Do you have any keys for 'EarnHub Pro'?"
-          const credential = await navigator.credentials.get({
-              publicKey: {
-                  challenge: crypto.getRandomValues(new Uint8Array(32)),
-                  // We do NOT pass 'allowCredentials', so the browser searches all keys
-                  userVerification: "required"
-              }
-          }) as PublicKeyCredential;
+          // 1. Check LocalStorage for a saved Credential ID
+          const storedId = localStorage.getItem('device_credential_id');
+          const challenge = crypto.getRandomValues(new Uint8Array(32));
+          
+          let credential;
 
-          if (!credential) throw new Error("No credential received.");
+          if (storedId) {
+              // OPTION A: Known Credential Flow
+              // We tell the browser EXACTLY which key to look for.
+              console.log("Using stored credential ID:", storedId);
+              
+              // Convert Base64 string back to Uint8Array
+              const credentialIdBytes = Uint8Array.from(atob(storedId), c => c.charCodeAt(0));
+
+              credential = await navigator.credentials.get({
+                  publicKey: {
+                      challenge,
+                      allowCredentials: [{
+                          id: credentialIdBytes,
+                          type: 'public-key',
+                          transports: ['internal', 'hybrid']
+                      }],
+                      userVerification: "required"
+                  }
+              }) as PublicKeyCredential;
+          } else {
+              // OPTION B: Discoverable Flow (Usernameless)
+              // If no local ID, we ask browser to show all valid keys for this domain.
+              console.log("No stored ID, using discoverable flow");
+              credential = await navigator.credentials.get({
+                  publicKey: {
+                      challenge,
+                      userVerification: "required"
+                  }
+              }) as PublicKeyCredential;
+          }
+
+          if (!credential) throw new Error("No credential received from device.");
 
           // 2. Get the Credential ID found by the browser
           const rawId = bufferToBase64(credential.rawId);
 
           // 3. Lookup this ID in our centralized Database
-          // Note: RLS allows public read on this table for this exact purpose (identifying the user)
           const { data, error } = await supabase
             .from('user_biometrics')
             .select('email_enc, password_enc')
@@ -71,11 +97,12 @@ const Login: React.FC = () => {
             .maybeSingle();
 
           if (error || !data) {
-              throw new Error("Credential not found in database. It might have been deleted or expired.");
+              // If ID matches locally but not in DB, clean up local storage
+              if (storedId === rawId) localStorage.removeItem('device_credential_id');
+              throw new Error("Key not recognized in system. Please login with password and setup biometrics again.");
           }
 
           // 4. Derive Decryption Key
-          // We use the ID itself to regenerate the key used to encrypt the data
           const aesKey = await deriveKeyFromId(rawId);
           
           // 5. Decrypt Credentials
@@ -94,16 +121,17 @@ const Login: React.FC = () => {
 
           if (loginError) throw loginError;
 
-          // Success
+          // Update local storage to ensure it matches the working key (in case of option B)
+          localStorage.setItem('device_credential_id', rawId);
+
           navigate('/');
 
       } catch (e: any) {
           console.error("Bio Login Error:", e);
           if (e.name === 'NotAllowedError') {
-              // User cancelled or timed out
               setError("Login cancelled.");
           } else {
-              setError("Biometric login failed. Please use password.");
+              setError(e.message || "Biometric login failed.");
           }
       } finally {
           setIsBiometricLoading(false);

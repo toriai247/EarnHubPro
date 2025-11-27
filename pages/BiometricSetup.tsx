@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Fingerprint, Lock, Mail, ArrowLeft, CheckCircle, Scan, AlertTriangle, Smartphone } from 'lucide-react';
+import { Fingerprint, Lock, Mail, ArrowLeft, CheckCircle, Scan, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -73,20 +73,17 @@ const BiometricSetup: React.FC = () => {
           // 2. Get the Real Credential ID
           const rawId = bufferToBase64(credential.rawId);
           
-          // 3. Derive Encryption Key from Credential ID
-          // This allows us to decrypt on ANY device where this specific credential exists
-          // because the ID is consistent for the credential itself.
+          // 3. SAVE ID TO LOCAL STORAGE (For faster login lookup)
+          localStorage.setItem('device_credential_id', rawId);
+          
+          // 4. Derive Encryption Key from Credential ID
           const aesKey = await deriveKeyFromId(rawId);
 
-          // 4. Encrypt Data Securely
-          // We save the encrypted credentials in the DATABASE, not local storage.
+          // 5. Encrypt Data Securely
           const encEmail = await encryptData(email, aesKey);
           const encPass = await encryptData(password, aesKey);
 
-          // 5. Save to Supabase (Centralized)
-          // We don't save anything critical to LocalStorage anymore.
-          // This allows "Any Device" login if the keys are synced (e.g. iCloud Keychain)
-          
+          // 6. Save to Supabase (Centralized)
           // Clean up old key for this exact credential if it exists
           await supabase.from('user_biometrics').delete().eq('credential_id', rawId);
 
@@ -101,7 +98,7 @@ const BiometricSetup: React.FC = () => {
           if (error) throw error;
 
           setStep(3);
-          toast.success("Passkey Saved! You can now login with fingerprint.");
+          toast.success("Passkey Saved! You can now login instantly.");
 
       } catch (e: any) {
           console.error(e);
@@ -227,7 +224,7 @@ const BiometricSetup: React.FC = () => {
                             <div>
                                 <h2 className="text-2xl font-bold text-white mb-2">All Set!</h2>
                                 <p className="text-gray-400 text-sm">
-                                    You can now log in using just your fingerprint on any supported device.
+                                    You can now log in using just your fingerprint.
                                 </p>
                             </div>
 

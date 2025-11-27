@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Invest from './pages/Invest';
@@ -32,6 +32,21 @@ import { supabase } from './integrations/supabase/client';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { UIProvider } from './context/UIContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SystemProvider, useSystem } from './context/SystemContext'; // Import System Context
+
+// --- ROUTE GUARD COMPONENT ---
+// Redirects if a specific feature is disabled in System Config
+const FeatureGuard = ({ feature, children }: { feature: string, children?: React.ReactNode }) => {
+    const { isFeatureEnabled, loading } = useSystem();
+    
+    if (loading) return null; // Wait for config
+
+    // @ts-ignore
+    if (!isFeatureEnabled(`is_${feature}_enabled`)) {
+        return <Navigate to="/" replace />;
+    }
+    return <>{children}</>;
+};
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ session }: { session: any }) => {
@@ -41,33 +56,19 @@ const ProtectedRoute = ({ session }: { session: any }) => {
   return <Layout><Outlet /></Layout>;
 };
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showRetry, setShowRetry] = useState(false);
 
   useEffect(() => {
-    // 1. Show Retry Button if loading takes more than 3 seconds
-    const retryTimer = setTimeout(() => {
-        if (loading) setShowRetry(true);
-    }, 3000);
+    const retryTimer = setTimeout(() => { if (loading) setShowRetry(true); }, 3000);
+    const forceTimer = setTimeout(() => { if (loading) setLoading(false); }, 7000);
 
-    // 2. Force Load after 7 seconds to prevent infinite spinner
-    const forceTimer = setTimeout(() => {
-        if (loading) {
-            console.warn("Force loading due to timeout");
-            setLoading(false);
-        }
-    }, 7000);
-
-    // 3. Check Session
     const checkSession = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
-        if (error) {
-            console.error("Session error:", error);
-            // If error, we proceed as logged out
-        } 
+        if (error) console.error("Session error:", error);
         setSession(data.session);
       } catch (e) {
         console.error("Unexpected auth error:", e);
@@ -78,10 +79,8 @@ const App: React.FC = () => {
 
     checkSession();
 
-    // 4. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      // Ensure loading stops on auth state change
       setLoading(false);
     });
 
@@ -98,58 +97,60 @@ const App: React.FC = () => {
         <div className="w-12 h-12 border-4 border-royal-600 border-t-neon-green rounded-full animate-spin mb-4"></div>
         <div className="font-display font-bold tracking-wider text-lg">EARNHUB PRO</div>
         <div className="text-xs text-gray-500 mt-2 mb-6">Connecting...</div>
-        
-        {showRetry && (
-            <button 
-                onClick={() => setLoading(false)}
-                className="px-5 py-2 bg-white/10 border border-white/10 rounded-full text-xs text-white font-bold hover:bg-white/20 transition animate-pulse"
-            >
-                Taking too long? Tap to Enter
-            </button>
-        )}
+        {showRetry && <button onClick={() => setLoading(false)} className="px-5 py-2 bg-white/10 border border-white/10 rounded-full text-xs text-white font-bold hover:bg-white/20 transition animate-pulse">Tap to Enter</button>}
       </div>
     );
   }
 
   return (
+    <Routes>
+      <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+      <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
+      <Route path="/admin" element={session ? <Admin /> : <Navigate to="/login" />} />
+
+      <Route element={<ProtectedRoute session={session} />}>
+        <Route path="/" element={<Home />} />
+        
+        {/* Guarded Routes */}
+        <Route path="/invest" element={<FeatureGuard feature="invest"><Invest /></FeatureGuard>} />
+        <Route path="/tasks" element={<FeatureGuard feature="tasks"><Tasks /></FeatureGuard>} />
+        <Route path="/invite" element={<FeatureGuard feature="invite"><Invite /></FeatureGuard>} />
+        <Route path="/video" element={<FeatureGuard feature="video"><Video /></FeatureGuard>} />
+        <Route path="/games" element={<FeatureGuard feature="games"><Games /></FeatureGuard>} />
+        <Route path="/games/spin" element={<FeatureGuard feature="games"><Spin /></FeatureGuard>} />
+        <Route path="/games/crash" element={<FeatureGuard feature="games"><Crash /></FeatureGuard>} />
+        <Route path="/games/dice" element={<FeatureGuard feature="games"><Dice /></FeatureGuard>} />
+        <Route path="/games/ludo" element={<FeatureGuard feature="games"><LudoLobby /></FeatureGuard>} />
+        <Route path="/games/ludo/play/:stake" element={<FeatureGuard feature="games"><LudoKing /></FeatureGuard>} />
+        
+        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/wallet" element={<Wallet />} />
+        <Route path="/deposit" element={<FeatureGuard feature="deposit"><Deposit /></FeatureGuard>} />
+        <Route path="/withdraw" element={<FeatureGuard feature="withdraw"><Withdraw /></FeatureGuard>} />
+        <Route path="/transfer" element={<Transfer />} />
+        <Route path="/exchange" element={<Exchange />} />
+        
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/biometric-setup" element={<BiometricSetup />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/faq" element={<FAQ />} />
+        <Route path="/terms" element={<Terms />} />
+      </Route>
+    </Routes>
+  );
+}
+
+const App: React.FC = () => {
+  return (
     <ThemeProvider>
       <UIProvider>
         <CurrencyProvider>
-          <Router>
-            <Routes>
-              <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
-              <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
-              <Route path="/admin" element={session ? <Admin /> : <Navigate to="/login" />} />
-
-              <Route element={<ProtectedRoute session={session} />}>
-                <Route path="/" element={<Home />} />
-                <Route path="/invest" element={<Invest />} />
-                <Route path="/tasks" element={<Tasks />} />
-                <Route path="/invite" element={<Invite />} />
-                <Route path="/video" element={<Video />} />
-                <Route path="/leaderboard" element={<Leaderboard />} />
-                <Route path="/games" element={<Games />} />
-                <Route path="/games/spin" element={<Spin />} />
-                <Route path="/games/crash" element={<Crash />} />
-                <Route path="/games/dice" element={<Dice />} />
-                <Route path="/games/ludo" element={<LudoLobby />} />
-                <Route path="/games/ludo/play/:stake" element={<LudoKing />} />
-                
-                <Route path="/wallet" element={<Wallet />} />
-                <Route path="/deposit" element={<Deposit />} />
-                <Route path="/withdraw" element={<Withdraw />} />
-                <Route path="/transfer" element={<Transfer />} />
-                <Route path="/exchange" element={<Exchange />} />
-                
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/biometric-setup" element={<BiometricSetup />} />
-                <Route path="/support" element={<Support />} />
-                <Route path="/faq" element={<FAQ />} />
-                <Route path="/terms" element={<Terms />} />
-              </Route>
-            </Routes>
-          </Router>
+          <SystemProvider>
+            <Router>
+                <AppContent />
+            </Router>
+          </SystemProvider>
         </CurrencyProvider>
       </UIProvider>
     </ThemeProvider>

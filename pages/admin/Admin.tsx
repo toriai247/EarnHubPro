@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -24,8 +24,9 @@ import SpinSettings from './SpinSettings';
 import PaymentSettings from './PaymentSettings';
 import WithdrawSettings from './WithdrawSettings';
 import MonthlyPay from './MonthlyPay';
+import OffSystems from './OffSystems'; // New Import
 
-type AdminSection = 'dashboard' | 'users' | 'tasks' | 'spin' | 'videos' | 'deposits' | 'withdrawals' | 'games' | 'invest' | 'revenue' | 'promos' | 'config' | 'payment' | 'withdraw_config' | 'monthly_pay';
+type AdminSection = 'dashboard' | 'users' | 'tasks' | 'spin' | 'videos' | 'deposits' | 'withdrawals' | 'games' | 'invest' | 'revenue' | 'promos' | 'config' | 'payment' | 'withdraw_config' | 'monthly_pay' | 'off_systems';
 
 const Admin: React.FC = () => {
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
@@ -35,6 +36,7 @@ const Admin: React.FC = () => {
   const items = [
     { id: 'home', icon: Home, label: 'Back to App', action: () => navigate('/') },
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400' }, // New Item
     { id: 'users', icon: Users, label: 'User Admin' },
     { id: 'tasks', icon: CheckCircle, label: 'Task Coord' },
     { id: 'spin', icon: PieChart, label: 'Spin Control' },
@@ -82,7 +84,7 @@ const Admin: React.FC = () => {
                 activeSection === item.id ? 'bg-royal-600 text-white shadow-lg' : item.id === 'home' ? 'bg-white/5 text-neon-green border border-neon-green/20 hover:bg-neon-green/10' : 'text-gray-400 hover:bg-white/5 hover:text-white'
               }`}
             >
-              <item.icon size={18} />
+              <item.icon size={18} className={(item as any).color} />
               {item.label}
             </button>
           ))}
@@ -101,7 +103,7 @@ const Admin: React.FC = () => {
                 activeSection === item.id ? 'bg-royal-600 text-white' : item.id === 'home' ? 'bg-white/5 text-neon-green border border-neon-green/20' : 'bg-white/5 text-gray-400'
               }`}
             >
-              <item.icon size={14} />
+              <item.icon size={14} className={(item as any).color} />
               {item.label}
             </button>
         ))}
@@ -116,6 +118,7 @@ const Admin: React.FC = () => {
 
       switch(activeSection) {
           case 'dashboard': return <Dashboard />;
+          case 'off_systems': return <OffSystems />;
           case 'users': return <UserManagement onSelectUser={setSelectedUserId} />;
           case 'tasks': return <TaskManagement />;
           case 'spin': return <SpinSettings />;

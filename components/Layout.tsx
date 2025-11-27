@@ -3,12 +3,13 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Crown, Trophy, Globe, Menu, X, 
-  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint
+  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, Lock
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useTheme } from '../context/ThemeContext';
 import BalanceDisplay from './BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSystem } from '../context/SystemContext';
 
 const MotionDiv = motion.div as any;
 
@@ -18,6 +19,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
+  const { isFeatureEnabled, config } = useSystem();
   const [balance, setBalance] = useState<number>(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [level, setLevel] = useState(1);
@@ -26,24 +28,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isVideoPage = location.pathname === '/video';
   const isHomePage = location.pathname === '/';
 
+  // Dynamic Navigation Items based on System Config
   const navItems = [
-    { path: '/', icon: Home, label: 'HUB' },
-    { path: '/invest', icon: PieChart, label: 'INVEST' },
-    { path: '/leaderboard', icon: Trophy, label: 'TOP' },
-    { path: '/games', icon: Gamepad2, label: 'PLAY' },
-    { path: '/profile', icon: User, label: 'ME' },
-  ];
+    { path: '/', icon: Home, label: 'HUB', enabled: true },
+    { path: '/invest', icon: PieChart, label: 'INVEST', enabled: isFeatureEnabled('is_invest_enabled') },
+    { path: '/leaderboard', icon: Trophy, label: 'TOP', enabled: true },
+    { path: '/games', icon: Gamepad2, label: 'PLAY', enabled: isFeatureEnabled('is_games_enabled') },
+    { path: '/profile', icon: User, label: 'ME', enabled: true },
+  ].filter(i => i.enabled);
 
   const menuItems = [
-      { path: '/transfer', icon: ArrowRightLeft, label: 'Transfer Funds', color: 'text-electric-400', bg: 'bg-electric-500/10' },
-      { path: '/exchange', icon: Globe, label: 'Exchange', color: 'text-neo-green', bg: 'bg-neo-green/10' },
-      { path: '/deposit', icon: Wallet, label: 'Deposit', color: 'text-white', bg: 'bg-white/10' },
-      { path: '/withdraw', icon: Wallet, label: 'Withdraw', color: 'text-neo-yellow', bg: 'bg-neo-yellow/10' },
-      { path: '/biometric-setup', icon: Fingerprint, label: 'Fingerprint Setup', color: 'text-neon-green', bg: 'bg-green-500/10' },
-      { path: '/support', icon: Headphones, label: 'Support', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-      { path: '/faq', icon: HelpCircle, label: 'FAQ', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-      { path: '/terms', icon: FileText, label: 'Terms', color: 'text-gray-400', bg: 'bg-gray-500/10' },
-  ];
+      { path: '/transfer', icon: ArrowRightLeft, label: 'Transfer Funds', color: 'text-electric-400', bg: 'bg-electric-500/10', enabled: true },
+      { path: '/exchange', icon: Globe, label: 'Exchange', color: 'text-neo-green', bg: 'bg-neo-green/10', enabled: true },
+      { path: '/deposit', icon: Wallet, label: 'Deposit', color: 'text-white', bg: 'bg-white/10', enabled: isFeatureEnabled('is_deposit_enabled') },
+      { path: '/withdraw', icon: Wallet, label: 'Withdraw', color: 'text-neo-yellow', bg: 'bg-neo-yellow/10', enabled: isFeatureEnabled('is_withdraw_enabled') },
+      { path: '/biometric-setup', icon: Fingerprint, label: 'Fingerprint Setup', color: 'text-neon-green', bg: 'bg-green-500/10', enabled: true },
+      { path: '/support', icon: Headphones, label: 'Support', color: 'text-purple-400', bg: 'bg-purple-500/10', enabled: true },
+      { path: '/faq', icon: HelpCircle, label: 'FAQ', color: 'text-cyan-400', bg: 'bg-cyan-500/10', enabled: true },
+      { path: '/terms', icon: FileText, label: 'Terms', color: 'text-gray-400', bg: 'bg-gray-500/10', enabled: true },
+  ].filter(i => i.enabled);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,9 +75,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       window.location.reload();
   };
 
+  if (config?.maintenance_mode) {
+      return (
+          <div className="min-h-screen bg-void flex flex-col items-center justify-center p-6 text-center">
+              <Lock size={48} className="text-neo-red mb-4" />
+              <h1 className="text-2xl font-black text-white uppercase">System Offline</h1>
+              <p className="text-gray-400 mt-2">We are currently undergoing scheduled maintenance. Please check back later.</p>
+          </div>
+      )
+  }
+
   return (
     <div className="min-h-screen flex flex-col relative pb-24 sm:pb-0 bg-void text-white font-sans selection:bg-electric-500 selection:text-white">
       
+      {/* Global Alert */}
+      {config?.global_alert && (
+          <div className="bg-neo-yellow/10 border-b border-neo-yellow/20 px-4 py-2 text-center">
+              <p className="text-xs font-bold text-neo-yellow">{config.global_alert}</p>
+          </div>
+      )}
+
       {/* TOP BAR */}
       {!isVideoPage && (
         <header className="sticky top-0 z-40 bg-void/95 border-b border-border-neo px-4 py-3 flex justify-between items-center shadow-neo-sm">

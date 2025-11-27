@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
@@ -12,10 +13,12 @@ import { motion } from 'framer-motion';
 import { Activity, WalletData, UserProfile } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
+import { useSystem } from '../context/SystemContext'; // Import System Context
 
 const MotionDiv = motion.div as any;
 
 const Home: React.FC = () => {
+  const { isFeatureEnabled } = useSystem(); // Get system config
   const [user, setUser] = useState<UserProfile | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -200,7 +203,7 @@ const Home: React.FC = () => {
         </button>
       </MotionDiv>
 
-      {/* Main Balance Card - Matte Black Metal */}
+      {/* Main Balance Card */}
       <MotionDiv variants={item}>
         <div className="relative overflow-hidden rounded-xl bg-[#111] border border-[#333] shadow-neo p-1">
           {/* Inner Content */}
@@ -240,47 +243,70 @@ const Home: React.FC = () => {
 
             {/* Actions */}
             <div className="flex gap-4">
-              <Link to="/deposit" className="flex-1 py-3 bg-electric-500 text-white rounded-lg text-sm font-black flex items-center justify-center gap-2 border-b-4 border-electric-600 active:border-b-0 active:translate-y-1 transition shadow-neo-accent">
-                <ArrowDownLeft size={16} /> DEPOSIT
-              </Link>
-              <Link to="/withdraw" className="flex-1 py-3 bg-surface text-white rounded-lg text-sm font-black flex items-center justify-center gap-2 border border-border-neo border-b-4 active:border-b active:translate-y-1 transition">
-                <ArrowUpRight size={16} /> WITHDRAW
-              </Link>
+              {isFeatureEnabled('is_deposit_enabled') ? (
+                  <Link to="/deposit" className="flex-1 py-3 bg-electric-500 text-white rounded-lg text-sm font-black flex items-center justify-center gap-2 border-b-4 border-electric-600 active:border-b-0 active:translate-y-1 transition shadow-neo-accent">
+                    <ArrowDownLeft size={16} /> DEPOSIT
+                  </Link>
+              ) : (
+                  <button disabled className="flex-1 py-3 bg-gray-800 text-gray-500 rounded-lg text-sm font-black flex items-center justify-center gap-2 border-b-4 border-gray-900 cursor-not-allowed">
+                    DEPOSIT
+                  </button>
+              )}
+              
+              {isFeatureEnabled('is_withdraw_enabled') ? (
+                  <Link to="/withdraw" className="flex-1 py-3 bg-surface text-white rounded-lg text-sm font-black flex items-center justify-center gap-2 border border-border-neo border-b-4 active:border-b active:translate-y-1 transition">
+                    <ArrowUpRight size={16} /> WITHDRAW
+                  </Link>
+              ) : (
+                  <button disabled className="flex-1 py-3 bg-gray-800 text-gray-500 rounded-lg text-sm font-black flex items-center justify-center gap-2 border border-border-neo border-b-4 cursor-not-allowed">
+                    WITHDRAW
+                  </button>
+              )}
             </div>
           </div>
         </div>
       </MotionDiv>
 
-      {/* Quick Actions Grid */}
+      {/* Quick Actions Grid - Hide if disabled */}
       <MotionDiv variants={item}>
         <h3 className="text-sm font-black text-white mb-4 uppercase tracking-wider px-1 flex items-center gap-2">
             <span className="w-2 h-2 bg-electric-500 rounded-full"></span> Quick Access
         </h3>
         <div className="grid grid-cols-4 gap-4">
-          <Link to="/invite" className="flex flex-col items-center gap-2 group">
-            <div className="w-full aspect-square rounded-xl bg-surface border border-border-neo flex flex-col items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-neo-sm group-active:translate-y-0 group-active:shadow-none">
-              <Users size={24} className="text-purple-500 mb-1" />
-            </div>
-            <span className="text-[10px] font-bold text-gray-400 group-hover:text-white transition uppercase">Invite</span>
-          </Link>
-          <Link to="/tasks" className="flex flex-col items-center gap-2 group">
-            <div className="w-full aspect-square rounded-xl bg-surface border border-border-neo flex flex-col items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-neo-sm group-active:translate-y-0 group-active:shadow-none">
-              <Zap size={24} className="text-electric-500 mb-1" />
-            </div>
-            <span className="text-[10px] font-bold text-gray-400 group-hover:text-white transition uppercase">Tasks</span>
-          </Link>
+          
+          {isFeatureEnabled('is_invite_enabled') && (
+              <Link to="/invite" className="flex flex-col items-center gap-2 group">
+                <div className="w-full aspect-square rounded-xl bg-surface border border-border-neo flex flex-col items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-neo-sm group-active:translate-y-0 group-active:shadow-none">
+                  <Users size={24} className="text-purple-500 mb-1" />
+                </div>
+                <span className="text-[10px] font-bold text-gray-400 group-hover:text-white transition uppercase">Invite</span>
+              </Link>
+          )}
+
+          {isFeatureEnabled('is_tasks_enabled') && (
+              <Link to="/tasks" className="flex flex-col items-center gap-2 group">
+                <div className="w-full aspect-square rounded-xl bg-surface border border-border-neo flex flex-col items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-neo-sm group-active:translate-y-0 group-active:shadow-none">
+                  <Zap size={24} className="text-electric-500 mb-1" />
+                </div>
+                <span className="text-[10px] font-bold text-gray-400 group-hover:text-white transition uppercase">Tasks</span>
+              </Link>
+          )}
+
           <Link to="/leaderboard" className="flex flex-col items-center gap-2 group">
             <div className="w-full aspect-square rounded-xl bg-surface border border-border-neo flex flex-col items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-neo-sm group-active:translate-y-0 group-active:shadow-none">
               <Trophy size={24} className="text-neo-yellow mb-1" />
             </div>
             <span className="text-[10px] font-bold text-gray-400 group-hover:text-white transition uppercase">Rank</span>
           </Link>
-          <Link to="/games" className="flex flex-col items-center gap-2 group w-full">
-            <div className="w-full aspect-square rounded-xl bg-surface border border-border-neo flex flex-col items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-neo-sm group-active:translate-y-0 group-active:shadow-none">
-              <Gift size={24} className="text-neo-green mb-1" />
-            </div>
-            <span className="text-[10px] font-bold text-gray-400 group-hover:text-white transition uppercase">Games</span>
-          </Link>
+
+          {isFeatureEnabled('is_games_enabled') && (
+              <Link to="/games" className="flex flex-col items-center gap-2 group w-full">
+                <div className="w-full aspect-square rounded-xl bg-surface border border-border-neo flex flex-col items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-neo-sm group-active:translate-y-0 group-active:shadow-none">
+                  <Gift size={24} className="text-neo-green mb-1" />
+                </div>
+                <span className="text-[10px] font-bold text-gray-400 group-hover:text-white transition uppercase">Games</span>
+              </Link>
+          )}
         </div>
       </MotionDiv>
 
