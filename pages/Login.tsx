@@ -47,62 +47,39 @@ const Login: React.FC = () => {
       setIsBiometricLoading(true);
 
       try {
-          // 1. Check LocalStorage for a saved Credential ID
-          const storedId = localStorage.getItem('device_credential_id');
-          const challenge = crypto.getRandomValues(new Uint8Array(32));
-          
-          let credential;
-
-          if (storedId) {
-              // OPTION A: Known Credential Flow
-              // We tell the browser EXACTLY which key to look for.
-              console.log("Using stored credential ID:", storedId);
-              
-              // Convert Base64 string back to Uint8Array
-              const credentialIdBytes = Uint8Array.from(atob(storedId), c => c.charCodeAt(0));
-
-              credential = await navigator.credentials.get({
-                  publicKey: {
-                      challenge,
-                      allowCredentials: [{
-                          id: credentialIdBytes,
-                          type: 'public-key',
-                          transports: ['internal', 'hybrid']
-                      }],
-                      userVerification: "required"
-                  }
-              }) as PublicKeyCredential;
-          } else {
-              // OPTION B: Discoverable Flow (Usernameless)
-              // If no local ID, we ask browser to show all valid keys for this domain.
-              console.log("No stored ID, using discoverable flow");
-              credential = await navigator.credentials.get({
-                  publicKey: {
-                      challenge,
-                      userVerification: "required"
-                  }
-              }) as PublicKeyCredential;
-          }
+          // 1. Request Discoverable Credential (Usernameless Flow)
+          // The browser will pop up asking for fingerprint/faceid
+          // It will check if any passkey matches this domain (earnhub pro)
+          const credential = await navigator.credentials.get({
+              publicKey: {
+                  challenge: crypto.getRandomValues(new Uint8Array(32)),
+                  rpId: window.location.hostname, // Important for domain matching
+                  userVerification: "required"
+              }
+          }) as PublicKeyCredential;
 
           if (!credential) throw new Error("No credential received from device.");
 
           // 2. Get the Credential ID found by the browser
           const rawId = bufferToBase64(credential.rawId);
+          console.log("Device Credential ID:", rawId);
 
-          // 3. Lookup this ID in our centralized Database
-          const { data, error } = await supabase
-            .from('user_biometrics')
-            .select('email_enc, password_enc')
-            .eq('credential_id', rawId)
-            .maybeSingle();
+          // 3. Lookup this ID in our centralized Database using SECURE RPC
+          // We cannot select directly from table because RLS blocks unauthenticated users.
+          const { data, error } = await supabase.rpc('fetch_biometric_credentials', {
+              p_credential_id: rawId
+          });
 
-          if (error || !data) {
-              // If ID matches locally but not in DB, clean up local storage
-              if (storedId === rawId) localStorage.removeItem('device_credential_id');
-              throw new Error("Key not recognized in system. Please login with password and setup biometrics again.");
+          if (error) {
+              console.error("RPC Error:", error);
+              throw new Error("Security check failed. Please login with password.");
           }
 
-          // 4. Derive Decryption Key
+          if (!data || !data.email_enc) {
+              throw new Error("Passkey not found in system. Please setup biometrics again.");
+          }
+
+          // 4. Derive Decryption Key (Deterministic based on ID)
           const aesKey = await deriveKeyFromId(rawId);
           
           // 5. Decrypt Credentials
@@ -110,7 +87,7 @@ const Login: React.FC = () => {
           const savedPass = await decryptData(data.password_enc, aesKey);
 
           if (!savedEmail || !savedPass) {
-              throw new Error("Decryption failed. Security mismatch.");
+              throw new Error("Decryption failed. Data mismatch.");
           }
 
           // 6. Perform Auto Login
@@ -121,9 +98,7 @@ const Login: React.FC = () => {
 
           if (loginError) throw loginError;
 
-          // Update local storage to ensure it matches the working key (in case of option B)
-          localStorage.setItem('device_credential_id', rawId);
-
+          // Success
           navigate('/');
 
       } catch (e: any) {
@@ -236,7 +211,7 @@ const Login: React.FC = () => {
                 {isBiometricLoading ? (
                     <><Loader2 className="animate-spin" size={20} /> Scanning...</>
                 ) : (
-                    <><ScanFace size={20} /> Login with Passkey</>
+                    <><ScanFace size={20} /> Scan Fingerprint</>
                 )}
             </button>
 

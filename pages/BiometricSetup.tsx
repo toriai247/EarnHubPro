@@ -49,10 +49,14 @@ const BiometricSetup: React.FC = () => {
           if (!user) throw new Error("Session expired");
 
           // 1. Trigger Device Biometric Prompt (Create Passkey)
+          // We use requireResidentKey: true so the device stores the user mapping
           const credential = await navigator.credentials.create({
               publicKey: {
                   challenge: crypto.getRandomValues(new Uint8Array(32)),
-                  rp: { name: "EarnHub Pro" },
+                  rp: { 
+                      name: "EarnHub Pro",
+                      id: window.location.hostname 
+                  },
                   user: {
                       id: new TextEncoder().encode(user.id),
                       name: email,
@@ -73,17 +77,14 @@ const BiometricSetup: React.FC = () => {
           // 2. Get the Real Credential ID
           const rawId = bufferToBase64(credential.rawId);
           
-          // 3. SAVE ID TO LOCAL STORAGE (For faster login lookup)
-          localStorage.setItem('device_credential_id', rawId);
-          
-          // 4. Derive Encryption Key from Credential ID
+          // 3. Derive Encryption Key from Credential ID (Deterministic)
           const aesKey = await deriveKeyFromId(rawId);
 
-          // 5. Encrypt Data Securely
+          // 4. Encrypt Data Securely
           const encEmail = await encryptData(email, aesKey);
           const encPass = await encryptData(password, aesKey);
 
-          // 6. Save to Supabase (Centralized)
+          // 5. Save to Supabase (Centralized)
           // Clean up old key for this exact credential if it exists
           await supabase.from('user_biometrics').delete().eq('credential_id', rawId);
 
@@ -92,7 +93,7 @@ const BiometricSetup: React.FC = () => {
               credential_id: rawId, // Public ID for lookup
               email_enc: encEmail,
               password_enc: encPass,
-              device_name: navigator.platform || 'Unknown Device'
+              device_name: navigator.platform || 'Mobile Device'
           });
 
           if (error) throw error;
@@ -199,7 +200,7 @@ const BiometricSetup: React.FC = () => {
                                     <p className="text-sm text-white font-bold">Cloud Sync Ready</p>
                                 </div>
                                 <p className="text-xs text-gray-400">
-                                    Your Passkey will be saved to your device. If you use iCloud or Google Password Manager, it will sync to all your devices automatically.
+                                    Your Passkey will be securely stored. You can use it to login instantly on this device without typing.
                                 </p>
                             </div>
 

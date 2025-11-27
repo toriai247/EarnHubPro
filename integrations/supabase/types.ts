@@ -837,6 +837,12 @@ export interface Database {
         }
         Returns: Json
       }
+      fetch_biometric_credentials: {
+        Args: {
+          p_credential_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
