@@ -6,9 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../context/UIContext';
-
-// Simple encryption simulation for logic requirement
-const simpleEncrypt = (text: string) => btoa(text).split('').reverse().join('');
+import { generateAESKey, exportAESKey, encryptData } from '../lib/crypto';
 
 // Helper to convert ArrayBuffer to Base64 for storage
 const bufferToBase64 = (buffer: ArrayBuffer) => {
@@ -24,7 +22,7 @@ const BiometricSetup: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isScanning, setIsScanning] = useState(false);
 
-  // 1. Verify Credentials
+  // 1. Verify Credentials before setting up
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -51,12 +49,13 @@ const BiometricSetup: React.FC = () => {
           if (!user) throw new Error("Session expired");
 
           // 1. Trigger Device Biometric Prompt
+          // Creates a new credential on the hardware token (device)
           const credential = await navigator.credentials.create({
               publicKey: {
                   challenge: crypto.getRandomValues(new Uint8Array(32)),
                   rp: { name: "EarnHub Pro" },
                   user: {
-                      id: new TextEncoder().encode(user.id),
+                      id: new TextEncoder().encode(user.id), // Must be BufferSource
                       name: email,
                       displayName: email
                   },
@@ -71,29 +70,39 @@ const BiometricSetup: React.FC = () => {
 
           if (!credential) throw new Error("Biometric registration failed.");
 
-          // 2. Get the Real ID
+          // 2. Get the Real ID (RawID is needed for subsequent logins)
           const rawId = bufferToBase64(credential.rawId);
           
-          // 3. Save ID to LocalStorage (to identify the user on this device later)
+          // 3. Generate Encryption Key (Web Crypto API)
+          // We generate a key locally, encrypt the data, and store the key locally.
+          // This ensures the server never sees the raw password, only the encrypted blob.
+          const aesKey = await generateAESKey();
+          const exportedKey = await exportAESKey(aesKey);
+
+          // 4. Encrypt Data Securely
+          const encEmail = await encryptData(email, aesKey);
+          const encPass = await encryptData(password, aesKey);
+
+          // 5. Save IDs and Key to LocalStorage
           localStorage.setItem('device_credential_id', rawId);
+          localStorage.setItem('device_enc_key', exportedKey);
 
-          // 4. Encrypt Data (User Requirement)
-          const encEmail = simpleEncrypt(email);
-          const encPass = simpleEncrypt(password);
+          // 6. Save Encrypted Data to DB
+          // Delete any existing biometrics for this specific credential ID to avoid dupes
+          await supabase.from('user_biometrics').delete().eq('fingerprint_id', rawId);
 
-          // 5. Save to DB
           const { error } = await supabase.from('user_biometrics').insert({
               user_id: user.id,
-              fingerprint_id: rawId, // Storing the WebAuthn Credential ID
+              fingerprint_id: rawId, // This links the hardware ID to the encrypted data
               email_enc: encEmail,
               password_enc: encPass,
-              device_name: navigator.platform
+              device_name: navigator.platform || 'Unknown Device'
           });
 
           if (error) throw error;
 
           setStep(3);
-          toast.success("Real Fingerprint Linked Successfully!");
+          toast.success("Biometric Security Enabled!");
 
       } catch (e: any) {
           console.error(e);
@@ -133,7 +142,7 @@ const BiometricSetup: React.FC = () => {
                                     <Lock size={32} className="text-blue-400" />
                                 </div>
                                 <h2 className="text-xl font-bold text-white">Verify Identity</h2>
-                                <p className="text-sm text-gray-400">Enter your credentials to link your hardware fingerprint.</p>
+                                <p className="text-sm text-gray-400">Enter credentials to generate secure encryption keys.</p>
                             </div>
 
                             <form onSubmit={handleVerify} className="space-y-4">
@@ -191,7 +200,7 @@ const BiometricSetup: React.FC = () => {
                             <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-xl text-left flex gap-3">
                                 <AlertTriangle className="text-yellow-500 shrink-0" size={20} />
                                 <p className="text-xs text-yellow-200">
-                                    When you click "Start Scan", your device will ask for your Fingerprint or FaceID. This is the <strong>Real Hardware Scanner</strong>.
+                                    Your credentials will be <strong>AES-256 Encrypted</strong>. The encryption key is stored locally on this device, and the data is stored in the database.
                                 </p>
                             </div>
 
@@ -216,7 +225,7 @@ const BiometricSetup: React.FC = () => {
                             <div>
                                 <h2 className="text-2xl font-bold text-white mb-2">Setup Successful!</h2>
                                 <p className="text-gray-400 text-sm">
-                                    Your <strong>Real Device Fingerprint</strong> is now linked. Use it to login instantly.
+                                    Your device is now securely linked with <strong>Military-Grade Encryption</strong>.
                                 </p>
                             </div>
 

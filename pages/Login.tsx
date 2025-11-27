@@ -2,14 +2,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Mail, LogIn, AlertCircle, Loader2, ChevronRight, Zap, Fingerprint, ScanFace } from 'lucide-react';
+import { Lock, Mail, LogIn, AlertCircle, Loader2, ChevronRight, Zap, ScanFace } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
+import { importAESKey, decryptData } from '../lib/crypto';
 
 const MotionDiv = motion.div as any;
 
-const simpleDecrypt = (text: string) => atob(text.split('').reverse().join(''));
-
-// Helper to decode Base64 to Uint8Array for WebAuthn
+// Helper to decode Base64 to Uint8Array for WebAuthn ID
 const base64ToBuffer = (base64: string) => {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -47,54 +46,64 @@ const Login: React.FC = () => {
     }
   };
 
-  // --- REAL BIOMETRIC LOGIN ---
   const handleFingerprintLogin = async () => {
       setError('');
       setIsBiometricLoading(true);
 
-      // 1. Check if we have a stored ID for this device
-      const storedCredentialId = localStorage.getItem('device_credential_id');
-
-      if (!storedCredentialId) {
-          setError("No fingerprint linked on this device. Please login manually and setup in Settings.");
-          setIsBiometricLoading(false);
-          return;
-      }
-
       try {
-          // 2. Trigger Browser's Native Biometric Prompt
-          // This will ask for TouchID/FaceID/Pattern
+          // 1. Check Local Storage for Device Credential and Encryption Key
+          const storedCredentialId = localStorage.getItem('device_credential_id');
+          const storedEncKey = localStorage.getItem('device_enc_key');
+
+          if (!storedCredentialId) {
+              throw new Error("Device fingerprint not set up. Please login with password and enable it in settings.");
+          }
+          if (!storedEncKey) {
+              throw new Error("Security key missing. Please reset biometric setup.");
+          }
+
+          // 2. Initiate Hardware Scanner (WebAuthn)
+          // This ensures the user is physically present and authenticated on the device
+          const credentialIdBuffer = base64ToBuffer(storedCredentialId);
+
           const assertion = await navigator.credentials.get({
               publicKey: {
                   challenge: crypto.getRandomValues(new Uint8Array(32)),
                   allowCredentials: [{
-                      id: base64ToBuffer(storedCredentialId),
-                      type: "public-key"
+                      id: credentialIdBuffer,
+                      type: "public-key",
+                      transports: ['internal', 'hybrid'] 
                   }],
                   userVerification: "required"
               }
           });
 
-          if (!assertion) throw new Error("Biometric check failed.");
+          if (!assertion) throw new Error("Biometric check failed or cancelled.");
 
-          // 3. If Hardware Authentication passed, proceed to DB
-          // Ideally, we send assertion to backend to verify signature.
-          // Here, per request logic, we fetch stored encrypted credentials.
-          
+          // 3. Fetch Encrypted Credentials from DB
           const { data, error } = await supabase
             .from('user_biometrics')
-            .select('*')
+            .select('email_enc, password_enc')
             .eq('fingerprint_id', storedCredentialId)
-            .single();
+            .maybeSingle();
 
           if (error || !data) {
-              throw new Error("Fingerprint matched device, but user data not found in DB.");
+              throw new Error("Credentials not found in database. Please set up biometrics again.");
           }
 
-          // 4. Auto Login
-          const savedEmail = simpleDecrypt(data.email_enc);
-          const savedPass = simpleDecrypt(data.password_enc);
+          // 4. Secure Decrypt
+          // Import the key from local storage
+          const aesKey = await importAESKey(storedEncKey);
+          
+          // Decrypt the DB data using the local key
+          const savedEmail = await decryptData(data.email_enc, aesKey);
+          const savedPass = await decryptData(data.password_enc, aesKey);
 
+          if (!savedEmail || !savedPass) {
+              throw new Error("Decryption failed. Data corruption.");
+          }
+
+          // 5. Perform Login
           const { error: loginError } = await supabase.auth.signInWithPassword({
               email: savedEmail,
               password: savedPass
@@ -102,12 +111,13 @@ const Login: React.FC = () => {
 
           if (loginError) throw loginError;
 
+          // Success
           navigate('/');
 
       } catch (e: any) {
-          console.error(e);
+          console.error("Bio Login Error:", e);
           if (e.name === 'NotAllowedError') {
-              setError("Fingerprint scan cancelled.");
+              setError("Scan cancelled.");
           } else {
               setError(e.message || "Biometric login failed.");
           }
@@ -209,12 +219,12 @@ const Login: React.FC = () => {
             <button 
                 onClick={handleFingerprintLogin}
                 disabled={isLoading || isBiometricLoading}
-                className="w-full py-4 bg-surface border border-neon-green/50 text-neon-green rounded-xl font-bold flex items-center justify-center gap-2 uppercase tracking-wider hover:bg-neon-green/10 transition shadow-[0_0_15px_rgba(16,185,129,0.1)] relative overflow-hidden"
+                className="w-full py-4 bg-surface border border-neon-green/50 text-neon-green rounded-xl font-bold flex items-center justify-center gap-2 uppercase tracking-wider hover:bg-neon-green/10 transition shadow-[0_0_15px_rgba(16,185,129,0.1)] relative overflow-hidden active:scale-95"
             >
                 {isBiometricLoading ? (
-                    <><Loader2 className="animate-spin" size={20} /> Scanning...</>
+                    <><Loader2 className="animate-spin" size={20} /> Verifying...</>
                 ) : (
-                    <><ScanFace size={20} /> Use Real Fingerprint</>
+                    <><ScanFace size={20} /> Biometric Login</>
                 )}
             </button>
 
