@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Fingerprint, Lock, Mail, ArrowLeft, CheckCircle, Scan, AlertTriangle } from 'lucide-react';
+import { Fingerprint, Lock, Mail, ArrowLeft, CheckCircle, Scan, AlertTriangle, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../context/UIContext';
-import { generateAESKey, exportAESKey, encryptData } from '../lib/crypto';
+import { deriveKeyFromId, encryptData } from '../lib/crypto';
 
 // Helper to convert ArrayBuffer to Base64 for storage
 const bufferToBase64 = (buffer: ArrayBuffer) => {
@@ -41,27 +41,27 @@ const BiometricSetup: React.FC = () => {
     }
   };
 
-  // 2. Real WebAuthn Registration
+  // 2. Real WebAuthn Registration (Passkey Mode)
   const handleRealScan = async () => {
       setIsScanning(true);
       try {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) throw new Error("Session expired");
 
-          // 1. Trigger Device Biometric Prompt
-          // Creates a new credential on the hardware token (device)
+          // 1. Trigger Device Biometric Prompt (Create Passkey)
           const credential = await navigator.credentials.create({
               publicKey: {
                   challenge: crypto.getRandomValues(new Uint8Array(32)),
                   rp: { name: "EarnHub Pro" },
                   user: {
-                      id: new TextEncoder().encode(user.id), // Must be BufferSource
+                      id: new TextEncoder().encode(user.id),
                       name: email,
                       displayName: email
                   },
                   pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
                   authenticatorSelection: {
                       authenticatorAttachment: "platform", // Forces TouchID/FaceID/Windows Hello
+                      requireResidentKey: true, // IMPORTANT: Allows identifying user without username input later
                       userVerification: "required"
                   },
                   timeout: 60000
@@ -70,30 +70,29 @@ const BiometricSetup: React.FC = () => {
 
           if (!credential) throw new Error("Biometric registration failed.");
 
-          // 2. Get the Real ID (RawID is needed for subsequent logins)
+          // 2. Get the Real Credential ID
           const rawId = bufferToBase64(credential.rawId);
           
-          // 3. Generate Encryption Key (Web Crypto API)
-          // We generate a key locally, encrypt the data, and store the key locally.
-          // This ensures the server never sees the raw password, only the encrypted blob.
-          const aesKey = await generateAESKey();
-          const exportedKey = await exportAESKey(aesKey);
+          // 3. Derive Encryption Key from Credential ID
+          // This allows us to decrypt on ANY device where this specific credential exists
+          // because the ID is consistent for the credential itself.
+          const aesKey = await deriveKeyFromId(rawId);
 
           // 4. Encrypt Data Securely
+          // We save the encrypted credentials in the DATABASE, not local storage.
           const encEmail = await encryptData(email, aesKey);
           const encPass = await encryptData(password, aesKey);
 
-          // 5. Save IDs and Key to LocalStorage
-          localStorage.setItem('device_credential_id', rawId);
-          localStorage.setItem('device_enc_key', exportedKey);
-
-          // 6. Save Encrypted Data to DB
-          // Delete any existing biometrics for this specific credential ID to avoid dupes
-          await supabase.from('user_biometrics').delete().eq('fingerprint_id', rawId);
+          // 5. Save to Supabase (Centralized)
+          // We don't save anything critical to LocalStorage anymore.
+          // This allows "Any Device" login if the keys are synced (e.g. iCloud Keychain)
+          
+          // Clean up old key for this exact credential if it exists
+          await supabase.from('user_biometrics').delete().eq('credential_id', rawId);
 
           const { error } = await supabase.from('user_biometrics').insert({
               user_id: user.id,
-              fingerprint_id: rawId, // This links the hardware ID to the encrypted data
+              credential_id: rawId, // Public ID for lookup
               email_enc: encEmail,
               password_enc: encPass,
               device_name: navigator.platform || 'Unknown Device'
@@ -102,7 +101,7 @@ const BiometricSetup: React.FC = () => {
           if (error) throw error;
 
           setStep(3);
-          toast.success("Biometric Security Enabled!");
+          toast.success("Passkey Saved! You can now login with fingerprint.");
 
       } catch (e: any) {
           console.error(e);
@@ -123,7 +122,7 @@ const BiometricSetup: React.FC = () => {
                 <ArrowLeft size={20} />
             </button>
             <h1 className="text-2xl font-display font-bold text-white flex items-center gap-2">
-                <Fingerprint className="text-neon-green" /> Biometric Setup
+                <Fingerprint className="text-neon-green" /> Passkey Setup
             </h1>
         </header>
 
@@ -141,8 +140,8 @@ const BiometricSetup: React.FC = () => {
                                 <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
                                     <Lock size={32} className="text-blue-400" />
                                 </div>
-                                <h2 className="text-xl font-bold text-white">Verify Identity</h2>
-                                <p className="text-sm text-gray-400">Enter credentials to generate secure encryption keys.</p>
+                                <h2 className="text-xl font-bold text-white">Verify Credentials</h2>
+                                <p className="text-sm text-gray-400">Enter your login details to create a secure Passkey.</p>
                             </div>
 
                             <form onSubmit={handleVerify} className="space-y-4">
@@ -173,7 +172,7 @@ const BiometricSetup: React.FC = () => {
                                     </div>
                                 </div>
                                 <button type="submit" className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition">
-                                    Verify & Proceed
+                                    Continue
                                 </button>
                             </form>
                         </motion.div>
@@ -185,7 +184,7 @@ const BiometricSetup: React.FC = () => {
                             initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
                             className="text-center space-y-8"
                         >
-                            <h2 className="text-xl font-bold text-white">Activate Scanner</h2>
+                            <h2 className="text-xl font-bold text-white">Register Device</h2>
                             
                             <div className="relative w-32 h-32 mx-auto flex items-center justify-center">
                                 <div className={`absolute inset-0 rounded-full border-4 border-neon-green/30 ${isScanning ? 'animate-ping' : ''}`}></div>
@@ -197,16 +196,19 @@ const BiometricSetup: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-xl text-left flex gap-3">
-                                <AlertTriangle className="text-yellow-500 shrink-0" size={20} />
-                                <p className="text-xs text-yellow-200">
-                                    Your credentials will be <strong>AES-256 Encrypted</strong>. The encryption key is stored locally on this device, and the data is stored in the database.
+                            <div className="bg-white/5 border border-white/10 p-4 rounded-xl text-left">
+                                <div className="flex gap-3 mb-2">
+                                    <Smartphone className="text-blue-400 shrink-0" size={20} />
+                                    <p className="text-sm text-white font-bold">Cloud Sync Ready</p>
+                                </div>
+                                <p className="text-xs text-gray-400">
+                                    Your Passkey will be saved to your device. If you use iCloud or Google Password Manager, it will sync to all your devices automatically.
                                 </p>
                             </div>
 
                             {!isScanning && (
                                 <button onClick={handleRealScan} className="w-full py-3 bg-neon-green text-black font-bold rounded-xl hover:bg-emerald-400 transition flex items-center justify-center gap-2">
-                                    <Scan size={18} /> Start Device Scan
+                                    <Scan size={18} /> Create Passkey
                                 </button>
                             )}
                         </motion.div>
@@ -223,14 +225,14 @@ const BiometricSetup: React.FC = () => {
                             </div>
                             
                             <div>
-                                <h2 className="text-2xl font-bold text-white mb-2">Setup Successful!</h2>
+                                <h2 className="text-2xl font-bold text-white mb-2">All Set!</h2>
                                 <p className="text-gray-400 text-sm">
-                                    Your device is now securely linked with <strong>Military-Grade Encryption</strong>.
+                                    You can now log in using just your fingerprint on any supported device.
                                 </p>
                             </div>
 
                             <button onClick={() => navigate('/profile')} className="w-full py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition">
-                                Return to Profile
+                                Done
                             </button>
                         </motion.div>
                     )}

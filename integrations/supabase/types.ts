@@ -714,28 +714,31 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          fingerprint_id: string
+          credential_id: string
           email_enc: string
           password_enc: string
           device_name: string | null
+          last_used: string | null
           created_at: string
         }
         Insert: {
           id?: string
           user_id: string
-          fingerprint_id: string
+          credential_id: string
           email_enc: string
           password_enc: string
           device_name?: string | null
+          last_used?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           user_id?: string
-          fingerprint_id?: string
+          credential_id?: string
           email_enc?: string
           password_enc?: string
           device_name?: string | null
+          last_used?: string | null
           created_at?: string
         }
       }

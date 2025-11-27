@@ -4,18 +4,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Mail, LogIn, AlertCircle, Loader2, ChevronRight, Zap, ScanFace } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
-import { importAESKey, decryptData } from '../lib/crypto';
+import { deriveKeyFromId, decryptData } from '../lib/crypto';
 
 const MotionDiv = motion.div as any;
 
-// Helper to decode Base64 to Uint8Array for WebAuthn ID
-const base64ToBuffer = (base64: string) => {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
+// Helper to convert ArrayBuffer to Base64 for lookup
+const bufferToBase64 = (buffer: ArrayBuffer) => {
+    const binary = String.fromCharCode(...new Uint8Array(buffer));
+    return btoa(binary);
 };
 
 const Login: React.FC = () => {
@@ -51,59 +47,46 @@ const Login: React.FC = () => {
       setIsBiometricLoading(true);
 
       try {
-          // 1. Check Local Storage for Device Credential and Encryption Key
-          const storedCredentialId = localStorage.getItem('device_credential_id');
-          const storedEncKey = localStorage.getItem('device_enc_key');
-
-          if (!storedCredentialId) {
-              throw new Error("Device fingerprint not set up. Please login with password and enable it in settings.");
-          }
-          if (!storedEncKey) {
-              throw new Error("Security key missing. Please reset biometric setup.");
-          }
-
-          // 2. Initiate Hardware Scanner (WebAuthn)
-          // This ensures the user is physically present and authenticated on the device
-          const credentialIdBuffer = base64ToBuffer(storedCredentialId);
-
-          const assertion = await navigator.credentials.get({
+          // 1. Trigger "Discoverable Credential" flow (Usernameless)
+          // We ask the browser: "Do you have any keys for 'EarnHub Pro'?"
+          const credential = await navigator.credentials.get({
               publicKey: {
                   challenge: crypto.getRandomValues(new Uint8Array(32)),
-                  allowCredentials: [{
-                      id: credentialIdBuffer,
-                      type: "public-key",
-                      transports: ['internal', 'hybrid'] 
-                  }],
+                  // We do NOT pass 'allowCredentials', so the browser searches all keys
                   userVerification: "required"
               }
-          });
+          }) as PublicKeyCredential;
 
-          if (!assertion) throw new Error("Biometric check failed or cancelled.");
+          if (!credential) throw new Error("No credential received.");
 
-          // 3. Fetch Encrypted Credentials from DB
+          // 2. Get the Credential ID found by the browser
+          const rawId = bufferToBase64(credential.rawId);
+
+          // 3. Lookup this ID in our centralized Database
+          // Note: RLS allows public read on this table for this exact purpose (identifying the user)
           const { data, error } = await supabase
             .from('user_biometrics')
             .select('email_enc, password_enc')
-            .eq('fingerprint_id', storedCredentialId)
+            .eq('credential_id', rawId)
             .maybeSingle();
 
           if (error || !data) {
-              throw new Error("Credentials not found in database. Please set up biometrics again.");
+              throw new Error("Credential not found in database. It might have been deleted or expired.");
           }
 
-          // 4. Secure Decrypt
-          // Import the key from local storage
-          const aesKey = await importAESKey(storedEncKey);
+          // 4. Derive Decryption Key
+          // We use the ID itself to regenerate the key used to encrypt the data
+          const aesKey = await deriveKeyFromId(rawId);
           
-          // Decrypt the DB data using the local key
+          // 5. Decrypt Credentials
           const savedEmail = await decryptData(data.email_enc, aesKey);
           const savedPass = await decryptData(data.password_enc, aesKey);
 
           if (!savedEmail || !savedPass) {
-              throw new Error("Decryption failed. Data corruption.");
+              throw new Error("Decryption failed. Security mismatch.");
           }
 
-          // 5. Perform Login
+          // 6. Perform Auto Login
           const { error: loginError } = await supabase.auth.signInWithPassword({
               email: savedEmail,
               password: savedPass
@@ -117,9 +100,10 @@ const Login: React.FC = () => {
       } catch (e: any) {
           console.error("Bio Login Error:", e);
           if (e.name === 'NotAllowedError') {
-              setError("Scan cancelled.");
+              // User cancelled or timed out
+              setError("Login cancelled.");
           } else {
-              setError(e.message || "Biometric login failed.");
+              setError("Biometric login failed. Please use password.");
           }
       } finally {
           setIsBiometricLoading(false);
@@ -222,9 +206,9 @@ const Login: React.FC = () => {
                 className="w-full py-4 bg-surface border border-neon-green/50 text-neon-green rounded-xl font-bold flex items-center justify-center gap-2 uppercase tracking-wider hover:bg-neon-green/10 transition shadow-[0_0_15px_rgba(16,185,129,0.1)] relative overflow-hidden active:scale-95"
             >
                 {isBiometricLoading ? (
-                    <><Loader2 className="animate-spin" size={20} /> Verifying...</>
+                    <><Loader2 className="animate-spin" size={20} /> Scanning...</>
                 ) : (
-                    <><ScanFace size={20} /> Biometric Login</>
+                    <><ScanFace size={20} /> Login with Passkey</>
                 )}
             </button>
 

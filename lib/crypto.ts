@@ -29,6 +29,32 @@ export const importAESKey = async (base64Key: string): Promise<CryptoKey> => {
   );
 };
 
+// NEW: Derive a key from a string (e.g., Credential ID)
+// This allows us to decrypt data on any device as long as we get the Credential ID from the scanner
+export const deriveKeyFromId = async (idString: string): Promise<CryptoKey> => {
+    const encoder = new TextEncoder();
+    const keyMaterial = await window.crypto.subtle.importKey(
+        "raw",
+        encoder.encode(idString),
+        { name: "PBKDF2" },
+        false,
+        ["deriveKey"]
+    );
+
+    return window.crypto.subtle.deriveKey(
+        {
+            name: "PBKDF2",
+            salt: encoder.encode("EARNHUB_SECURE_SALT_V1"), // Static salt for consistent derivation
+            iterations: 100000,
+            hash: "SHA-256"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+    );
+};
+
 export const encryptData = async (text: string, key: CryptoKey): Promise<string> => {
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(text);
@@ -72,6 +98,6 @@ export const decryptData = async (encryptedJson: string, key: CryptoKey): Promis
       return new TextDecoder().decode(decrypted);
   } catch (e) {
       console.error("Decryption error:", e);
-      throw new Error("Failed to decrypt data. Key mismatch or data corruption.");
+      throw new Error("Failed to decrypt. Security mismatch.");
   }
 };
