@@ -88,6 +88,9 @@ export interface UserProfile {
   referred_by?: string | null;
   is_kyc_1: boolean;
   is_withdraw_blocked?: boolean;
+  is_suspended?: boolean; // NEW: Banned status
+  admin_notes?: string;   // NEW: Private notes
+  risk_score?: number;    // NEW: Risk Analysis (0-100)
   rank_1?: string;
   xp_1: number;
   phone_1?: string | null;

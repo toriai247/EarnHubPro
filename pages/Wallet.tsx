@@ -1,4 +1,6 @@
 
+
+
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import Loader from '../components/Loader';
@@ -147,13 +149,13 @@ const Wallet: React.FC = () => {
         <div className="relative z-10 bg-gradient-metallic p-8 rounded-lg border border-white/5 text-center">
           <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Total Net Worth</p>
           <h1 className="text-5xl font-display font-black text-white mb-6 tracking-tighter">
-            <BalanceDisplay amount={totalAssets} />
+            <BalanceDisplay amount={totalAssets} isNative={true} />
           </h1>
           
           <div className="bg-black/30 px-6 py-3 rounded border border-white/10 max-w-xs mx-auto mb-8 inline-block">
               <p className="text-[9px] text-gray-500 uppercase font-bold mb-1">Main Withdrawable</p>
               <p className="text-xl font-bold text-white font-mono">
-                  <BalanceDisplay amount={wallet.main_balance} />
+                  <BalanceDisplay amount={wallet.main_balance} isNative={true} />
               </p>
           </div>
           
@@ -186,7 +188,7 @@ const Wallet: React.FC = () => {
                               <w.icon size={14} className={w.color} />
                           </div>
                           <p className={`text-lg font-bold text-white font-mono group-hover:scale-105 transition origin-left`}>
-                              <BalanceDisplay amount={w.val || 0} />
+                              <BalanceDisplay amount={w.val || 0} isNative={true} />
                           </p>
                       </div>
                   </GlassCard>
@@ -238,7 +240,7 @@ const Wallet: React.FC = () => {
                           ? 'text-white' 
                           : 'text-neo-green'
                       }`}>
-                        {tx.type === 'withdraw' || tx.type.includes('loss') ? '-' : '+'}<BalanceDisplay amount={Math.abs(tx.amount)} />
+                        {tx.type === 'withdraw' || tx.type.includes('loss') ? '-' : '+'}<BalanceDisplay amount={Math.abs(tx.amount)} isNative={true} />
                       </div>
                    </div>
                 </GlassCard>

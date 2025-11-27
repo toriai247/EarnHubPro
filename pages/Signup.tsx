@@ -1,10 +1,12 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, Ticket, CheckCircle2, Zap } from 'lucide-react';
+import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, Ticket, CheckCircle2, Globe } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
+import { CURRENCY_CONFIG } from '../constants';
 
 const MotionDiv = motion.div as any;
 
@@ -13,6 +15,7 @@ const Signup: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
+  const [currency, setCurrency] = useState('USD');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -47,7 +50,8 @@ const Signup: React.FC = () => {
       if (data.user) {
         const finalCode = referralCode.trim().toUpperCase();
         try {
-           await createUserProfile(data.user.id, email, name, finalCode);
+           // Pass the selected currency to the profile creation
+           await createUserProfile(data.user.id, email, name, finalCode, currency);
            navigate('/');
         } catch (dbError: any) {
            console.error("DB Init Error:", dbError);
@@ -151,6 +155,25 @@ const Signup: React.FC = () => {
                   className="w-full bg-void border border-border-neo rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-700 focus:outline-none focus:border-electric-500 focus:shadow-[4px_4px_0px_0px_#0066FF] transition-all font-medium"
                   placeholder="Password (Min 6 chars)"
                 />
+              </div>
+
+              {/* Currency Selector */}
+              <div className="relative group">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
+                  <Globe size={20} />
+                </div>
+                <select 
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full bg-void border border-border-neo rounded-xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-electric-500 focus:shadow-[4px_4px_0px_0px_#0066FF] transition-all font-medium appearance-none"
+                >
+                    {Object.values(CURRENCY_CONFIG).map((c) => (
+                        <option key={c.code} value={c.code}>{c.code} - {c.name} ({c.symbol})</option>
+                    ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-xs pointer-events-none">
+                    {CURRENCY_CONFIG[currency as keyof typeof CURRENCY_CONFIG]?.flag}
+                </div>
               </div>
 
               {/* Referral Field */}

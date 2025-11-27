@@ -1,7 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
-import { ArrowLeft, User, Mail, ShieldCheck, AlertTriangle, DollarSign, Save, CreditCard, Gamepad2, Gift, Users, Activity, X, CheckCircle2, Lock, Unlock, RefreshCw, Trophy, Clock, TrendingUp, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { 
+    ArrowLeft, User, Mail, ShieldCheck, AlertTriangle, DollarSign, Save, CreditCard, 
+    Gamepad2, Gift, Users, Activity, X, CheckCircle2, Lock, Unlock, RefreshCw, 
+    Trophy, Clock, TrendingUp, ArrowDownLeft, ArrowUpRight, Ban, MessageSquare, 
+    Send, StickyNote, ShieldAlert, History
+} from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { UserProfile, WalletData, Transaction, GameResult } from '../../types';
 import { createTransaction } from '../../lib/actions';
@@ -21,18 +26,26 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [gameHistory, setGameHistory] = useState<GameResult[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'games'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'transactions' | 'games'>('overview');
     
     // Edit States
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [editForm, setEditForm] = useState({ name: '', phone: '', bio: '', level: 1 });
     
-    // Wallet Adjustment State
+    // Action Modals
     const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+    const [msgModalOpen, setMsgModalOpen] = useState(false);
+    const [noteModalOpen, setNoteModalOpen] = useState(false);
+    
+    // Adjust State
     const [selectedWalletType, setSelectedWalletType] = useState('');
     const [adjustAmount, setAdjustAmount] = useState('');
     const [adjustAction, setAdjustAction] = useState<'credit' | 'debit'>('credit');
     const [adjustNote, setAdjustNote] = useState('');
+
+    // Message/Note State
+    const [messageText, setMessageText] = useState('');
+    const [adminNoteText, setAdminNoteText] = useState('');
 
     useEffect(() => {
         fetchUserData();
@@ -55,6 +68,7 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
                 bio: prof.data.bio_1 || '',
                 level: prof.data.level_1
             });
+            setAdminNoteText(prof.data.admin_notes || '');
         }
         if (wal.data) setWallet(wal.data as WalletData);
         if (txs.data) setTransactions(txs.data as Transaction[]);
@@ -83,15 +97,31 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
         }
     };
 
+    // --- ACTIONS ---
+
+    const toggleSuspend = async () => {
+        if (!profile) return;
+        const newVal = !profile.is_suspended;
+        const confirmed = await confirm(
+            `Are you sure you want to ${newVal ? 'SUSPEND' : 'UNBAN'} this user? \n\nSuspended users cannot log in.`, 
+            newVal ? 'Confirm Ban' : 'Lift Ban'
+        );
+        if (!confirmed) return;
+
+        await supabase.from('profiles').update({ is_suspended: newVal }).eq('id', profile.id);
+        fetchUserData();
+        toast.success(newVal ? "User Suspended" : "User Access Restored");
+    };
+
     const toggleBlock = async () => {
         if (!profile) return;
         const newVal = !profile.is_withdraw_blocked;
-        const confirmed = await confirm(`Are you sure you want to ${newVal ? 'BLOCK' : 'UNBLOCK'} withdrawals for this user?`);
+        const confirmed = await confirm(`Are you sure you want to ${newVal ? 'BLOCK' : 'UNBLOCK'} withdrawals?`);
         if (!confirmed) return;
 
         await supabase.from('profiles').update({ is_withdraw_blocked: newVal }).eq('id', profile.id);
         fetchUserData();
-        toast.success(newVal ? "User Blocked" : "User Unblocked");
+        toast.success(newVal ? "Withdrawals Blocked" : "Withdrawals Unblocked");
     };
 
     const toggleKYC = async () => {
@@ -100,6 +130,35 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
         await supabase.from('profiles').update({ is_kyc_1: newVal }).eq('id', profile.id);
         fetchUserData();
         toast.success(newVal ? "KYC Verified" : "KYC Revoked");
+    };
+
+    const handleSendMessage = async () => {
+        if (!messageText.trim()) return;
+        const { error } = await supabase.from('notifications').insert({
+            user_id: userId,
+            title: 'Admin Message',
+            message: messageText,
+            type: 'info'
+        });
+        if (error) toast.error("Failed to send");
+        else {
+            toast.success("Message sent to user inbox");
+            setMsgModalOpen(false);
+            setMessageText('');
+        }
+    };
+
+    const handleSaveNote = async () => {
+        const { error } = await supabase.from('profiles').update({
+            admin_notes: adminNoteText
+        }).eq('id', userId);
+        
+        if (error) toast.error("Failed to save note");
+        else {
+            toast.success("Admin note updated");
+            setNoteModalOpen(false);
+            fetchUserData();
+        }
     };
 
     const openAdjustModal = (type: string) => {
@@ -124,13 +183,12 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
         if (!confirmed) return;
 
         try {
-            // 1. Update Wallet in DB
             // @ts-ignore
             const currentBal = wallet[selectedWalletType] || 0;
             const newBal = adjustAction === 'credit' ? currentBal + amount : Math.max(0, currentBal - amount);
             
-            // If adjusting main_balance, also update 'balance' and 'withdrawable' for legacy sync
             const updates: any = { [selectedWalletType]: newBal };
+            // Legacy Sync
             if (selectedWalletType === 'main_balance') {
                 updates.balance = newBal;
                 updates.withdrawable = Math.max(0, newBal - (wallet.pending_withdraw || 0));
@@ -139,7 +197,6 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
             const { error } = await supabase.from('wallets').update(updates).eq('user_id', userId);
             if (error) throw error;
 
-            // 2. Log Transaction
             await createTransaction(
                 userId, 
                 adjustAction === 'credit' ? 'bonus' : 'penalty', 
@@ -156,7 +213,7 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
         }
     };
 
-    if (loading || !profile || !wallet) return <div className="p-10 text-center text-gray-500">Loading user data...</div>;
+    if (loading || !profile || !wallet) return <div className="p-10 text-center text-gray-500">Loading user profile...</div>;
 
     const walletItems = [
         { key: 'main_balance', label: 'Main (Withdrawable)', icon: CreditCard, color: 'text-white' },
@@ -168,227 +225,276 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
     ];
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in pb-20">
+            {/* Header */}
             <div className="flex items-center gap-4">
                 <button onClick={onBack} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 text-white"><ArrowLeft size={20}/></button>
-                <h2 className="text-2xl font-bold text-white">User Profile: {profile.name_1}</h2>
+                <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold text-white">{profile.name_1}</h2>
+                    {profile.is_suspended && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"><Ban size={12}/> BANNED</span>}
+                </div>
                 <div className="ml-auto flex gap-2">
                     <button onClick={() => fetchUserData()} className="p-2 bg-white/5 rounded hover:bg-white/10 text-gray-400"><RefreshCw size={18}/></button>
                 </div>
             </div>
 
-            {/* TOP SECTION: PROFILE & STATUS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <GlassCard className="md:col-span-2 flex flex-col md:flex-row items-start gap-6">
-                    <div className="w-24 h-24 rounded-full bg-black/30 border-2 border-white/10 overflow-hidden flex-shrink-0">
-                        <img src={profile.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.name_1}`} className="w-full h-full object-cover" alt="" />
-                    </div>
-                    
-                    <div className="flex-1 w-full">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                    {profile.name_1} 
-                                    {profile.is_kyc_1 && <CheckCircle2 size={18} className="text-neon-green" />}
-                                    {profile.is_withdraw_blocked && <Lock size={18} className="text-red-500" />}
-                                </h3>
-                                <p className="text-sm text-gray-400">{profile.email_1}</p>
-                                <p className="text-xs font-mono text-gray-600 mt-1 select-all">ID: {profile.id}</p>
-                            </div>
-                            <button onClick={() => setIsEditingProfile(!isEditingProfile)} className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 text-white">
-                                {isEditingProfile ? 'Cancel' : 'Edit Details'}
-                            </button>
+            {/* MAIN DASHBOARD */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* 1. LEFT: Profile Card */}
+                <div className="lg:col-span-2 space-y-6">
+                    <GlassCard className="flex flex-col md:flex-row items-start gap-6 border border-white/10 relative overflow-hidden">
+                        {/* Status Stripe */}
+                        <div className={`absolute top-0 left-0 bottom-0 w-1 ${profile.is_suspended ? 'bg-red-500' : profile.is_withdraw_blocked ? 'bg-orange-500' : 'bg-green-500'}`}></div>
+                        
+                        <div className="w-24 h-24 rounded-xl bg-black/30 border-2 border-white/10 overflow-hidden flex-shrink-0 relative">
+                            <img src={profile.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.name_1}`} className="w-full h-full object-cover" alt="" />
+                            {profile.admin_user && <div className="absolute bottom-0 left-0 right-0 bg-purple-600 text-white text-[9px] text-center font-bold">ADMIN</div>}
                         </div>
+                        
+                        <div className="flex-1 w-full">
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xl font-bold text-white">{profile.name_1}</h3>
+                                        <div className="flex gap-1">
+                                            {profile.is_kyc_1 && <CheckCircle2 size={16} className="text-neon-green" />}
+                                            {profile.is_withdraw_blocked && <Lock size={16} className="text-orange-500" />}
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-gray-400">{profile.email_1}</p>
+                                    <p className="text-xs font-mono text-gray-600 mt-1 select-all bg-black/20 inline-block px-1 rounded">{profile.id}</p>
+                                </div>
+                                <button onClick={() => setIsEditingProfile(!isEditingProfile)} className="text-xs bg-white/10 px-3 py-1 rounded hover:bg-white/20 text-white">
+                                    {isEditingProfile ? 'Cancel' : 'Edit'}
+                                </button>
+                            </div>
 
-                        {isEditingProfile ? (
-                            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white/5 p-4 rounded-xl">
-                                <div>
-                                    <label className="text-xs text-gray-500 block mb-1">Full Name</label>
-                                    <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-black/40 rounded p-2 text-white text-sm border border-white/10" />
+                            {isEditingProfile ? (
+                                <div className="mt-4 grid grid-cols-2 gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                                    <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="bg-black/40 rounded p-2 text-white text-xs border border-white/10" placeholder="Name" />
+                                    <input value={editForm.phone} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="bg-black/40 rounded p-2 text-white text-xs border border-white/10" placeholder="Phone" />
+                                    <input type="number" value={editForm.level} onChange={e => setEditForm({...editForm, level: parseInt(e.target.value)})} className="bg-black/40 rounded p-2 text-white text-xs border border-white/10" placeholder="Level" />
+                                    <button onClick={handleSaveProfile} className="bg-neon-green text-black font-bold py-2 rounded hover:bg-emerald-400 text-xs">Save</button>
                                 </div>
-                                <div>
-                                    <label className="text-xs text-gray-500 block mb-1">Phone</label>
-                                    <input value={editForm.phone} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="w-full bg-black/40 rounded p-2 text-white text-sm border border-white/10" />
+                            ) : (
+                                <div className="flex flex-wrap gap-3 mt-3">
+                                    <div className="bg-black/20 px-3 py-1 rounded border border-white/5">
+                                        <span className="text-gray-500 text-[10px] block uppercase">Balance</span>
+                                        <span className="text-white font-bold text-sm"><BalanceDisplay amount={wallet.balance} /></span>
+                                    </div>
+                                    <div className="bg-black/20 px-3 py-1 rounded border border-white/5">
+                                        <span className="text-gray-500 text-[10px] block uppercase">Ref Code</span>
+                                        <span className="text-white font-bold text-sm">{profile.ref_code_1}</span>
+                                    </div>
+                                    <div className="bg-black/20 px-3 py-1 rounded border border-white/5">
+                                        <span className="text-gray-500 text-[10px] block uppercase">Joined</span>
+                                        <span className="text-white font-bold text-sm">{new Date(profile.created_at).toLocaleDateString()}</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="text-xs text-gray-500 block mb-1">Level</label>
-                                    <input type="number" value={editForm.level} onChange={e => setEditForm({...editForm, level: parseInt(e.target.value)})} className="w-full bg-black/40 rounded p-2 text-white text-sm border border-white/10" />
+                            )}
+                        </div>
+                    </GlassCard>
+
+                    {/* TABS */}
+                    <div className="bg-white/5 rounded-2xl border border-white/5 overflow-hidden">
+                        <div className="flex border-b border-white/5 overflow-x-auto no-scrollbar">
+                            {[
+                                {id: 'overview', label: 'Overview'},
+                                {id: 'wallet', label: 'Wallets'},
+                                {id: 'transactions', label: 'History'},
+                                {id: 'games', label: 'Games'},
+                            ].map(tab => (
+                                <button 
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                    className={`px-6 py-3 text-sm font-bold capitalize whitespace-nowrap ${activeTab === tab.id ? 'text-white bg-white/5 border-b-2 border-neon-green' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                        
+                        <div className="p-4">
+                            {/* OVERVIEW TAB */}
+                            {activeTab === 'overview' && (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                        <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                                            <p className="text-[10px] text-gray-500 uppercase mb-1">Total Deposit</p>
+                                            <p className="text-white font-bold"><BalanceDisplay amount={wallet.deposit} /></p>
+                                        </div>
+                                        <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                                            <p className="text-[10px] text-gray-500 uppercase mb-1">Total Withdraw</p>
+                                            <p className="text-white font-bold"><BalanceDisplay amount={Math.abs(transactions.filter(t => t.type === 'withdraw' && t.status === 'success').reduce((sum, t) => sum + t.amount, 0))} /></p>
+                                        </div>
+                                        <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                                            <p className="text-[10px] text-gray-500 uppercase mb-1">Total Earned</p>
+                                            <p className="text-neon-green font-bold"><BalanceDisplay amount={wallet.total_earning} /></p>
+                                        </div>
+                                        <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                                            <p className="text-[10px] text-gray-500 uppercase mb-1">Pending Out</p>
+                                            <p className="text-yellow-400 font-bold"><BalanceDisplay amount={wallet.pending_withdraw} /></p>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Admin Note Preview */}
+                                    <div 
+                                        className="bg-yellow-500/5 border border-yellow-500/20 p-4 rounded-xl cursor-pointer hover:bg-yellow-500/10 transition"
+                                        onClick={() => setNoteModalOpen(true)}
+                                    >
+                                        <div className="flex justify-between items-center mb-1">
+                                            <h4 className="text-xs font-bold text-yellow-500 uppercase flex items-center gap-2"><StickyNote size={12}/> Admin Notes</h4>
+                                            <span className="text-[10px] text-gray-500">Click to edit</span>
+                                        </div>
+                                        <p className="text-sm text-gray-300 italic">
+                                            {profile.admin_notes || "No notes added yet..."}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="flex items-end">
-                                    <button onClick={handleSaveProfile} className="w-full bg-neon-green text-black font-bold py-2 rounded hover:bg-emerald-400 text-sm">Save Changes</button>
+                            )}
+
+                            {/* WALLET TAB */}
+                            {activeTab === 'wallet' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {walletItems.map((item) => {
+                                        // @ts-ignore
+                                        const balance = wallet[item.key] || 0;
+                                        return (
+                                            <div key={item.key} className="p-3 bg-black/20 border border-white/5 rounded-xl flex justify-between items-center group hover:border-white/20 transition">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-lg bg-white/5 ${item.color}`}><item.icon size={18}/></div>
+                                                    <div>
+                                                        <p className="text-[10px] text-gray-400 uppercase font-bold">{item.label}</p>
+                                                        <p className={`text-lg font-bold ${item.color} font-mono`}><BalanceDisplay amount={balance} /></p>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => openAdjustModal(item.key)} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded text-[10px] font-bold text-gray-300 border border-white/5">
+                                                    Edit
+                                                </button>
+                                            </div>
+                                        )
+                                    })}
                                 </div>
-                            </div>
-                        ) : (
-                            <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-300">
-                                <div className="bg-black/20 px-3 py-1.5 rounded border border-white/5">
-                                    <span className="text-gray-500 text-xs block uppercase">Phone</span>
-                                    {profile.phone_1 || 'N/A'}
+                            )}
+
+                            {/* TRANSACTIONS TAB */}
+                            {activeTab === 'transactions' && (
+                                <div className="overflow-x-auto max-h-[400px] custom-scrollbar">
+                                    <table className="w-full text-left text-xs text-gray-400">
+                                        <thead className="bg-black/20 uppercase font-bold text-white sticky top-0">
+                                            <tr>
+                                                <th className="p-3">Date</th>
+                                                <th className="p-3">Type</th>
+                                                <th className="p-3 text-right">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {transactions.map(tx => (
+                                                <tr key={tx.id} className="border-b border-white/5 hover:bg-white/5">
+                                                    <td className="p-3">{new Date(tx.created_at).toLocaleDateString()}</td>
+                                                    <td className="p-3 capitalize">{tx.type}</td>
+                                                    <td className={`p-3 text-right font-bold ${['deposit','earn'].includes(tx.type) ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {['deposit','earn'].includes(tx.type) ? '+' : '-'}<BalanceDisplay amount={tx.amount} />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div className="bg-black/20 px-3 py-1.5 rounded border border-white/5">
-                                    <span className="text-gray-500 text-xs block uppercase">Joined</span>
-                                    {new Date(profile.created_at).toLocaleDateString()}
+                            )}
+
+                            {/* GAMES TAB */}
+                            {activeTab === 'games' && (
+                                <div className="overflow-x-auto max-h-[400px] custom-scrollbar">
+                                    <table className="w-full text-left text-xs text-gray-400">
+                                        <thead className="bg-black/20 uppercase font-bold text-white sticky top-0">
+                                            <tr>
+                                                <th className="p-3">Game</th>
+                                                <th className="p-3">Bet</th>
+                                                <th className="p-3 text-right">Profit</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {gameHistory.map(g => (
+                                                <tr key={g.id} className="border-b border-white/5 hover:bg-white/5">
+                                                    <td className="p-3">{g.gameName}</td>
+                                                    <td className="p-3"><BalanceDisplay amount={g.bet}/></td>
+                                                    <td className={`p-3 text-right font-bold ${g.profit > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {g.profit > 0 ? '+' : ''}<BalanceDisplay amount={g.profit} />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div className="bg-black/20 px-3 py-1.5 rounded border border-white/5">
-                                    <span className="text-gray-500 text-xs block uppercase">Ref Code</span>
-                                    {profile.ref_code_1}
-                                </div>
-                                <div className="bg-black/20 px-3 py-1.5 rounded border border-white/5">
-                                    <span className="text-gray-500 text-xs block uppercase">Rank</span>
-                                    Lvl {profile.level_1} ({profile.rank_1})
-                                </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
-                </GlassCard>
+                </div>
 
+                {/* 2. RIGHT: Control Panel */}
                 <div className="space-y-4">
-                    <GlassCard className="p-4 bg-red-500/5 border-red-500/20">
-                        <h4 className="font-bold text-white mb-3 text-sm">Administrative Actions</h4>
-                        <div className="space-y-2">
-                            <button onClick={toggleBlock} className={`w-full py-2 rounded text-xs font-bold border flex items-center justify-center gap-2 ${profile.is_withdraw_blocked ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}`}>
-                                {profile.is_withdraw_blocked ? <Unlock size={14}/> : <Lock size={14}/>}
-                                {profile.is_withdraw_blocked ? 'Unblock Withdrawals' : 'Block Withdrawals'}
+                    <GlassCard className="p-4 bg-dark-900/50 border-white/10">
+                        <h4 className="font-bold text-white mb-4 text-sm flex items-center gap-2 uppercase tracking-wide">
+                            <ShieldAlert size={16} className="text-red-500" /> Administrative Actions
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 gap-3">
+                            <button 
+                                onClick={toggleSuspend} 
+                                className={`w-full py-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-2 transition hover:scale-[1.02] ${
+                                    profile.is_suspended 
+                                    ? 'bg-green-600 text-white border-green-500 shadow-lg shadow-green-900/50' 
+                                    : 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-900/50'
+                                }`}
+                            >
+                                {profile.is_suspended ? <CheckCircle2 size={16}/> : <Ban size={16}/>}
+                                {profile.is_suspended ? 'RESTORE ACCESS' : 'SUSPEND ACCOUNT'}
                             </button>
-                            <button onClick={toggleKYC} className={`w-full py-2 rounded text-xs font-bold border flex items-center justify-center gap-2 ${profile.is_kyc_1 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' : 'bg-blue-500/20 text-blue-400 border-blue-500/30'}`}>
-                                <ShieldCheck size={14}/>
-                                {profile.is_kyc_1 ? 'Revoke KYC' : 'Mark KYC Verified'}
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <button onClick={toggleBlock} className={`py-3 rounded-xl text-xs font-bold border flex flex-col items-center justify-center gap-1 ${profile.is_withdraw_blocked ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'}`}>
+                                    {profile.is_withdraw_blocked ? <Lock size={16}/> : <Unlock size={16}/>}
+                                    {profile.is_withdraw_blocked ? 'Unblock WD' : 'Block WD'}
+                                </button>
+                                <button onClick={toggleKYC} className={`py-3 rounded-xl text-xs font-bold border flex flex-col items-center justify-center gap-1 ${profile.is_kyc_1 ? 'bg-green-500/20 text-green-400 border-green-500/50' : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'}`}>
+                                    <ShieldCheck size={16}/>
+                                    {profile.is_kyc_1 ? 'Verified' : 'Verify KYC'}
+                                </button>
+                            </div>
+
+                            <button onClick={() => setMsgModalOpen(true)} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20">
+                                <MessageSquare size={16} /> Send Message
                             </button>
                         </div>
                     </GlassCard>
+
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+                        <h4 className="font-bold text-gray-400 mb-3 text-xs uppercase">Risk Analysis</h4>
+                        <div className="space-y-3">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-500">Risk Score</span>
+                                <span className={`font-bold ${profile.risk_score && profile.risk_score > 50 ? 'text-red-500' : 'text-green-500'}`}>{profile.risk_score || 0}/100</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-500">IP Address</span>
+                                <span className="text-white font-mono text-xs">192.168.x.x</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-500">Win Rate</span>
+                                <span className="text-white font-mono">
+                                    {gameHistory.length > 0 ? ((gameHistory.filter(g => g.profit > 0).length / gameHistory.length) * 100).toFixed(1) : 0}%
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* WALLET MANAGEMENT */}
-            <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2"><CreditCard className="text-neon-green" size={20}/> Wallet Management</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {walletItems.map((item) => {
-                        // @ts-ignore
-                        const balance = wallet[item.key] || 0;
-                        return (
-                            <GlassCard key={item.key} className="p-4 flex flex-col justify-between border border-white/5 relative overflow-hidden group hover:border-white/20">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg bg-white/5 ${item.color}`}><item.icon size={20}/></div>
-                                        <div>
-                                            <p className="text-xs text-gray-400 uppercase font-bold">{item.label}</p>
-                                            <p className={`text-xl font-bold ${item.color} font-mono`}><BalanceDisplay amount={balance} /></p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => openAdjustModal(item.key)}
-                                    className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-bold text-gray-300 transition border border-white/5"
-                                >
-                                    Adjust Balance
-                                </button>
-                            </GlassCard>
-                        )
-                    })}
-                </div>
-            </div>
-
-            {/* TRANSACTIONS & DATA TABS */}
-            <div className="bg-white/5 rounded-2xl border border-white/5 overflow-hidden">
-                <div className="flex border-b border-white/5">
-                    {[
-                        {id: 'overview', label: 'Overview'},
-                        {id: 'transactions', label: 'Transactions'},
-                        {id: 'games', label: 'Game History'},
-                    ].map(tab => (
-                        <button 
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`px-6 py-4 text-sm font-bold capitalize ${activeTab === tab.id ? 'text-white bg-white/5 border-b-2 border-neon-green' : 'text-gray-500 hover:text-gray-300'}`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-                
-                <div className="p-4">
-                    {activeTab === 'overview' && (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            <div className="bg-black/20 p-4 rounded-xl border border-white/5">
-                                <p className="text-xs text-gray-500 uppercase mb-1">Total Deposit</p>
-                                <p className="text-white font-bold"><BalanceDisplay amount={wallet.deposit} /></p>
-                            </div>
-                            <div className="bg-black/20 p-4 rounded-xl border border-white/5">
-                                <p className="text-xs text-gray-500 uppercase mb-1">Total Earning</p>
-                                <p className="text-neon-green font-bold"><BalanceDisplay amount={wallet.total_earning} /></p>
-                            </div>
-                            <div className="bg-black/20 p-4 rounded-xl border border-white/5">
-                                <p className="text-xs text-gray-500 uppercase mb-1">Pending Withdraw</p>
-                                <p className="text-yellow-400 font-bold"><BalanceDisplay amount={wallet.pending_withdraw} /></p>
-                            </div>
-                            <div className="bg-black/20 p-4 rounded-xl border border-white/5">
-                                <p className="text-xs text-gray-500 uppercase mb-1">Games Played</p>
-                                <p className="text-white font-bold">{gameHistory.length}</p>
-                            </div>
-                        </div>
-                    )}
-                    {activeTab === 'transactions' && (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm text-gray-400">
-                                <thead className="bg-black/20 text-xs uppercase font-bold text-white">
-                                    <tr>
-                                        <th className="p-3 rounded-l-lg">Date</th>
-                                        <th className="p-3">Type</th>
-                                        <th className="p-3">Description</th>
-                                        <th className="p-3 text-right rounded-r-lg">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {transactions.length === 0 && <tr><td colSpan={4} className="p-4 text-center">No transactions</td></tr>}
-                                    {transactions.map(tx => (
-                                        <tr key={tx.id} className="border-b border-white/5 hover:bg-white/5">
-                                            <td className="p-3 whitespace-nowrap">{new Date(tx.created_at).toLocaleDateString()}</td>
-                                            <td className="p-3 capitalize text-white"><span className="bg-white/5 px-2 py-1 rounded">{tx.type.replace('_', ' ')}</span></td>
-                                            <td className="p-3 text-xs max-w-[200px] truncate">{tx.description}</td>
-                                            <td className={`p-3 text-right font-bold font-mono ${['deposit','earn','bonus','game_win','referral'].includes(tx.type) ? 'text-green-400' : 'text-red-400'}`}>
-                                                {['deposit','earn','bonus','game_win','referral'].includes(tx.type) ? '+' : '-'}<BalanceDisplay amount={tx.amount} />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                    {activeTab === 'games' && (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm text-gray-400">
-                                <thead className="bg-black/20 text-xs uppercase font-bold text-white">
-                                    <tr>
-                                        <th className="p-3 rounded-l-lg">Game</th>
-                                        <th className="p-3">Bet</th>
-                                        <th className="p-3">Result</th>
-                                        <th className="p-3 text-right rounded-r-lg">Profit/Loss</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {gameHistory.length === 0 && <tr><td colSpan={4} className="p-4 text-center">No games played</td></tr>}
-                                    {gameHistory.map(game => (
-                                        <tr key={game.id} className="border-b border-white/5 hover:bg-white/5">
-                                            <td className="p-3 flex flex-col">
-                                                <span className="text-white font-bold">{game.gameName}</span>
-                                                <span className="text-[10px] text-gray-500">{new Date(game.timestamp).toLocaleString()}</span>
-                                            </td>
-                                            <td className="p-3"><BalanceDisplay amount={game.bet} /></td>
-                                            <td className="p-3 text-xs">{game.details}</td>
-                                            <td className={`p-3 text-right font-bold font-mono ${game.profit > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {game.profit > 0 ? '+' : ''}<BalanceDisplay amount={game.profit} />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* ADJUSTMENT MODAL */}
+            {/* MODALS */}
             <AnimatePresence>
+                {/* 1. Wallet Adjust Modal */}
                 {adjustModalOpen && (
                     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
                         <motion.div 
@@ -437,6 +543,55 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
                                     Confirm Adjustment
                                 </button>
                             </form>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* 2. Message Modal */}
+                {msgModalOpen && (
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                            className="bg-dark-900 w-full max-w-md rounded-2xl border border-white/10 p-6 shadow-2xl"
+                        >
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold text-white">Send Notification</h3>
+                                <button onClick={() => setMsgModalOpen(false)} className="text-gray-500 hover:text-white"><X size={20}/></button>
+                            </div>
+                            <textarea 
+                                value={messageText}
+                                onChange={e => setMessageText(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-blue-500 outline-none h-32 resize-none mb-4"
+                                placeholder="Message to user..."
+                            />
+                            <button onClick={handleSendMessage} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition flex items-center justify-center gap-2">
+                                <Send size={16} /> Send
+                            </button>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* 3. Notes Modal */}
+                {noteModalOpen && (
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                            className="bg-dark-900 w-full max-w-md rounded-2xl border border-white/10 p-6 shadow-2xl"
+                        >
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2"><StickyNote size={18} className="text-yellow-500"/> Internal Notes</h3>
+                                <button onClick={() => setNoteModalOpen(false)} className="text-gray-500 hover:text-white"><X size={20}/></button>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-2">Only visible to administrators.</p>
+                            <textarea 
+                                value={adminNoteText}
+                                onChange={e => setAdminNoteText(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-yellow-500 outline-none h-40 resize-none mb-4"
+                                placeholder="Record observations, warnings, or user history..."
+                            />
+                            <button onClick={handleSaveNote} className="w-full py-3 bg-yellow-500 text-black font-bold rounded-xl hover:bg-yellow-400 transition flex items-center justify-center gap-2">
+                                <Save size={16} /> Save Note
+                            </button>
                         </motion.div>
                     </div>
                 )}

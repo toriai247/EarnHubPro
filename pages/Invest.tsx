@@ -1,3 +1,5 @@
+
+
 import React, { useEffect, useState, useMemo } from 'react';
 import GlassCard from '../components/GlassCard';
 import Skeleton from '../components/Skeleton';
@@ -227,7 +229,7 @@ const Invest: React.FC = () => {
          </div>
          <div className="text-right flex flex-col items-end">
            <p className="text-xs text-slate-500 dark:text-gray-400">Available Balance</p>
-           <p className="text-xl font-bold text-royal-600 dark:text-neon-glow font-mono"><BalanceDisplay amount={wallet.balance} /></p>
+           <p className="text-xl font-bold text-royal-600 dark:text-neon-glow font-mono"><BalanceDisplay amount={wallet.balance} isNative={true} /></p>
          </div>
       </header>
 
@@ -362,10 +364,10 @@ const Invest: React.FC = () => {
                                         {inv.status}
                                     </span>
                                  </div>
-                                 <p className="text-xs text-slate-500 dark:text-gray-400">Invested: <span className="text-slate-900 dark:text-white font-bold"><BalanceDisplay amount={inv.amount} /></span></p>
+                                 <p className="text-xs text-slate-500 dark:text-gray-400">Invested: <span className="text-slate-900 dark:text-white font-bold"><BalanceDisplay amount={inv.amount} isNative={true} /></span></p>
                              </div>
                              <div className="text-right">
-                                 <p className="text-2xl font-bold text-emerald-600 dark:text-neon-green">+<BalanceDisplay amount={inv.total_earned} /></p>
+                                 <p className="text-2xl font-bold text-emerald-600 dark:text-neon-green">+<BalanceDisplay amount={inv.total_earned} isNative={true} /></p>
                                  <p className="text-[10px] text-slate-400 dark:text-gray-500 uppercase">Total Profit</p>
                              </div>
                           </div>
@@ -396,7 +398,7 @@ const Invest: React.FC = () => {
                                       <Loader className="w-5 h-5" />
                                   ) : isReadyToClaim ? (
                                       <>
-                                        <ShieldCheck size={18} /> Claim Daily Profit (+<BalanceDisplay amount={inv.daily_return} />)
+                                        <ShieldCheck size={18} /> Claim Daily Profit (+<BalanceDisplay amount={inv.daily_return} isNative={true} />)
                                       </>
                                   ) : (
                                       <>

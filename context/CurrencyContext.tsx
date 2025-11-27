@@ -1,29 +1,21 @@
 
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
+import { CURRENCY_CONFIG } from '../constants';
 
-type CurrencyCode = 'USD' | 'BDT' | 'EUR' | 'INR' | 'GBP';
+type CurrencyCode = keyof typeof CURRENCY_CONFIG;
 
-interface CurrencyData {
-    code: CurrencyCode;
-    rate: number;
-    symbol: string;
+interface FormatOptions {
+    compact?: boolean;
+    isNative?: boolean; // If true, assumes value is already in native currency (no conversion)
 }
-
-// Real-time rates simulation (Base: USD)
-const RATES: Record<CurrencyCode, CurrencyData> = {
-    USD: { code: 'USD', rate: 1, symbol: '$' },
-    BDT: { code: 'BDT', rate: 120, symbol: '৳' },
-    EUR: { code: 'EUR', rate: 0.92, symbol: '€' },
-    INR: { code: 'INR', rate: 84, symbol: '₹' },
-    GBP: { code: 'GBP', rate: 0.79, symbol: '£' },
-};
 
 interface CurrencyContextType {
     currency: CurrencyCode;
     setCurrency: (code: CurrencyCode, userId: string) => Promise<boolean>;
-    format: (amountInUSD: number, compact?: boolean) => string;
+    format: (amount: number, options?: FormatOptions) => string;
     symbol: string;
     rate: number;
     isLoading: boolean;
@@ -43,36 +35,22 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 const { data: { session } } = await supabase.auth.getSession();
                 
                 if (session) {
-                    // Logged in: Prioritize Database Setting
-                    const { data, error } = await supabase
+                    const { data } = await supabase
                         .from('wallets')
                         .select('currency')
                         .eq('user_id', session.user.id)
                         .maybeSingle();
 
-                    if (data?.currency && RATES[data.currency as CurrencyCode]) {
+                    if (data?.currency && CURRENCY_CONFIG[data.currency as CurrencyCode]) {
                         const dbCurrency = data.currency as CurrencyCode;
                         if (mounted) {
                             setCurrencyState(dbCurrency);
-                            localStorage.setItem('eh_currency', dbCurrency); // Keep local in sync
                         }
-                    } else {
-                        // If DB has no currency set, check local or default to USD
-                        const local = localStorage.getItem('eh_currency');
-                        if (local && RATES[local as CurrencyCode]) {
-                            // Sync local back to DB if DB is empty
-                            if (mounted) setCurrencyState(local as CurrencyCode);
-                            await supabase.from('wallets').update({ currency: local }).eq('user_id', session.user.id);
-                        }
-                    }
-                } else {
-                    // Logged out: Use LocalStorage or Default
-                    const local = localStorage.getItem('eh_currency');
-                    if (local && RATES[local as CurrencyCode]) {
-                        if (mounted) setCurrencyState(local as CurrencyCode);
                     } else {
                         if (mounted) setCurrencyState('USD');
                     }
+                } else {
+                    if (mounted) setCurrencyState('USD');
                 }
             } catch (error) {
                 console.error("Currency Sync Error:", error);
@@ -81,17 +59,14 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             }
         };
 
-        // Initial Sync
         syncCurrency();
 
-        // Listen for Auth Changes (Login/Logout) to refresh currency immediately
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' && session) {
                 setIsLoading(true);
                 syncCurrency();
             } else if (event === 'SIGNED_OUT') {
                 setCurrencyState('USD');
-                localStorage.removeItem('eh_currency'); // Clear prev user preference
             }
         });
 
@@ -101,43 +76,62 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
     }, []);
 
-    const setCurrency = async (code: CurrencyCode, userId: string): Promise<boolean> => {
-        if (code === currency) return true;
+    // Switches the wallet's stored currency AND value (Exchange)
+    const setCurrency = async (targetCode: CurrencyCode, userId: string): Promise<boolean> => {
+        if (targetCode === currency) return true;
 
         setIsLoading(true);
         try {
-            // 1. Fetch Fresh Balance (Security Check)
+            // 1. Fetch Fresh Balance
             const { data: wallet, error: fetchError } = await supabase
                 .from('wallets')
-                .select('balance')
+                .select('*')
                 .eq('user_id', userId)
                 .single();
 
             if (fetchError || !wallet) throw new Error("Failed to retrieve wallet balance.");
 
-            const currentBalance = wallet.balance;
-            const fee = currentBalance * 0.05; // 5% Fee
+            const currentRate = CURRENCY_CONFIG[currency].rate;
+            const targetRate = CURRENCY_CONFIG[targetCode].rate;
+            
+            // Fee Calculation (5% of the *source* amount converted to base USD first for accuracy)
+            const feePercent = 0.05;
+            
+            const convertField = (val: number) => {
+                if (!val) return 0;
+                const usdValue = val / currentRate; 
+                const feeUSD = usdValue * feePercent;
+                const netUSD = usdValue - feeUSD;
+                return Number((netUSD * targetRate).toFixed(2));
+            };
 
-            // 2. Check Funds
-            if (currentBalance < fee) {
-                throw new Error(`Insufficient balance to pay the 5% exchange fee ($${fee.toFixed(2)}).`);
-            }
+            const updates = {
+                currency: targetCode,
+                main_balance: convertField(wallet.main_balance),
+                balance: convertField(wallet.balance),
+                deposit: convertField(wallet.deposit),
+                deposit_balance: convertField(wallet.deposit_balance),
+                game_balance: convertField(wallet.game_balance),
+                earning_balance: convertField(wallet.earning_balance),
+                investment_balance: convertField(wallet.investment_balance),
+                referral_balance: convertField(wallet.referral_balance),
+                commission_balance: convertField(wallet.commission_balance),
+                bonus_balance: convertField(wallet.bonus_balance),
+                withdrawable: convertField(wallet.withdrawable),
+                total_earning: convertField(wallet.total_earning),
+                today_earning: convertField(wallet.today_earning)
+            };
 
-            // 3. Deduct Fee
-            if (fee > 0) {
-                await updateWallet(userId, fee, 'decrement', 'balance');
-                await createTransaction(userId, 'fee', fee, `Currency Switch Fee (${currency} to ${code})`);
-            }
-
-            // 4. Update Database Preference
-            const { error } = await supabase.from('wallets').update({ currency: code }).eq('user_id', userId);
+            // 3. Update Database
+            const { error } = await supabase.from('wallets').update(updates).eq('user_id', userId);
             if (error) throw error;
 
-            // 5. Update State & Local Storage
-            setCurrencyState(code);
-            localStorage.setItem('eh_currency', code);
+            await createTransaction(userId, 'fee', 0, `Currency Switch: ${currency} to ${targetCode}`);
+
+            // 4. Update State
+            setCurrencyState(targetCode);
             
-            // 6. Trigger Global Refresh
+            // 5. Trigger Refresh
             window.dispatchEvent(new Event('wallet_updated'));
             
             return true;
@@ -150,28 +144,31 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
     };
 
-    const format = (amountInUSD: number, compact: boolean = false) => {
-        // Handle undefined or null safely
-        const val = amountInUSD || 0;
+    const format = (amount: number, options?: FormatOptions) => {
+        const { compact = false, isNative = false } = options || {};
         
-        const targetRate = RATES[currency].rate;
-        const converted = val * targetRate;
-        const symbol = RATES[currency].symbol;
+        let val = amount || 0;
+        const config = CURRENCY_CONFIG[currency];
+        const symbol = config.symbol;
 
-        if (compact) {
-            if (converted >= 1000000000000) return `${symbol}${(converted / 1000000000000).toFixed(2)}T`;
-            if (converted >= 1000000000) return `${symbol}${(converted / 1000000000).toFixed(2)}B`;
-            if (converted >= 1000000) return `${symbol}${(converted / 1000000).toFixed(2)}M`;
-            if (converted >= 1000) return `${symbol}${(converted / 1000).toFixed(1)}K`;
+        // If NOT native (e.g. Plan prices in USD), convert it to current currency
+        if (!isNative) {
+            val = val * config.rate;
         }
 
-        // Standard formatting with symbol
+        if (compact) {
+            if (val >= 1000000000000) return `${symbol}${(val / 1000000000000).toFixed(2)}T`;
+            if (val >= 1000000000) return `${symbol}${(val / 1000000000).toFixed(2)}B`;
+            if (val >= 1000000) return `${symbol}${(val / 1000000).toFixed(2)}M`;
+            if (val >= 1000) return `${symbol}${(val / 1000).toFixed(1)}K`;
+        }
+
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: currency === 'BDT' ? 'BDT' : currency, // Handle BDT specially if needed
+            currency: 'USD',
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
-        }).format(converted).replace('BDT', '৳'); // Ensure BDT symbol is used
+        }).format(val).replace('$', symbol);
     };
 
     return (
@@ -179,8 +176,8 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             currency, 
             setCurrency, 
             format, 
-            symbol: RATES[currency].symbol, 
-            rate: RATES[currency].rate,
+            symbol: CURRENCY_CONFIG[currency].symbol, 
+            rate: CURRENCY_CONFIG[currency].rate,
             isLoading 
         }}>
             {children}

@@ -1,9 +1,11 @@
 
+
+
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Crown, Trophy, Globe, Menu, X, 
-  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard
+  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useTheme } from '../context/ThemeContext';
@@ -26,6 +28,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [level, setLevel] = useState(1);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSuspended, setIsSuspended] = useState(false);
   
   const isVideoPage = location.pathname === '/video';
   const isHomePage = location.pathname === '/';
@@ -57,18 +60,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const [walletRes, notifRes, profileRes] = await Promise.allSettled([
+      // Check Profile for Suspension & Admin Status
+      const { data: profile } = await supabase.from('profiles').select('level_1, admin_user, is_suspended').eq('id', session.user.id).single();
+      
+      if (profile) {
+          if (profile.is_suspended) {
+              setIsSuspended(true);
+              return; // Stop loading other data
+          }
+          setLevel(profile.level_1);
+          setIsAdmin(profile.admin_user || false);
+      }
+
+      const [walletRes, notifRes] = await Promise.allSettled([
         supabase.from('wallets').select('balance').eq('user_id', session.user.id).single(),
         supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('is_read', false),
-        supabase.from('profiles').select('level_1, admin_user').eq('id', session.user.id).single()
       ]);
 
       if (walletRes.status === 'fulfilled' && walletRes.value.data) setBalance(walletRes.value.data.balance);
       if (notifRes.status === 'fulfilled') setUnreadCount(notifRes.value.count || 0);
-      if (profileRes.status === 'fulfilled' && profileRes.value.data) {
-          setLevel(profileRes.value.data.level_1);
-          setIsAdmin(profileRes.value.data.admin_user || false);
-      }
     };
 
     fetchData();
@@ -82,7 +92,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       window.location.reload();
   };
 
-  // Only show maintenance screen if enabled AND user is NOT an admin
+  // 1. Account Suspended Screen (Highest Priority)
+  if (isSuspended) {
+      return (
+          <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
+              <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center border-2 border-red-500 mb-6 animate-pulse">
+                  <Ban size={48} className="text-red-500" />
+              </div>
+              <h1 className="text-3xl font-black text-white uppercase mb-2">Account Suspended</h1>
+              <p className="text-gray-400 max-w-sm mb-8">
+                  Your account has been flagged for violation of our terms of service. Access is permanently revoked.
+              </p>
+              <button 
+                  onClick={handleLogout}
+                  className="px-8 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition flex items-center gap-2"
+              >
+                  <LogOut size={18} /> Sign Out
+              </button>
+          </div>
+      );
+  }
+
+  // 2. Only show maintenance screen if enabled AND user is NOT an admin
   if (config?.maintenance_mode && !isAdmin) {
       return <MaintenanceScreen />;
   }
@@ -125,7 +156,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <Crown size={14} className="fill-current" /> LVL {level}
                 </div>
                 <div className="px-3 py-1.5 rounded bg-surface border border-border-neo text-xs font-bold text-white flex items-center gap-1 shadow-neo-sm font-mono">
-                    <BalanceDisplay amount={balance} isHeader={true} />
+                    <BalanceDisplay amount={balance} isHeader={true} isNative={true} />
                 </div>
               </>
             )}
@@ -238,7 +269,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                               <LogOut size={18} /> LOG OUT
                           </button>
                           <div className="mt-4 text-center text-[10px] text-gray-600 font-black font-mono">
-                              EARNHUB PRO v3.7.0
+                              EARNHUB PRO v4.0.0
                           </div>
                       </div>
                   </MotionDiv>

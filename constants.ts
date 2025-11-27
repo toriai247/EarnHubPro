@@ -2,6 +2,15 @@
 
 import { InvestmentPlan, Task, Transaction, Game, VideoShort, Activity } from './types';
 
+// Currency Configuration
+export const CURRENCY_CONFIG = {
+    USD: { code: 'USD', name: 'US Dollar', symbol: '$', rate: 1, flag: '🇺🇸', signup_bonus: 1.00 },
+    BDT: { code: 'BDT', name: 'Bangladeshi Taka', symbol: '৳', rate: 120, flag: '🇧🇩', signup_bonus: 120.00 },
+    EUR: { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.92, flag: '🇪🇺', signup_bonus: 0.90 },
+    INR: { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 84, flag: '🇮🇳', signup_bonus: 85.00 },
+    GBP: { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.79, flag: '🇬🇧', signup_bonus: 0.80 },
+};
+
 export const PLANS: InvestmentPlan[] = [
   {
     id: '1',

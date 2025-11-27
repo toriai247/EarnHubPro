@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { useCurrency } from '../context/CurrencyContext';
@@ -8,26 +9,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Loader from '../components/Loader';
 import { useUI } from '../context/UIContext';
+import { CURRENCY_CONFIG } from '../constants';
+import BalanceDisplay from '../components/BalanceDisplay';
 
 const Exchange: React.FC = () => {
   const { toast } = useUI();
   const { currency, setCurrency, isLoading: contextLoading } = useCurrency();
   const [balance, setBalance] = useState(0);
-  const [selectedTarget, setSelectedTarget] = useState<string>(currency);
+  const [selectedTarget, setSelectedTarget] = useState<string>('USD');
   const [userId, setUserId] = useState('');
   const [loadingData, setLoadingData] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const navigate = useNavigate();
 
-  // Available Currencies with Metadata
-  const currencies = [
-      { code: 'USD', name: 'US Dollar', symbol: '$', rate: 1, flag: '🇺🇸' },
-      { code: 'BDT', name: 'Bangladeshi Taka', symbol: '৳', rate: 120, flag: '🇧🇩' },
-      { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.92, flag: '🇪🇺' },
-      { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 84, flag: '🇮🇳' },
-      { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.79, flag: '🇬🇧' },
-  ];
+  const currencies = Object.values(CURRENCY_CONFIG);
 
   useEffect(() => {
       const fetch = async () => {
@@ -62,24 +58,36 @@ const Exchange: React.FC = () => {
 
       if (success) {
           setShowSuccess(true);
-          setBalance(prev => prev - (prev * 0.05)); 
+          // Optimistic calculation for visual feedback (rough estimate)
+          setBalance(prev => {
+              const usdVal = prev / currentRate;
+              const netUsd = usdVal * 0.95;
+              return netUsd * targetRate;
+          });
           setTimeout(() => {
               navigate('/wallet');
           }, 2500);
       }
   };
 
-  const currentInfo = currencies.find(c => c.code === currency) || currencies[0];
-  const targetInfo = currencies.find(c => c.code === selectedTarget) || currencies[1];
+  const currentInfo = CURRENCY_CONFIG[currency as keyof typeof CURRENCY_CONFIG] || CURRENCY_CONFIG.USD;
+  const targetInfo = CURRENCY_CONFIG[selectedTarget as keyof typeof CURRENCY_CONFIG] || CURRENCY_CONFIG.USD;
   
   const currentRate = currentInfo.rate;
   const targetRate = targetInfo.rate;
   
-  const feePercent = 5;
-  const feeAmountUSD = balance * (feePercent / 100);
-  const netBalanceUSD = balance - feeAmountUSD;
+  // Logic: 
+  // 1. Convert Balance to Base USD
+  const baseUSD = balance / currentRate;
   
-  const currentDisplayValue = balance * currentRate;
+  // 2. Calculate Fee in Base USD
+  const feePercent = 0.05;
+  const feeAmountUSD = baseUSD * feePercent;
+  
+  // 3. Calculate Net in Base USD
+  const netBalanceUSD = baseUSD - feeAmountUSD;
+  
+  // 4. Convert Net to Target
   const predictedDisplayValue = netBalanceUSD * targetRate;
 
   if (loadingData) return <div className="min-h-screen flex items-center justify-center"><Loader /></div>;
@@ -90,10 +98,9 @@ const Exchange: React.FC = () => {
            <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white flex items-center gap-2">
                <Globe className="text-emerald-600 dark:text-neon-green" size={24} /> Exchange Center
            </h1>
-           <p className="text-slate-500 dark:text-gray-400 text-xs">Switch display currency & view real-time rates.</p>
+           <p className="text-slate-500 dark:text-gray-400 text-xs">Switch currency & auto-convert balance.</p>
        </header>
 
-       {/* MAIN EXCHANGE CARD */}
        <GlassCard className="border-royal-200 dark:border-royal-500/30 bg-gradient-to-br from-slate-50 to-white dark:from-dark-900 dark:to-royal-900/10 overflow-hidden relative p-0">
            <div className="p-5 relative z-10">
                
@@ -101,14 +108,14 @@ const Exchange: React.FC = () => {
                <div className="mb-6">
                    <div className="flex justify-between items-center mb-2">
                        <p className="text-xs font-bold text-slate-500 dark:text-gray-400 uppercase">Current Holding</p>
-                       <span className="text-[10px] bg-slate-200 dark:bg-white/10 px-2 py-0.5 rounded text-slate-600 dark:text-gray-300">Base: USD</span>
+                       <span className="text-[10px] bg-slate-200 dark:bg-white/10 px-2 py-0.5 rounded text-slate-600 dark:text-gray-300">Base: {currency}</span>
                    </div>
                    <div className="flex justify-between items-center bg-white dark:bg-black/40 p-4 rounded-2xl border border-slate-200 dark:border-white/5 relative overflow-hidden shadow-sm">
                        <div className="relative z-10">
-                           <p className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                               {currentInfo.symbol} {currentDisplayValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                           </p>
-                           <p className="text-xs text-slate-500 dark:text-gray-500 mt-1 font-mono">≈ ${balance.toFixed(2)} USD</p>
+                           <div className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                               <BalanceDisplay amount={balance} isNative={true} />
+                           </div>
+                           <p className="text-xs text-slate-500 dark:text-gray-500 mt-1 font-mono">≈ ${baseUSD.toFixed(2)} USD</p>
                        </div>
                        <div className="relative z-10 text-right">
                            <div className="text-4xl mb-1">{currentInfo.flag}</div>
@@ -178,7 +185,7 @@ const Exchange: React.FC = () => {
                                    </p>
                                </div>
                                <div className="text-right">
-                                   <p className="text-[10px] text-slate-500 dark:text-gray-500 uppercase">Exchange Rate</p>
+                                   <p className="text-[10px] text-slate-500 dark:text-gray-500 uppercase">Rate</p>
                                    <p className="text-xs font-bold text-slate-900 dark:text-white">1 USD = {targetRate} {targetInfo.code}</p>
                                </div>
                            </div>
@@ -186,14 +193,14 @@ const Exchange: React.FC = () => {
 
                        <button 
                            onClick={handleExchange}
-                           disabled={isProcessing || balance < feeAmountUSD}
+                           disabled={isProcessing || baseUSD < feeAmountUSD}
                            className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-lg ${
-                               balance < feeAmountUSD 
+                               baseUSD < feeAmountUSD 
                                ? 'bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400 cursor-not-allowed'
                                : 'bg-royal-600 dark:bg-gradient-to-r dark:from-royal-600 dark:to-royal-500 text-white hover:bg-royal-700 active:scale-[0.98]'
                            }`}
                        >
-                           {isProcessing ? <Loader className="border-white" /> : balance < feeAmountUSD ? 'Insufficient Balance for Fee' : 'Confirm & Switch'}
+                           {isProcessing ? <Loader className="border-white" /> : baseUSD < feeAmountUSD ? 'Insufficient Funds' : 'Confirm & Switch'}
                        </button>
                    </motion.div>
                </AnimatePresence>

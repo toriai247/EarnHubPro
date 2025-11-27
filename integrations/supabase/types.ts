@@ -325,6 +325,9 @@ export interface Database {
           referred_by: string | null
           is_kyc_1: boolean
           is_withdraw_blocked: boolean
+          is_suspended: boolean
+          admin_notes: string | null
+          risk_score: number
           rank_1: string
           xp_1: number
           phone_1: string | null
@@ -346,6 +349,9 @@ export interface Database {
           referred_by?: string | null
           is_kyc_1?: boolean
           is_withdraw_blocked?: boolean
+          is_suspended?: boolean
+          admin_notes?: string | null
+          risk_score?: number
           rank_1?: string
           xp_1?: number
           phone_1?: string | null
@@ -367,6 +373,9 @@ export interface Database {
           referred_by?: string | null
           is_kyc_1?: boolean
           is_withdraw_blocked?: boolean
+          is_suspended?: boolean
+          admin_notes?: string | null
+          risk_score?: number
           rank_1?: string
           xp_1?: number
           phone_1?: string | null

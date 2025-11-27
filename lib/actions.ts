@@ -1,6 +1,8 @@
 
+
 import { supabase } from '../integrations/supabase/client';
 import { Task, ActiveInvestment } from '../types';
+import { CURRENCY_CONFIG } from '../constants';
 
 // Helper to create a random referral code
 const generateReferralCode = () => 'EH' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -17,7 +19,6 @@ export const createTransaction = async (userId: string, type: string, amount: nu
       return;
   }
   
-  // Optional: Strict UUID check if your DB strictly enforces it and you want to avoid network calls for bad IDs
   if (!isValidUUID(userId)) { 
       console.warn("Skipping invalid UUID transaction for ID:", userId); 
       return; 
@@ -79,7 +80,7 @@ export const updateWallet = async (
   }
 };
 
-export const createUserProfile = async (userId: string, email: string, fullName: string, referralCode?: string) => {
+export const createUserProfile = async (userId: string, email: string, fullName: string, referralCode?: string, currency: string = 'USD') => {
   if (!userId || !isValidUUID(userId)) {
       console.error("Invalid userId for createUserProfile");
       return;
@@ -87,20 +88,26 @@ export const createUserProfile = async (userId: string, email: string, fullName:
 
   const myRefCode = generateReferralCode();
   let referredBy = null;
-  let welcomeBonus = 120.00; // Standard Welcome Bonus
+  
+  // Determine specific bonus based on Currency
+  // This value is treated as "Native Value" in the database
+  const config = CURRENCY_CONFIG[currency as keyof typeof CURRENCY_CONFIG] || CURRENCY_CONFIG.USD;
+  let welcomeBonus = config.signup_bonus; 
+  
   let referrerId = null;
   
   // Check if Referral Code is Valid
   if (referralCode && referralCode.trim().length > 0) {
       const { data: referrer } = await supabase.from('profiles').select('id, ref_code_1').eq('ref_code_1', referralCode).maybeSingle();
       if (referrer) {
-          referredBy = referralCode; // Save the code
+          referredBy = referralCode; 
           referrerId = referrer.id;
-          welcomeBonus += 50.00; // Add 50 Bonus for using code
+          // Add extra bonus? 25% of welcome bonus
+          welcomeBonus += (welcomeBonus * 0.25); 
       }
   }
 
-  // 1. Create Profile (Use upsert to safely handle existing profiles)
+  // 1. Create Profile
   const { error: profileError } = await supabase.from('profiles').upsert({
     id: userId,
     email_1: email,
@@ -118,19 +125,20 @@ export const createUserProfile = async (userId: string, email: string, fullName:
     }
   }
 
-  // 2. Create Wallet safely
+  // 2. Create Wallet safely with Selected Currency
   const { error: walletError } = await supabase.from('wallets').upsert({
     user_id: userId,
+    currency: currency, // STORE THE CHOSEN CURRENCY
     main_balance: 0,
-    bonus_balance: welcomeBonus, // Welcome bonus goes to Bonus Wallet
+    bonus_balance: welcomeBonus, // Native Value
     deposit_balance: 0,
     game_balance: 0,
     earning_balance: 0,
     investment_balance: 0,
     referral_balance: 0,
     commission_balance: 0,
-    balance: 0, // Legacy
-    deposit: 0, // Legacy
+    balance: 0,
+    deposit: 0,
     withdrawable: 0, 
     total_earning: 0,
     today_earning: 0,
@@ -147,7 +155,6 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   }
 
   // 3. Check and Create Transactions (Prevent Duplicates)
-  // Ensure userId is valid before creating transactions
   if (userId) {
       const { count: txCount } = await supabase.from('transactions')
         .select('*', { count: 'exact', head: true })
@@ -155,7 +162,8 @@ export const createUserProfile = async (userId: string, email: string, fullName:
         .eq('description', 'Welcome Bonus');
 
       if (!txCount) {
-          await createTransaction(userId, 'bonus', 120.00, 'Welcome Bonus');
+          // Log transaction with Native Amount
+          await createTransaction(userId, 'bonus', welcomeBonus, `Welcome Bonus (${currency})`);
           
           if (referrerId && isValidUUID(referrerId)) {
               const { count: refTxCount } = await supabase.from('transactions')
@@ -164,8 +172,6 @@ export const createUserProfile = async (userId: string, email: string, fullName:
                 .ilike('description', 'Referral Bonus%');
 
               if (!refTxCount) {
-                  await createTransaction(userId, 'bonus', 50.00, `Referral Bonus (Code: ${referralCode})`);
-                  
                   const { error: refError } = await supabase.from('referrals').upsert({
                       referrer_id: referrerId,
                       referred_id: userId,
@@ -192,21 +198,20 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
     if (earningAmount <= 0) return;
 
     const { data: userProfile } = await supabase.from('profiles').select('referred_by, name_1').eq('id', userId).single();
-    
     if (!userProfile || !userProfile.referred_by) return;
 
     const { data: referrerProfile } = await supabase.from('profiles').select('id').eq('ref_code_1', userProfile.referred_by).maybeSingle();
-    
     if (!referrerProfile) return;
-
-    const commission = Number((earningAmount * 0.05).toFixed(4));
-    
-    if (commission < 0.001) return;
 
     const { data: rWallet } = await supabase.from('wallets').select('*').eq('user_id', referrerProfile.id).single();
     if (rWallet) {
+        // Simplified: The system gives 5% of the *earner's absolute value*.
+        const commission = Number((earningAmount * 0.05).toFixed(4));
+        
+        if (commission < 0.001) return;
+
         await supabase.from('wallets').update({
-            commission_balance: (rWallet.commission_balance || 0) + commission, // Goes to Commission Wallet
+            commission_balance: (rWallet.commission_balance || 0) + commission, 
             total_earning: rWallet.total_earning + commission,
             referral_earnings: (rWallet.referral_earnings || 0) + commission
         }).eq('user_id', referrerProfile.id);
@@ -227,7 +232,7 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
         await supabase.from('notifications').insert({
             user_id: referrerProfile.id,
             title: 'Commission Earned! 💸',
-            message: `You earned $${commission.toFixed(4)} (5%) commission. Check your Commission Wallet.`,
+            message: `You earned ${commission.toFixed(2)} (5%) commission.`,
             type: 'success'
         });
     }
@@ -244,7 +249,7 @@ export const processGameResult = async (userId: string, gameId: string, gameName
         const adminFeePercent = 0.05; 
         const fee = initialProfit * adminFeePercent;
         finalPayout = payout - fee;
-        details += ` (Fee: $${fee.toFixed(2)})`;
+        details += ` (Fee: -${fee.toFixed(2)})`;
     }
 
     const finalProfit = finalPayout - bet;
@@ -284,7 +289,7 @@ export const claimTask = async (userId: string, task: Task) => {
     const { data: w, error: walletFetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
     if (walletFetchError || !w) throw new Error("Wallet not found");
 
-    const currentBal = Number(w.earning_balance) || 0; // Task rewards go to Earning Wallet
+    const currentBal = Number(w.earning_balance) || 0; 
     const reward = Number(task.reward) || 0;
     const totalEarn = Number(w.total_earning) || 0;
     const todayEarn = Number(w.today_earning) || 0;
@@ -341,7 +346,6 @@ export const claimInvestmentReturn = async (userId: string, investment: ActiveIn
 
     const endDate = new Date(investment.end_date);
     if (now >= endDate && investment.status === 'active') {
-        // Return principal to Main or Deposit? Usually returned to Main as unlocked capital.
         await updateWallet(userId, investment.amount, 'increment', 'main_balance');
         await createTransaction(userId, 'earn', investment.amount, `Capital Return: ${investment.plan_name}`);
         await supabase.from('investments').update({ status: 'completed' }).eq('id', investment.id);
@@ -382,7 +386,6 @@ export const saveWithdrawMethod = async (userId: string, method: string, number:
     }
 };
 
-// UPDATED: Now calls robust database function via RPC
 export const requestWithdrawal = async (userId: string, amount: number, method: string) => {
     if (!isValidUUID(userId)) throw new Error("Invalid User ID");
 

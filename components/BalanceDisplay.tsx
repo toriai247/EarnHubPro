@@ -1,26 +1,26 @@
 
+
 import React, { useState } from 'react';
 import { useCurrency } from '../context/CurrencyContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface BalanceDisplayProps {
-    amount: number; // Amount in USD (Base)
+    amount: number;
     className?: string;
     isHeader?: boolean;
+    isNative?: boolean; // If true, amount is already in user's currency (Wallet balance)
 }
 
-const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ amount, className = '', isHeader = false }) => {
-    const { format, rate } = useCurrency();
+const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ amount, className = '', isHeader = false, isNative = false }) => {
+    const { format } = useCurrency();
     const [showFull, setShowFull] = useState(false);
 
-    // Calculate value in selected currency to determine if compaction is needed
-    const value = (amount || 0) * rate;
+    const value = amount || 0;
     
     // Compact if value > 10,000 AND user hasn't toggled to full view.
-    // This applies to headers, cards, and everywhere this component is used.
     const useCompact = !showFull && value > 10000;
 
-    const formatted = format(amount, useCompact);
+    const formatted = format(value, { compact: useCompact, isNative });
 
     return (
         <div 
@@ -40,7 +40,6 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ amount, className = '',
                 </motion.span>
             </AnimatePresence>
             
-            {/* Only show hint tooltip if not in a tight header space */}
             {!isHeader && (
                 <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[8px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                     {showFull ? 'Compact' : 'Full'}
