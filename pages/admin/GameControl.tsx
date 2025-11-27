@@ -309,7 +309,7 @@ const GameControl: React.FC = () => {
                                          <button onClick={() => setForceLossCount(forceLossCount + 1)} className="w-10 h-10 bg-white/5 rounded-lg text-white">+</button>
                                      </div>
                                      <p className="text-[10px] text-gray-500 mt-2">
-                                         If > 0, bots will be extremely aggressive and user will get bad dice rolls.
+                                         If &gt; 0, bots will be extremely aggressive and user will get bad dice rolls.
                                      </p>
                                  </div>
                                  
