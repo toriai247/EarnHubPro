@@ -89,8 +89,6 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   let referredBy = null;
   
   // LOGIC FIX: Normalize Bonus to USD Base
-  // If config.signup_bonus is 120 (BDT) and rate is 120, we store 1.0 (USD)
-  // This ensures 1.0 * 120 rate = 120 BDT displayed on frontend.
   const config = CURRENCY_CONFIG[currency as keyof typeof CURRENCY_CONFIG] || CURRENCY_CONFIG.USD;
   let welcomeBonus = config.signup_bonus / config.rate; 
   
@@ -107,7 +105,7 @@ export const createUserProfile = async (userId: string, email: string, fullName:
       }
   }
 
-  // 1. Create Profile
+  // 1. Create Profile - Trigger will handle user_uid
   const { error: profileError } = await supabase.from('profiles').upsert({
     id: userId,
     email_1: email,
@@ -192,6 +190,8 @@ export const createUserProfile = async (userId: string, email: string, fullName:
       }
   }
 };
+
+// ... (Rest of existing functions remain unchanged)
 
 // --- REFERRAL COMMISSION LOGIC ---
 const distributeReferralReward = async (userId: string, earningAmount: number) => {

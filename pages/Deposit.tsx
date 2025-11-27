@@ -1,15 +1,17 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Copy, UploadCloud, CheckCircle, Loader2, AlertCircle, Info, X } from 'lucide-react';
+import { ArrowLeft, Copy, UploadCloud, CheckCircle, Loader2, Info, X, Calculator } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { PaymentMethod } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../context/UIContext';
+import { useCurrency } from '../context/CurrencyContext';
 
 const Deposit: React.FC = () => {
   const { toast } = useUI();
+  const { rate, symbol, currency } = useCurrency();
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [amount, setAmount] = useState('');
@@ -19,7 +21,6 @@ const Deposit: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [uploadState, setUploadState] = useState('');
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [isDragging, setIsDragging] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,54 +30,6 @@ const Deposit: React.FC = () => {
     };
     fetchMethods();
   }, []);
-
-  const copyToClipboard = (text: string) => {
-      navigator.clipboard.writeText(text);
-      toast.success('Account number copied!');
-  };
-
-  const validateAndSetFile = (file: File) => {
-      if (file.size > 5 * 1024 * 1024) {
-          toast.warning("File size too large. Max 5MB.");
-          return;
-      }
-      if (!file.type.startsWith('image/')) {
-          toast.warning("Only JPG/PNG images are allowed.");
-          return;
-      }
-      setScreenshot(file);
-      toast.info("Screenshot attached.");
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files[0]) {
-          validateAndSetFile(e.target.files[0]);
-      }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(false);
-      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-          validateAndSetFile(e.dataTransfer.files[0]);
-      }
-  };
-
-  const clearFile = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      setScreenshot(null);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -92,29 +45,21 @@ const Deposit: React.FC = () => {
           if (!session) throw new Error("User not authenticated");
 
           let screenshotUrl = '';
-
-          // 1. Upload Screenshot (Optional but recommended)
           if (screenshot) {
               setUploadState('Uploading Proof...');
               const fileExt = screenshot.name.split('.').pop();
               const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
-              const { error: uploadError } = await supabase.storage
-                .from('deposits')
-                .upload(fileName, screenshot);
-
+              const { error: uploadError } = await supabase.storage.from('deposits').upload(fileName, screenshot);
               if (uploadError) throw uploadError;
-              
               const { data: urlData } = supabase.storage.from('deposits').getPublicUrl(fileName);
               screenshotUrl = urlData.publicUrl;
           }
 
           setUploadState('Finalizing...');
-
-          // 2. Create Deposit Request
           const { error: insertError } = await supabase.from('deposit_requests').insert({
               user_id: session.user.id,
               method_name: selectedMethod.name,
-              amount: parseFloat(amount),
+              amount: parseFloat(amount), // Sends USD Amount
               transaction_id: transactionId,
               sender_number: senderNumber,
               screenshot_url: screenshotUrl,
@@ -122,19 +67,18 @@ const Deposit: React.FC = () => {
           });
 
           if (insertError) throw insertError;
-
           setStatus('success');
           setTimeout(() => navigate('/wallet'), 3500);
 
       } catch (e: any) {
-          console.error(e);
           toast.error("Submission Failed: " + e.message);
           setStatus('error');
       } finally {
           setLoading(false);
-          setUploadState('');
       }
   };
+
+  const payAmount = (parseFloat(amount) || 0) * rate;
 
   if (status === 'success') {
       return (
@@ -145,10 +89,8 @@ const Deposit: React.FC = () => {
               <h2 className="text-3xl font-bold text-white">Deposit Submitted!</h2>
               <div className="bg-white/5 p-6 rounded-xl border border-white/10 max-w-xs mx-auto">
                   <p className="text-gray-300 text-sm">Your request has been sent to the admin team.</p>
-                  <div className="my-4 h-px bg-white/10"></div>
-                  <p className="text-xs text-gray-500">Average wait time: 10-30 mins</p>
               </div>
-              <Link to="/wallet" className="px-8 py-3 bg-royal-600 rounded-xl text-white font-bold hover:bg-royal-700 transition">Return to Wallet</Link>
+              <Link to="/wallet" className="px-8 py-3 bg-white text-black font-bold rounded-xl">Return to Wallet</Link>
           </div>
       );
   }
@@ -164,74 +106,72 @@ const Deposit: React.FC = () => {
 
        <AnimatePresence mode="wait">
        {!selectedMethod ? (
-           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-               <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex items-start gap-3 text-blue-200 text-sm">
-                   <Info size={20} className="shrink-0 mt-0.5" />
-                   <p>Select a payment gateway below to view the account number and instructions.</p>
-               </div>
-               
+           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                <div className="grid grid-cols-2 gap-4">
                    {methods.map(method => (
-                       <GlassCard key={method.id} onClick={() => setSelectedMethod(method)} className="flex flex-col items-center justify-center py-8 cursor-pointer hover:border-neon-green/50 hover:bg-white/10 transition group border border-white/5">
-                            {method.logo_url ? (
-                                <img src={method.logo_url} alt={method.name} className="w-12 h-12 mb-3 object-contain" />
-                            ) : (
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mb-3 text-white shadow-lg ${
-                                    method.name.toLowerCase().includes('bkash') ? 'bg-pink-600' :
-                                    method.name.toLowerCase().includes('nagad') ? 'bg-orange-600' :
-                                    method.name.toLowerCase().includes('binance') ? 'bg-yellow-500 text-black' :
-                                    'bg-blue-600'
-                                }`}>
-                                    {method.name.charAt(0)}
-                                </div>
-                            )}
+                       <GlassCard key={method.id} onClick={() => setSelectedMethod(method)} className="flex flex-col items-center justify-center py-8 cursor-pointer hover:border-neon-green/50 hover:bg-white/10 transition border border-white/5">
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mb-3 text-white bg-blue-600 shadow-lg">
+                                {method.name.charAt(0)}
+                            </div>
                             <h3 className="font-bold text-white">{method.name}</h3>
-                            <p className="text-[10px] text-gray-500 uppercase mt-1 group-hover:text-neon-green transition">{method.type === 'crypto' ? 'USDT / Crypto' : 'Mobile Banking'}</p>
+                            <p className="text-[10px] text-gray-500 uppercase mt-1">{method.type === 'crypto' ? 'USDT / Crypto' : 'Mobile Banking'}</p>
                        </GlassCard>
                    ))}
                </div>
-               {methods.length === 0 && <p className="text-center text-gray-500 py-10">No active payment methods.</p>}
            </motion.div>
        ) : (
            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-               {/* Payment Details Card */}
-               <div className="bg-gradient-to-br from-dark-900 to-royal-900/20 border border-royal-500/30 p-5 rounded-2xl relative overflow-hidden">
-                   <div className="absolute top-0 right-0 p-4 opacity-10"><UploadCloud size={100} /></div>
-                   <h3 className="text-sm font-bold text-royal-300 uppercase mb-2 tracking-wider">Send Money To</h3>
-                   
-                   <div className="flex flex-col gap-1 mb-4">
-                       <span className="text-3xl font-mono font-bold text-white tracking-tight">{selectedMethod.account_number}</span>
-                       <span className="text-xs text-gray-400">{selectedMethod.instruction || "Send Money (Personal)"}</span>
+               
+               {/* CONVERSION CARD */}
+               <GlassCard className="bg-blue-900/10 border-blue-500/30 relative">
+                   <div className="flex justify-between items-center mb-4">
+                       <h3 className="text-sm font-bold text-blue-300 uppercase flex items-center gap-2">
+                           <Calculator size={16}/> Payment Calculator
+                       </h3>
+                       <span className="text-[10px] bg-black/30 px-2 py-1 rounded text-gray-400">Rate: 1 USD = {rate} {currency}</span>
                    </div>
                    
-                   <button onClick={() => copyToClipboard(selectedMethod.account_number)} className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white font-bold flex items-center justify-center gap-2 transition border border-white/10">
-                       <Copy size={18} /> Copy Number
-                   </button>
+                   <div className="grid grid-cols-2 gap-4 items-end">
+                       <div>
+                           <label className="text-xs text-gray-400 font-bold mb-1 block">Deposit (USD)</label>
+                           <input 
+                             type="number" 
+                             value={amount}
+                             onChange={e => setAmount(e.target.value)}
+                             className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-mono font-bold text-xl focus:border-neon-green outline-none"
+                             placeholder="10"
+                           />
+                       </div>
+                       <div>
+                           <label className="text-xs text-neon-green font-bold mb-1 block">You Pay ({currency})</label>
+                           <div className="w-full bg-neon-green/10 border border-neon-green/30 rounded-xl p-3 text-neon-green font-mono font-bold text-xl flex items-center gap-1">
+                               {symbol} {payAmount.toLocaleString()}
+                           </div>
+                       </div>
+                   </div>
+                   <p className="text-[10px] text-gray-500 mt-2 italic">
+                       * Send exactly <span className="text-white font-bold">{symbol}{payAmount.toLocaleString()}</span> to the number below.
+                   </p>
+               </GlassCard>
+
+               <div className="bg-black/30 p-5 rounded-2xl border border-white/10 text-center">
+                   <p className="text-xs text-gray-400 uppercase mb-2">Send Money To</p>
+                   <p className="text-2xl font-mono font-bold text-white tracking-widest select-all bg-white/5 py-2 rounded-lg mb-2">
+                       {selectedMethod.account_number}
+                   </p>
+                   <p className="text-xs text-gray-500">{selectedMethod.instruction}</p>
                </div>
 
                <form onSubmit={handleSubmit} className="space-y-5">
                    <div>
-                       <label className="text-xs font-bold text-gray-400 mb-1 block uppercase">Amount sent ($)</label>
-                       <input 
-                         type="number" 
-                         required
-                         step="0.01"
-                         value={amount}
-                         onChange={e => setAmount(e.target.value)}
-                         className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-lg focus:border-neon-green outline-none transition font-mono"
-                         placeholder="0.00"
-                       />
-                   </div>
-
-                   <div>
-                       <label className="text-xs font-bold text-gray-400 mb-1 block uppercase">Transaction ID (TrxID)</label>
+                       <label className="text-xs font-bold text-gray-400 mb-1 block uppercase">Transaction ID</label>
                        <input 
                          type="text" 
                          required
                          value={transactionId}
                          onChange={e => setTransactionId(e.target.value)}
                          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:border-neon-green outline-none transition font-mono"
-                         placeholder="e.g. 9H73KD..."
+                         placeholder="TrxID"
                        />
                    </div>
                    
@@ -250,55 +190,18 @@ const Deposit: React.FC = () => {
                    )}
 
                    <div>
-                       <label className="text-xs font-bold text-gray-400 mb-2 block uppercase">Payment Screenshot</label>
-                       <div 
-                           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition relative group ${
-                               isDragging 
-                               ? 'border-neon-green bg-neon-green/10 scale-[1.02]' 
-                               : 'border-white/10 hover:border-neon-green/50 hover:bg-neon-green/5'
-                           }`}
-                           onDragOver={handleDragOver}
-                           onDragLeave={handleDragLeave}
-                           onDrop={handleDrop}
-                       >
-                           <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                           
-                           {screenshot && (
-                               <button 
-                                   onClick={clearFile}
-                                   className="absolute top-2 right-2 z-20 p-1 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500 hover:text-white transition"
-                                   title="Remove file"
-                               >
-                                   <X size={14} />
-                               </button>
-                           )}
-
-                           <div className="flex flex-col items-center gap-2 group-hover:scale-105 transition pointer-events-none">
-                               <UploadCloud className={`mb-1 ${screenshot ? 'text-neon-green' : 'text-gray-500'}`} size={32} />
-                               {screenshot ? (
-                                   <div className="text-center">
-                                       <p className="text-neon-green font-bold text-sm truncate max-w-[200px]">{screenshot.name}</p>
-                                       <p className="text-[10px] text-gray-400">{(screenshot.size / 1024).toFixed(1)} KB</p>
-                                   </div>
-                               ) : (
-                                   <>
-                                     <p className="text-white font-bold text-sm">Drag & Drop or Click</p>
-                                     <p className="text-[10px] text-gray-500">Max 5MB (JPG/PNG)</p>
-                                   </>
-                               )}
-                           </div>
+                       <label className="text-xs font-bold text-gray-400 mb-2 block uppercase">Payment Screenshot (Optional)</label>
+                       <div className="border-2 border-dashed border-white/10 rounded-xl p-6 text-center cursor-pointer hover:border-white/20 transition relative">
+                           <input type="file" accept="image/*" onChange={e => e.target.files && setScreenshot(e.target.files[0])} className="absolute inset-0 opacity-0 cursor-pointer" />
+                           <UploadCloud className="mx-auto text-gray-500 mb-2" />
+                           <p className="text-xs text-gray-400">{screenshot ? screenshot.name : 'Tap to upload'}</p>
                        </div>
                    </div>
 
                    <div className="pt-4 flex gap-3">
                        <button type="button" onClick={() => setSelectedMethod(null)} className="px-6 py-4 bg-white/5 text-gray-400 font-bold rounded-xl hover:bg-white/10 transition">Back</button>
-                       <button type="submit" disabled={loading} className="flex-1 py-4 bg-neon-green text-black font-bold rounded-xl hover:bg-emerald-400 flex items-center justify-center gap-2 shadow-lg shadow-neon-green/20 transition transform active:scale-[0.98]">
-                           {loading ? (
-                               <>
-                                   <Loader2 className="animate-spin" size={20} />
-                                   <span>{uploadState || 'Processing...'}</span>
-                               </>
-                           ) : 'Confirm Payment'}
+                       <button type="submit" disabled={loading} className="flex-1 py-4 bg-neon-green text-black font-bold rounded-xl hover:bg-emerald-400 flex items-center justify-center gap-2 shadow-lg shadow-neon-green/20">
+                           {loading ? <Loader2 className="animate-spin" size={20} /> : 'Confirm Payment'}
                        </button>
                    </div>
                </form>

@@ -48,6 +48,8 @@ export interface Database {
           is_withdraw_enabled: boolean
           maintenance_mode: boolean
           global_alert: string | null
+          p2p_transfer_fee_percent: number
+          p2p_min_transfer: number
         }
         Insert: {
           id?: string
@@ -60,6 +62,8 @@ export interface Database {
           is_withdraw_enabled?: boolean
           maintenance_mode?: boolean
           global_alert?: string | null
+          p2p_transfer_fee_percent?: number
+          p2p_min_transfer?: number
         }
         Update: {
           id?: string
@@ -72,6 +76,8 @@ export interface Database {
           is_withdraw_enabled?: boolean
           maintenance_mode?: boolean
           global_alert?: string | null
+          p2p_transfer_fee_percent?: number
+          p2p_min_transfer?: number
         }
       }
       withdrawal_settings: {
@@ -316,6 +322,7 @@ export interface Database {
       profiles: {
         Row: {
           id: string
+          user_uid: number
           email_1: string
           name_1: string | null
           avatar_1: string | null
@@ -340,6 +347,7 @@ export interface Database {
         }
         Insert: {
           id: string
+          user_uid?: number
           email_1: string
           name_1?: string | null
           avatar_1?: string | null
@@ -364,6 +372,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          user_uid?: number
           email_1?: string
           name_1?: string | null
           avatar_1?: string | null
@@ -459,7 +468,7 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty'
+          type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer'
           amount: number
           status: 'success' | 'pending' | 'failed'
           description: string | null
@@ -469,7 +478,7 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
-          type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty'
+          type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer'
           amount: number
           status?: 'success' | 'pending' | 'failed'
           description?: string | null
@@ -479,7 +488,7 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
-          type?: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty'
+          type?: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer'
           amount?: number
           status?: 'success' | 'pending' | 'failed'
           description?: string | null
@@ -820,7 +829,14 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      p2p_transfer_funds: {
+        Args: {
+          p_sender_id: string
+          p_receiver_uid: number
+          p_amount: number
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

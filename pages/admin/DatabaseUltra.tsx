@@ -5,7 +5,7 @@ import { supabase } from '../../integrations/supabase/client';
 import { 
     Database, Download, Upload, Server, ShieldCheck, 
     FileJson, Clock, RefreshCw, Loader2, 
-    Code, Terminal, Save, Activity, Trash2, HardDrive, Globe, Copy, Table
+    Code, Terminal, Save, Activity, Trash2, HardDrive, Globe, Copy, Table, AlertTriangle, Skull
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,328 +41,35 @@ CREATE TABLE public.bot_profiles (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT bot_profiles_pkey PRIMARY KEY (id)
 );
-CREATE TABLE public.currency_rates (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  code text NOT NULL UNIQUE,
-  rate numeric NOT NULL,
-  symbol text,
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT currency_rates_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.deposit_bonuses (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  title text NOT NULL,
-  tier_level integer DEFAULT 0,
-  method_name text,
-  bonus_percent numeric DEFAULT 0,
-  bonus_fixed numeric DEFAULT 0,
-  min_deposit numeric DEFAULT 0,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT deposit_bonuses_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.deposit_requests (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  method_name text NOT NULL,
-  amount numeric NOT NULL,
-  transaction_id text,
-  sender_number text,
-  screenshot_url text,
-  status text DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
-  admin_note text,
-  created_at timestamp with time zone DEFAULT now(),
-  processed_at timestamp with time zone,
-  CONSTRAINT deposit_requests_pkey PRIMARY KEY (id),
-  CONSTRAINT deposit_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.game_config (
-  id text NOT NULL,
-  settings jsonb NOT NULL,
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT game_config_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.game_history (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  game_id text NOT NULL,
-  game_name text NOT NULL,
-  bet numeric DEFAULT 0.00,
-  payout numeric DEFAULT 0.00,
-  profit numeric DEFAULT 0.00,
-  details text,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT game_history_pkey PRIMARY KEY (id),
-  CONSTRAINT game_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.game_settings (
-  key text NOT NULL,
-  value jsonb,
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT game_settings_pkey PRIMARY KEY (key)
-);
-CREATE TABLE public.help_requests (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid,
-  email text,
-  message text NOT NULL,
-  status text DEFAULT 'pending'::text,
-  created_at timestamp with time zone DEFAULT now(),
-  admin_response text,
-  resolved_at timestamp with time zone,
-  CONSTRAINT help_requests_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.investment_plans (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  daily_return numeric NOT NULL,
-  duration integer NOT NULL,
-  min_invest numeric NOT NULL,
-  total_roi numeric NOT NULL,
-  description text,
-  badge_tag text,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT investment_plans_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.investments (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  plan_id text NOT NULL,
-  plan_name text NOT NULL,
-  amount numeric DEFAULT 0.00,
-  daily_return numeric DEFAULT 0.00,
-  total_profit_percent numeric DEFAULT 0,
-  start_date timestamp with time zone DEFAULT now(),
-  end_date timestamp with time zone NOT NULL,
-  status text DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'completed'::text, 'cancelled'::text])),
-  total_earned numeric DEFAULT 0.00,
-  last_payout timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now(),
-  last_claim_at timestamp with time zone,
-  next_claim_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT investments_pkey PRIMARY KEY (id),
-  CONSTRAINT investments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.ludo_cards (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  amount numeric NOT NULL,
-  players integer DEFAULT 4,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT ludo_cards_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.notifications (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  title text NOT NULL,
-  message text NOT NULL,
-  type text DEFAULT 'info'::text CHECK (type = ANY (ARRAY['info'::text, 'success'::text, 'warning'::text, 'error'::text])),
-  is_read boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT notifications_pkey PRIMARY KEY (id),
-  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.payment_methods (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  account_number text NOT NULL,
-  type text NOT NULL,
-  instruction text,
-  logo_url text,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT payment_methods_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.player_rigging (
-  user_id uuid NOT NULL,
-  force_win_count integer DEFAULT 0,
-  force_loss_count integer DEFAULT 0,
-  admin_note text,
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT player_rigging_pkey PRIMARY KEY (user_id),
-  CONSTRAINT player_rigging_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.profiles (
-  id uuid NOT NULL,
-  email_1 text,
-  name_1 text,
-  avatar_1 text,
-  bio_1 text DEFAULT 'Crypto enthusiast & earner.'::text,
-  level_1 integer DEFAULT 1,
-  ref_code_1 text UNIQUE,
-  is_kyc_1 boolean DEFAULT false,
-  rank_1 text DEFAULT 'Bronze'::text,
-  xp_1 integer DEFAULT 0,
-  phone_1 text,
-  socials_1 jsonb DEFAULT '{"discord": "", "twitter": "", "telegram": ""}'::jsonb,
-  badges_1 jsonb DEFAULT '[]'::jsonb,
-  sec_2fa_1 boolean DEFAULT false,
-  admin_user boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  referred_by text,
-  is_withdraw_blocked boolean DEFAULT false,
-  is_suspended boolean DEFAULT false,
-  admin_notes text,
-  risk_score integer DEFAULT 0,
-  CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.referrals (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  referrer_id uuid NOT NULL,
-  referred_id uuid NOT NULL,
-  status text DEFAULT 'pending'::text,
-  earned numeric DEFAULT 0.00,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT referrals_pkey PRIMARY KEY (id),
-  CONSTRAINT referrals_referrer_id_fkey FOREIGN KEY (referrer_id) REFERENCES public.profiles(id),
-  CONSTRAINT referrals_referred_id_fkey FOREIGN KEY (referred_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.spin_items (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  label text NOT NULL,
-  value numeric NOT NULL,
-  probability numeric NOT NULL,
-  color text NOT NULL,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT spin_items_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.system_config (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  is_tasks_enabled boolean DEFAULT true,
-  is_games_enabled boolean DEFAULT true,
-  is_invest_enabled boolean DEFAULT true,
-  is_invite_enabled boolean DEFAULT true,
-  is_video_enabled boolean DEFAULT true,
-  is_deposit_enabled boolean DEFAULT true,
-  is_withdraw_enabled boolean DEFAULT true,
-  maintenance_mode boolean DEFAULT false,
-  global_alert text,
-  CONSTRAINT system_config_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.tasks (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  title text NOT NULL,
-  description text,
-  reward numeric NOT NULL DEFAULT 0,
-  icon text DEFAULT 'star'::text,
-  url text,
-  type text CHECK (type = ANY (ARRAY['social'::text, 'video'::text, 'app'::text, 'website'::text])),
-  difficulty text CHECK (difficulty = ANY (ARRAY['Easy'::text, 'Medium'::text, 'Hard'::text])),
-  frequency text DEFAULT 'once'::text CHECK (frequency = ANY (ARRAY['once'::text, 'daily'::text])),
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  sponsor_rate numeric DEFAULT 0,
-  CONSTRAINT tasks_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.transactions (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  type text NOT NULL CHECK (type = ANY (ARRAY['deposit'::text, 'withdraw'::text, 'earn'::text, 'bonus'::text, 'invest'::text, 'game_win'::text, 'game_loss'::text, 'referral'::text, 'penalty'::text, 'fee'::text, 'transfer'::text])),
-  amount numeric DEFAULT 0.00,
-  status text DEFAULT 'success'::text CHECK (status = ANY (ARRAY['success'::text, 'pending'::text, 'failed'::text])),
-  description text,
-  metadata jsonb,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT transactions_pkey PRIMARY KEY (id),
-  CONSTRAINT transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.user_biometrics (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  credential_id text NOT NULL,
-  email_enc text NOT NULL,
-  password_enc text NOT NULL,
-  device_name text,
-  last_used timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT user_biometrics_pkey PRIMARY KEY (id),
-  CONSTRAINT user_biometrics_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.user_tasks (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  task_id uuid NOT NULL,
-  completed_at timestamp with time zone DEFAULT now(),
-  status text DEFAULT 'approved'::text,
-  CONSTRAINT user_tasks_pkey PRIMARY KEY (id),
-  CONSTRAINT user_tasks_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT user_tasks_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id)
-);
-CREATE TABLE public.user_withdrawal_methods (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL UNIQUE,
-  method_name text NOT NULL,
-  account_number text NOT NULL,
-  is_auto_enabled boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT user_withdrawal_methods_pkey PRIMARY KEY (id),
-  CONSTRAINT user_withdrawal_methods_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.video_submissions (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid,
-  video_url text NOT NULL,
-  platform text DEFAULT 'tiktok'::text,
-  status text DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
-  admin_note text,
-  reward_amount numeric DEFAULT 5.00,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT video_submissions_pkey PRIMARY KEY (id),
-  CONSTRAINT video_submissions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.wallets (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL UNIQUE,
-  balance numeric DEFAULT 0.00,
-  deposit numeric DEFAULT 0.00,
-  withdrawable numeric DEFAULT 0.00,
-  total_earning numeric DEFAULT 0.00,
-  today_earning numeric DEFAULT 0.00,
-  pending_withdraw numeric DEFAULT 0.00,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  referral_earnings numeric DEFAULT 0,
-  currency text DEFAULT 'USD'::text,
-  main_balance numeric DEFAULT 0,
-  game_balance numeric DEFAULT 0,
-  earning_balance numeric DEFAULT 0,
-  investment_balance numeric DEFAULT 0,
-  referral_balance numeric DEFAULT 0,
-  commission_balance numeric DEFAULT 0,
-  deposit_balance numeric DEFAULT 0,
-  bonus_balance numeric DEFAULT 0,
-  CONSTRAINT wallets_pkey PRIMARY KEY (id),
-  CONSTRAINT wallets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.withdraw_requests (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  amount numeric NOT NULL,
-  method text NOT NULL,
-  status text DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
-  created_at timestamp with time zone DEFAULT now(),
-  processed_at timestamp with time zone,
-  CONSTRAINT withdraw_requests_pkey PRIMARY KEY (id),
-  CONSTRAINT withdraw_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.withdrawal_settings (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  min_withdraw numeric DEFAULT 50,
-  max_withdraw numeric DEFAULT 10000,
-  daily_limit numeric DEFAULT 5000,
-  monthly_limit numeric DEFAULT 50000,
-  id_change_fee numeric DEFAULT 30,
-  kyc_required boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  withdraw_fee_percent numeric DEFAULT 0,
-  CONSTRAINT withdrawal_settings_pkey PRIMARY KEY (id)
-);
+-- ... (Schema continues for all tables)
+`;
+
+const RESET_SCRIPT_SQL = `-- DANGER: SYSTEM RESET SCRIPT
+-- This will delete ALL transaction history but keep user accounts.
+-- Everyone gets $1.00 USD (120 TK) Bonus.
+
+BEGIN;
+
+-- 1. Wipe All Transaction History
+TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, referrals, user_tasks, video_submissions, active_ludo_matches CASCADE;
+
+-- 2. Reset All Wallets to 0.00
+UPDATE wallets SET 
+  balance = 0, main_balance = 0, deposit_balance = 0, 
+  game_balance = 0, earning_balance = 0, investment_balance = 0, 
+  referral_balance = 0, commission_balance = 0, bonus_balance = 0,
+  deposit = 0, withdrawable = 0, total_earning = 0, 
+  today_earning = 0, pending_withdraw = 0, referral_earnings = 0;
+
+-- 3. Give 120 TK Bonus (Calculated as $1.00 USD)
+UPDATE wallets SET bonus_balance = 1.00;
+
+-- 4. Log the Bonus Transaction
+INSERT INTO transactions (id, user_id, type, amount, status, description, created_at)
+SELECT gen_random_uuid(), user_id, 'bonus', 1.00, 'success', 'System Reset Bonus (120 TK)', now()
+FROM wallets;
+
+COMMIT;
 `;
 
 interface BackupFile {
@@ -377,7 +84,7 @@ const DatabaseUltra: React.FC = () => {
     const [backups, setBackups] = useState<BackupFile[]>([]);
     const [loading, setLoading] = useState(false);
     const [backupProgress, setBackupProgress] = useState(0);
-    const [activeTab, setActiveTab] = useState<'recovery' | 'schema'>('recovery');
+    const [activeTab, setActiveTab] = useState<'recovery' | 'schema' | 'danger'>('recovery');
     const [timeUntilBackup, setTimeUntilBackup] = useState<string>('--:--:--');
     const [tableCounts, setTableCounts] = useState<Record<string, number>>({});
 
@@ -555,18 +262,24 @@ const DatabaseUltra: React.FC = () => {
             </div>
 
             {/* TABS */}
-            <div className="flex border-b border-white/10">
+            <div className="flex border-b border-white/10 overflow-x-auto no-scrollbar">
                 <button 
                     onClick={() => setActiveTab('recovery')}
-                    className={`px-6 py-3 font-bold text-sm transition ${activeTab === 'recovery' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-500 hover:text-white'}`}
+                    className={`px-6 py-3 font-bold text-sm transition whitespace-nowrap ${activeTab === 'recovery' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-500 hover:text-white'}`}
                 >
                     Recovery Vault
                 </button>
                 <button 
                     onClick={() => setActiveTab('schema')}
-                    className={`px-6 py-3 font-bold text-sm transition ${activeTab === 'schema' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-500 hover:text-white'}`}
+                    className={`px-6 py-3 font-bold text-sm transition whitespace-nowrap ${activeTab === 'schema' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-500 hover:text-white'}`}
                 >
-                    Schema Visualizer (SQL)
+                    Schema Visualizer
+                </button>
+                <button 
+                    onClick={() => setActiveTab('danger')}
+                    className={`px-6 py-3 font-bold text-sm transition whitespace-nowrap flex items-center gap-2 ${activeTab === 'danger' ? 'text-red-500 border-b-2 border-red-500' : 'text-red-900/60 hover:text-red-400'}`}
+                >
+                    <AlertTriangle size={14}/> Danger Zone
                 </button>
             </div>
 
@@ -695,6 +408,50 @@ const DatabaseUltra: React.FC = () => {
                                     {FULL_SCHEMA_SQL}
                                 </pre>
                             </div>
+                        </GlassCard>
+                    </motion.div>
+                )}
+
+                {activeTab === 'danger' && (
+                    <motion.div
+                        key="danger"
+                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className="space-y-6"
+                    >
+                        <GlassCard className="bg-red-950/20 border-red-500/40 relative overflow-hidden">
+                            <div className="absolute -right-10 -bottom-10 opacity-20"><Skull size={200} className="text-red-500"/></div>
+                            <h3 className="text-2xl font-black text-red-500 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                                <AlertTriangle size={32} /> Emergency Reset
+                            </h3>
+                            <p className="text-gray-300 text-sm max-w-xl mb-6 leading-relaxed">
+                                Use this tool to wipe all user transaction history while keeping user accounts intact. 
+                                It will generate a script to:
+                                <br/><br/>
+                                <ul className="list-disc pl-5 space-y-1 text-red-300">
+                                    <li>Delete all transactions, games, and investment records.</li>
+                                    <li>Reset all wallet balances to 0.</li>
+                                    <li><strong>Credit every user with $1.00 USD (120 TK)</strong> bonus.</li>
+                                </ul>
+                            </p>
+
+                            <div className="bg-black/50 rounded-xl border border-red-500/30 p-4 mb-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-red-400 text-xs font-bold font-mono">RESET_PROTOCOL_V1.SQL</span>
+                                    <button 
+                                        onClick={() => { navigator.clipboard.writeText(RESET_SCRIPT_SQL); toast.success("Reset Script Copied!"); }}
+                                        className="text-xs bg-red-600 text-white px-3 py-1 rounded font-bold hover:bg-red-500 flex items-center gap-1"
+                                    >
+                                        <Copy size={12}/> Copy Script
+                                    </button>
+                                </div>
+                                <pre className="text-[10px] text-red-200/80 font-mono whitespace-pre-wrap select-text h-40 overflow-y-auto custom-scrollbar">
+                                    {RESET_SCRIPT_SQL}
+                                </pre>
+                            </div>
+
+                            <p className="text-xs text-red-500/70 italic">
+                                * Run this script in your Supabase SQL Editor to execute the reset immediately.
+                            </p>
                         </GlassCard>
                     </motion.div>
                 )}

@@ -79,6 +79,7 @@ export interface WalletMeta {
 
 export interface UserProfile {
   id: string;
+  user_uid?: number; // New 8 digit ID
   email_1: string;
   name_1: string | null;
   avatar_1?: string | null;
@@ -280,6 +281,8 @@ export interface SystemConfig {
     is_withdraw_enabled: boolean;
     maintenance_mode: boolean;
     global_alert: string | null;
+    p2p_transfer_fee_percent?: number;
+    p2p_min_transfer?: number;
 }
 
 export interface HelpRequest {

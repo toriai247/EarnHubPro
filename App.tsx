@@ -17,6 +17,7 @@ import Wallet from './pages/Wallet';
 import Deposit from './pages/Deposit';
 import Withdraw from './pages/Withdraw';
 import Transfer from './pages/Transfer';
+import SendMoney from './pages/SendMoney'; // Import
 import Exchange from './pages/Exchange'; 
 import Profile from './pages/Profile';
 import Login from './pages/Login';
@@ -36,7 +37,6 @@ import { ThemeProvider } from './context/ThemeContext';
 import { SystemProvider, useSystem } from './context/SystemContext';
 
 // --- ROUTE GUARD COMPONENT ---
-// Shows warning if a specific feature is disabled
 const FeatureGuard = ({ feature, children }: { feature: string, children?: React.ReactNode }) => {
     const { isFeatureEnabled, loading } = useSystem();
     
@@ -116,7 +116,6 @@ const AppContent: React.FC = () => {
       <Route element={<ProtectedRoute session={session} />}>
         <Route path="/" element={<Home />} />
         
-        {/* Guarded Routes - These will show Warning if disabled */}
         <Route path="/invest" element={<FeatureGuard feature="invest"><Invest /></FeatureGuard>} />
         <Route path="/tasks" element={<FeatureGuard feature="tasks"><Tasks /></FeatureGuard>} />
         <Route path="/invite" element={<FeatureGuard feature="invite"><Invite /></FeatureGuard>} />
@@ -133,6 +132,7 @@ const AppContent: React.FC = () => {
         <Route path="/deposit" element={<FeatureGuard feature="deposit"><Deposit /></FeatureGuard>} />
         <Route path="/withdraw" element={<FeatureGuard feature="withdraw"><Withdraw /></FeatureGuard>} />
         <Route path="/transfer" element={<Transfer />} />
+        <Route path="/send-money" element={<SendMoney />} />
         <Route path="/exchange" element={<Exchange />} />
         
         <Route path="/profile" element={<Profile />} />
