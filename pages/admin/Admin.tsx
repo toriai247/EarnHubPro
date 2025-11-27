@@ -2,10 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 
 // Import Sub-pages
 import Dashboard from './Dashboard';
@@ -25,53 +25,57 @@ import PaymentSettings from './PaymentSettings';
 import WithdrawSettings from './WithdrawSettings';
 import MonthlyPay from './MonthlyPay';
 import OffSystems from './OffSystems'; 
-import HelpRequests from './HelpRequests'; // New Import
-
-type AdminSection = 'dashboard' | 'users' | 'tasks' | 'spin' | 'videos' | 'deposits' | 'withdrawals' | 'games' | 'invest' | 'revenue' | 'promos' | 'config' | 'payment' | 'withdraw_config' | 'monthly_pay' | 'off_systems' | 'help_requests';
+import HelpRequests from './HelpRequests';
+import DatabaseUltra from './DatabaseUltra';
 
 const Admin: React.FC = () => {
-  const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null); // New State for User Detail View
   const navigate = useNavigate();
+  const location = useLocation();
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
+  // Derive active section from URL
+  const pathParts = location.pathname.split('/');
+  // /admin/users -> section is 'users'
+  const activeSection = pathParts[2] || 'dashboard';
 
   const items = [
-    { id: 'home', icon: Home, label: 'Back to App', action: () => navigate('/') },
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400' }, 
-    { id: 'help_requests', icon: LifeBuoy, label: 'Support Inbox', color: 'text-blue-400' }, // New Item
-    { id: 'users', icon: Users, label: 'User Admin' },
-    { id: 'tasks', icon: CheckCircle, label: 'Task Coord' },
-    { id: 'spin', icon: PieChart, label: 'Spin Control' },
-    { id: 'payment', icon: Banknote, label: 'Payment Methods' },
-    { id: 'withdraw_config', icon: Sliders, label: 'Withdraw Limits' },
-    { id: 'monthly_pay', icon: CalendarClock, label: 'Monthly Payroll' },
-    { id: 'videos', icon: Video, label: 'Video Oversight' },
-    { id: 'deposits', icon: Database, label: 'Deposits (Log)' },
-    { id: 'withdrawals', icon: CreditCard, label: 'Withdrawals' },
-    { id: 'games', icon: Gamepad2, label: 'Game Reg' },
-    { id: 'invest', icon: Briefcase, label: 'Investments' },
-    { id: 'revenue', icon: TrendingUp, label: 'Revenue' },
-    { id: 'promos', icon: Gift, label: 'Promotions' },
-    { id: 'config', icon: Settings, label: 'Site Config' },
+    { id: 'home', icon: Home, label: 'Back to App', path: '/' },
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
+    { id: 'database_ultra', icon: HardDrive, label: 'Database Ultra', color: 'text-cyan-400', path: '/admin/database_ultra' },
+    { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400', path: '/admin/off_systems' }, 
+    { id: 'help_requests', icon: LifeBuoy, label: 'Support Inbox', color: 'text-blue-400', path: '/admin/help_requests' },
+    { id: 'users', icon: Users, label: 'User Admin', path: '/admin/users' },
+    { id: 'tasks', icon: CheckCircle, label: 'Task Coord', path: '/admin/tasks' },
+    { id: 'spin', icon: PieChart, label: 'Spin Control', path: '/admin/spin' },
+    { id: 'payment', icon: Banknote, label: 'Payment Methods', path: '/admin/payment' },
+    { id: 'withdraw_config', icon: Sliders, label: 'Withdraw Limits', path: '/admin/withdraw_config' },
+    { id: 'monthly_pay', icon: CalendarClock, label: 'Monthly Payroll', path: '/admin/monthly_pay' },
+    { id: 'videos', icon: Video, label: 'Video Oversight', path: '/admin/videos' },
+    { id: 'deposits', icon: Database, label: 'Deposits (Log)', path: '/admin/deposits' },
+    { id: 'withdrawals', icon: CreditCard, label: 'Withdrawals', path: '/admin/withdrawals' },
+    { id: 'games', icon: Gamepad2, label: 'Game Reg', path: '/admin/games' },
+    { id: 'invest', icon: Briefcase, label: 'Investments', path: '/admin/invest' },
+    { id: 'revenue', icon: TrendingUp, label: 'Revenue', path: '/admin/revenue' },
+    { id: 'promos', icon: Gift, label: 'Promotions', path: '/admin/promos' },
+    { id: 'config', icon: Settings, label: 'Site Config', path: '/admin/config' },
   ];
 
   useEffect(() => {
     const checkAdmin = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) { navigate('/login'); return; }
-        // In a real app, verify admin role via RLS or metadata
+        
+        const { data: profile } = await supabase.from('profiles').select('admin_user').eq('id', session.user.id).single();
+        if (!profile || !profile.admin_user) {
+            navigate('/');
+        }
     };
     checkAdmin();
   }, [navigate]);
 
-  const handleSectionChange = (section: AdminSection) => {
-      setActiveSection(section);
-      setSelectedUserId(null); // Reset user selection when changing tabs
-  };
-
   const renderSidebar = () => {
     return (
-      <div className="w-64 bg-dark-900 border-r border-white/10 flex-shrink-0 hidden md:flex flex-col h-screen sticky top-0 overflow-y-auto custom-scrollbar">
+      <div className="w-64 bg-dark-950 border-r border-white/10 flex-shrink-0 hidden md:flex flex-col h-screen sticky top-0 overflow-y-auto custom-scrollbar">
         <div className="p-6 border-b border-white/10">
           <h2 className="text-xl font-display font-bold text-white flex items-center gap-2">
             <Lock className="text-neon-green" size={20} /> Admin<span className="text-neon-glow">Panel</span>
@@ -79,16 +83,18 @@ const Admin: React.FC = () => {
         </div>
         <div className="flex-1 py-4 space-y-1 px-3">
           {items.map((item) => (
-            <button
+            <Link
               key={item.id}
-              onClick={() => item.action ? item.action() : handleSectionChange(item.id as AdminSection)}
+              to={item.path}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${
-                activeSection === item.id ? 'bg-royal-600 text-white shadow-lg' : item.id === 'home' ? 'bg-white/5 text-neon-green border border-neon-green/20 hover:bg-neon-green/10' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                activeSection === item.id || (item.id === 'dashboard' && !activeSection) 
+                ? 'bg-royal-600 text-white shadow-lg' 
+                : item.id === 'home' ? 'bg-white/5 text-neon-green border border-neon-green/20 hover:bg-neon-green/10' : 'text-gray-400 hover:bg-white/5 hover:text-white'
               }`}
             >
               <item.icon size={18} className={(item as any).color} />
               {item.label}
-            </button>
+            </Link>
           ))}
         </div>
       </div>
@@ -98,28 +104,31 @@ const Admin: React.FC = () => {
   const renderMobileMenu = () => (
       <div className="md:hidden flex overflow-x-auto gap-2 pb-4 mb-4 no-scrollbar">
         {items.map((item) => (
-            <button
+            <Link
               key={item.id}
-              onClick={() => item.action ? item.action() : handleSectionChange(item.id as AdminSection)}
+              to={item.path}
               className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
-                activeSection === item.id ? 'bg-royal-600 text-white' : item.id === 'home' ? 'bg-white/5 text-neon-green border border-neon-green/20' : 'bg-white/5 text-gray-400'
+                activeSection === item.id 
+                ? 'bg-royal-600 text-white' 
+                : item.id === 'home' ? 'bg-white/5 text-neon-green border border-neon-green/20' : 'bg-white/5 text-gray-400'
               }`}
             >
               <item.icon size={14} className={(item as any).color} />
               {item.label}
-            </button>
+            </Link>
         ))}
       </div>
   );
 
   const renderContent = () => {
-      // Special Case: User Info View
+      // Special Case: User Info View when explicitly selecting a user
       if (activeSection === 'users' && selectedUserId) {
           return <UserInfo userId={selectedUserId} onBack={() => setSelectedUserId(null)} />;
       }
 
       switch(activeSection) {
           case 'dashboard': return <Dashboard />;
+          case 'database_ultra': return <DatabaseUltra />;
           case 'off_systems': return <OffSystems />;
           case 'help_requests': return <HelpRequests />;
           case 'users': return <UserManagement onSelectUser={setSelectedUserId} />;

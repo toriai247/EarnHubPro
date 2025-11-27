@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Copy, UploadCloud, CheckCircle, Loader2, AlertCircle, Info } from 'lucide-react';
+import { ArrowLeft, Copy, UploadCloud, CheckCircle, Loader2, AlertCircle, Info, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { PaymentMethod } from '../types';
@@ -17,7 +17,9 @@ const Deposit: React.FC = () => {
   const [transactionId, setTransactionId] = useState('');
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploadState, setUploadState] = useState('');
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [isDragging, setIsDragging] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,15 +35,47 @@ const Deposit: React.FC = () => {
       toast.success('Account number copied!');
   };
 
+  const validateAndSetFile = (file: File) => {
+      if (file.size > 5 * 1024 * 1024) {
+          toast.warning("File size too large. Max 5MB.");
+          return;
+      }
+      if (!file.type.startsWith('image/')) {
+          toast.warning("Only JPG/PNG images are allowed.");
+          return;
+      }
+      setScreenshot(file);
+      toast.info("Screenshot attached.");
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
-          if (e.target.files[0].size > 5 * 1024 * 1024) {
-              toast.warning("File size too large. Max 5MB.");
-              return;
-          }
-          setScreenshot(e.target.files[0]);
-          toast.info("Screenshot selected.");
+          validateAndSetFile(e.target.files[0]);
       }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          validateAndSetFile(e.dataTransfer.files[0]);
+      }
+  };
+
+  const clearFile = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setScreenshot(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +85,8 @@ const Deposit: React.FC = () => {
       if (!transactionId) { toast.error("Transaction ID is required"); return; }
 
       setLoading(true);
+      setUploadState('Initiating...');
+
       try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) throw new Error("User not authenticated");
@@ -59,6 +95,7 @@ const Deposit: React.FC = () => {
 
           // 1. Upload Screenshot (Optional but recommended)
           if (screenshot) {
+              setUploadState('Uploading Proof...');
               const fileExt = screenshot.name.split('.').pop();
               const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
               const { error: uploadError } = await supabase.storage
@@ -70,6 +107,8 @@ const Deposit: React.FC = () => {
               const { data: urlData } = supabase.storage.from('deposits').getPublicUrl(fileName);
               screenshotUrl = urlData.publicUrl;
           }
+
+          setUploadState('Finalizing...');
 
           // 2. Create Deposit Request
           const { error: insertError } = await supabase.from('deposit_requests').insert({
@@ -93,6 +132,7 @@ const Deposit: React.FC = () => {
           setStatus('error');
       } finally {
           setLoading(false);
+          setUploadState('');
       }
   };
 
@@ -211,15 +251,38 @@ const Deposit: React.FC = () => {
 
                    <div>
                        <label className="text-xs font-bold text-gray-400 mb-2 block uppercase">Payment Screenshot</label>
-                       <div className="border-2 border-dashed border-white/10 rounded-xl p-8 text-center cursor-pointer hover:border-neon-green/50 hover:bg-neon-green/5 transition relative group">
+                       <div 
+                           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition relative group ${
+                               isDragging 
+                               ? 'border-neon-green bg-neon-green/10 scale-[1.02]' 
+                               : 'border-white/10 hover:border-neon-green/50 hover:bg-neon-green/5'
+                           }`}
+                           onDragOver={handleDragOver}
+                           onDragLeave={handleDragLeave}
+                           onDrop={handleDrop}
+                       >
                            <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                           <div className="flex flex-col items-center gap-2 group-hover:scale-105 transition">
+                           
+                           {screenshot && (
+                               <button 
+                                   onClick={clearFile}
+                                   className="absolute top-2 right-2 z-20 p-1 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500 hover:text-white transition"
+                                   title="Remove file"
+                               >
+                                   <X size={14} />
+                               </button>
+                           )}
+
+                           <div className="flex flex-col items-center gap-2 group-hover:scale-105 transition pointer-events-none">
                                <UploadCloud className={`mb-1 ${screenshot ? 'text-neon-green' : 'text-gray-500'}`} size={32} />
                                {screenshot ? (
-                                   <p className="text-neon-green font-bold text-sm">{screenshot.name}</p>
+                                   <div className="text-center">
+                                       <p className="text-neon-green font-bold text-sm truncate max-w-[200px]">{screenshot.name}</p>
+                                       <p className="text-[10px] text-gray-400">{(screenshot.size / 1024).toFixed(1)} KB</p>
+                                   </div>
                                ) : (
                                    <>
-                                     <p className="text-white font-bold text-sm">Click to upload proof</p>
+                                     <p className="text-white font-bold text-sm">Drag & Drop or Click</p>
                                      <p className="text-[10px] text-gray-500">Max 5MB (JPG/PNG)</p>
                                    </>
                                )}
@@ -230,7 +293,12 @@ const Deposit: React.FC = () => {
                    <div className="pt-4 flex gap-3">
                        <button type="button" onClick={() => setSelectedMethod(null)} className="px-6 py-4 bg-white/5 text-gray-400 font-bold rounded-xl hover:bg-white/10 transition">Back</button>
                        <button type="submit" disabled={loading} className="flex-1 py-4 bg-neon-green text-black font-bold rounded-xl hover:bg-emerald-400 flex items-center justify-center gap-2 shadow-lg shadow-neon-green/20 transition transform active:scale-[0.98]">
-                           {loading ? <Loader2 className="animate-spin" size={20} /> : 'Confirm Payment'}
+                           {loading ? (
+                               <>
+                                   <Loader2 className="animate-spin" size={20} />
+                                   <span>{uploadState || 'Processing...'}</span>
+                               </>
+                           ) : 'Confirm Payment'}
                        </button>
                    </div>
                </form>

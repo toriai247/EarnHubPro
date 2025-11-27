@@ -1,5 +1,4 @@
 
-
 import { supabase } from '../integrations/supabase/client';
 import { Task, ActiveInvestment } from '../types';
 import { CURRENCY_CONFIG } from '../constants';
@@ -89,10 +88,11 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   const myRefCode = generateReferralCode();
   let referredBy = null;
   
-  // Determine specific bonus based on Currency
-  // This value is treated as "Native Value" in the database
+  // LOGIC FIX: Normalize Bonus to USD Base
+  // If config.signup_bonus is 120 (BDT) and rate is 120, we store 1.0 (USD)
+  // This ensures 1.0 * 120 rate = 120 BDT displayed on frontend.
   const config = CURRENCY_CONFIG[currency as keyof typeof CURRENCY_CONFIG] || CURRENCY_CONFIG.USD;
-  let welcomeBonus = config.signup_bonus; 
+  let welcomeBonus = config.signup_bonus / config.rate; 
   
   let referrerId = null;
   
@@ -130,7 +130,7 @@ export const createUserProfile = async (userId: string, email: string, fullName:
     user_id: userId,
     currency: currency, // STORE THE CHOSEN CURRENCY
     main_balance: 0,
-    bonus_balance: welcomeBonus, // Native Value
+    bonus_balance: welcomeBonus, // Stored in USD equivalent
     deposit_balance: 0,
     game_balance: 0,
     earning_balance: 0,
@@ -162,8 +162,8 @@ export const createUserProfile = async (userId: string, email: string, fullName:
         .eq('description', 'Welcome Bonus');
 
       if (!txCount) {
-          // Log transaction with Native Amount
-          await createTransaction(userId, 'bonus', welcomeBonus, `Welcome Bonus (${currency})`);
+          // Log transaction
+          await createTransaction(userId, 'bonus', welcomeBonus, `Welcome Bonus`);
           
           if (referrerId && isValidUUID(referrerId)) {
               const { count: refTxCount } = await supabase.from('transactions')

@@ -5,7 +5,7 @@ import {
     ArrowLeft, User, Mail, ShieldCheck, AlertTriangle, DollarSign, Save, CreditCard, 
     Gamepad2, Gift, Users, Activity, X, CheckCircle2, Lock, Unlock, RefreshCw, 
     Trophy, Clock, TrendingUp, ArrowDownLeft, ArrowUpRight, Ban, MessageSquare, 
-    Send, StickyNote, ShieldAlert, History
+    Send, StickyNote, ShieldAlert, History, Smartphone, Laptop, MapPin, Globe
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { UserProfile, WalletData, Transaction, GameResult } from '../../types';
@@ -25,6 +25,7 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
     const [wallet, setWallet] = useState<WalletData | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [gameHistory, setGameHistory] = useState<GameResult[]>([]);
+    const [biometrics, setBiometrics] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'overview' | 'wallet' | 'transactions' | 'games'>('overview');
     
@@ -53,11 +54,12 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
 
     const fetchUserData = async () => {
         setLoading(true);
-        const [prof, wal, txs, games] = await Promise.all([
+        const [prof, wal, txs, games, bios] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', userId).single(),
             supabase.from('wallets').select('*').eq('user_id', userId).single(),
             supabase.from('transactions').select('*').eq('user_id', userId).order('created_at', {ascending: false}).limit(50),
-            supabase.from('game_history').select('*').eq('user_id', userId).order('created_at', {ascending: false}).limit(50)
+            supabase.from('game_history').select('*').eq('user_id', userId).order('created_at', {ascending: false}).limit(50),
+            supabase.from('user_biometrics').select('*').eq('user_id', userId).order('created_at', {ascending: false})
         ]);
 
         if (prof.data) {
@@ -77,6 +79,7 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
                 id: g.id, gameId: g.game_id, gameName: g.game_name, bet: g.bet, payout: g.payout, profit: g.profit, details: g.details, timestamp: new Date(g.created_at).getTime()
             })));
         }
+        if (bios.data) setBiometrics(bios.data);
         setLoading(false);
     };
 
@@ -224,6 +227,15 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
         { key: 'referral_balance', label: 'Referral', icon: Users, color: 'text-green-400' },
     ];
 
+    // Calculated Stats
+    const lastActive = transactions.length > 0 ? new Date(transactions[0].created_at).toLocaleString() : 'Never';
+    const totalWagered = gameHistory.reduce((acc, curr) => acc + (curr.bet || 0), 0);
+    const gameCounts: Record<string, number> = {};
+    gameHistory.forEach(g => { gameCounts[g.gameName] = (gameCounts[g.gameName] || 0) + 1; });
+    const favoriteGame = Object.keys(gameCounts).length > 0 
+        ? Object.keys(gameCounts).reduce((a, b) => gameCounts[a] > gameCounts[b] ? a : b) 
+        : 'None';
+
     return (
         <div className="space-y-6 animate-fade-in pb-20">
             {/* Header */}
@@ -335,6 +347,35 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
                                         <div className="bg-black/20 p-3 rounded-xl border border-white/5">
                                             <p className="text-[10px] text-gray-500 uppercase mb-1">Pending Out</p>
                                             <p className="text-yellow-400 font-bold"><BalanceDisplay amount={wallet.pending_withdraw} /></p>
+                                        </div>
+                                    </div>
+
+                                    {/* Detailed Activity Summary */}
+                                    <div className="bg-black/20 border border-white/5 p-4 rounded-xl grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1"><Activity size={12}/> Activity Metrics</h4>
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-gray-500">Last Active</span>
+                                                    <span className="text-white">{lastActive}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-gray-500">Total Wagered</span>
+                                                    <span className="text-white font-mono"><BalanceDisplay amount={totalWagered} /></span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-gray-500">Favorite Game</span>
+                                                    <span className="text-white font-bold">{favoriteGame}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col justify-between">
+                                            <div className="bg-white/5 p-2 rounded text-center border border-white/5 h-full flex flex-col justify-center">
+                                                <p className="text-xs text-gray-500 mb-1">Net Game PnL</p>
+                                                <p className={`font-bold font-mono text-lg ${wallet.total_earning > 0 ? 'text-green-400' : 'text-gray-400'}`}>
+                                                    <BalanceDisplay amount={wallet.total_earning} />
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
                                     
@@ -478,15 +519,47 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
                                 <span className={`font-bold ${profile.risk_score && profile.risk_score > 50 ? 'text-red-500' : 'text-green-500'}`}>{profile.risk_score || 0}/100</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">IP Address</span>
-                                <span className="text-white font-mono text-xs">192.168.x.x</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
                                 <span className="text-gray-500">Win Rate</span>
                                 <span className="text-white font-mono">
                                     {gameHistory.length > 0 ? ((gameHistory.filter(g => g.profit > 0).length / gameHistory.length) * 100).toFixed(1) : 0}%
                                 </span>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Device & Location Info */}
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/5">
+                        <h4 className="font-bold text-gray-400 mb-3 text-xs uppercase flex items-center gap-2">
+                            <Globe size={14} /> Device & Location
+                        </h4>
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                                    <MapPin size={16} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-gray-500 uppercase">IP Address</p>
+                                    <p className="text-xs font-bold text-white">103.x.x.x (Simulated)</p>
+                                </div>
+                            </div>
+                            
+                            {biometrics.length > 0 ? (
+                                biometrics.map((bio, idx) => (
+                                    <div key={idx} className="flex items-center gap-3 border-t border-white/5 pt-2">
+                                        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                                            {bio.device_name?.toLowerCase().includes('phone') ? <Smartphone size={16} /> : <Laptop size={16} />}
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-gray-500 uppercase">{bio.device_name || 'Unknown Device'}</p>
+                                            <p className="text-[10px] text-white">Passkey Registered</p>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-xs text-gray-500 italic border-t border-white/5 pt-2">
+                                    No biometric devices registered.
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

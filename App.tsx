@@ -111,7 +111,7 @@ const AppContent: React.FC = () => {
     <Routes>
       <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
       <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
-      <Route path="/admin" element={session ? <Admin /> : <Navigate to="/login" />} />
+      <Route path="/admin/*" element={session ? <Admin /> : <Navigate to="/login" />} />
 
       <Route element={<ProtectedRoute session={session} />}>
         <Route path="/" element={<Home />} />
