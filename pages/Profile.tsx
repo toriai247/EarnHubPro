@@ -1,11 +1,11 @@
+
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import Skeleton from '../components/Skeleton';
 import { 
-  Edit2, LogOut, Bell, Shield, Settings, Twitter, Send, LayoutDashboard, 
-  Copy, Award, Zap, CreditCard, Smartphone, Lock, ChevronRight, X, 
-  User as UserIcon, Crown, History, ArrowDownLeft, ArrowUpRight, 
-  Wallet as WalletIcon, Users, XCircle, Camera, CheckCircle2, ShieldCheck, RefreshCw, AlertCircle
+  Edit2, LogOut, LayoutDashboard, Settings, Twitter, Send, 
+  Copy, User as UserIcon, Crown, ArrowDownLeft, ArrowUpRight, 
+  Wallet as WalletIcon, Users, X, Camera, CheckCircle2, ShieldCheck, RefreshCw, AlertCircle, Zap
 } from 'lucide-react';
 import { UserProfile, WalletData, ReferralStats, Transaction } from '../types';
 import { supabase } from '../integrations/supabase/client';
@@ -125,7 +125,6 @@ const Profile: React.FC = () => {
     fetchData();
   }, []);
 
-  // Safety Timeout
   useEffect(() => {
       if (loading) {
           const timer = setTimeout(() => {
@@ -278,9 +277,13 @@ const Profile: React.FC = () => {
 
             {/* Quick Actions */}
             <div className="flex gap-3">
-                <Link to="/admin" className="p-2.5 rounded-xl bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-500 dark:text-gray-400 hover:bg-white hover:text-royal-600 dark:hover:text-white transition shadow-sm">
-                    <LayoutDashboard size={20} />
-                </Link>
+                {/* Admin Access: STRICT CHECK */}
+                {user.admin_user === true && (
+                    <Link to="/admin" className="p-2.5 rounded-xl bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-500 dark:text-gray-400 hover:bg-white hover:text-royal-600 dark:hover:text-white transition shadow-sm" title="Admin Dashboard">
+                        <LayoutDashboard size={20} className="text-red-500" />
+                    </Link>
+                )}
+                
                 <button onClick={() => navigate('/support')} className="p-2.5 rounded-xl bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-500 dark:text-gray-400 hover:bg-white hover:text-royal-600 dark:hover:text-white transition shadow-sm">
                     <Settings size={20} />
                 </button>

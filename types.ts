@@ -278,3 +278,12 @@ export interface SystemConfig {
     maintenance_mode: boolean;
     global_alert: string | null;
 }
+
+export interface HelpRequest {
+    id: string;
+    user_id?: string;
+    email: string;
+    message: string;
+    status: 'pending' | 'resolved';
+    created_at: string;
+}

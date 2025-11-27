@@ -10,6 +10,32 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      help_requests: {
+        Row: {
+          id: string
+          user_id: string | null
+          email: string
+          message: string
+          status: 'pending' | 'resolved'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          email: string
+          message: string
+          status?: 'pending' | 'resolved'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          email?: string
+          message?: string
+          status?: 'pending' | 'resolved'
+          created_at?: string
+        }
+      }
       system_config: {
         Row: {
           id: string

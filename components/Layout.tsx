@@ -3,13 +3,14 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Crown, Trophy, Globe, Menu, X, 
-  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, Lock
+  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useTheme } from '../context/ThemeContext';
 import BalanceDisplay from './BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSystem } from '../context/SystemContext';
+import MaintenanceScreen from './MaintenanceScreen';
 
 const MotionDiv = motion.div as any;
 
@@ -23,6 +24,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [balance, setBalance] = useState<number>(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [level, setLevel] = useState(1);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   const isVideoPage = location.pathname === '/video';
@@ -38,6 +40,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   ].filter(i => i.enabled);
 
   const menuItems = [
+      // Add Admin Panel if Admin (Dynamic)
+      ...(isAdmin ? [{ path: '/admin', icon: LayoutDashboard, label: 'Admin Panel', color: 'text-red-400', bg: 'bg-red-500/10', enabled: true }] : []),
       { path: '/transfer', icon: ArrowRightLeft, label: 'Transfer Funds', color: 'text-electric-400', bg: 'bg-electric-500/10', enabled: true },
       { path: '/exchange', icon: Globe, label: 'Exchange', color: 'text-neo-green', bg: 'bg-neo-green/10', enabled: true },
       { path: '/deposit', icon: Wallet, label: 'Deposit', color: 'text-white', bg: 'bg-white/10', enabled: isFeatureEnabled('is_deposit_enabled') },
@@ -56,12 +60,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       const [walletRes, notifRes, profileRes] = await Promise.allSettled([
         supabase.from('wallets').select('balance').eq('user_id', session.user.id).single(),
         supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('is_read', false),
-        supabase.from('profiles').select('level_1').eq('id', session.user.id).single()
+        supabase.from('profiles').select('level_1, admin_user').eq('id', session.user.id).single()
       ]);
 
       if (walletRes.status === 'fulfilled' && walletRes.value.data) setBalance(walletRes.value.data.balance);
       if (notifRes.status === 'fulfilled') setUnreadCount(notifRes.value.count || 0);
-      if (profileRes.status === 'fulfilled' && profileRes.value.data) setLevel(profileRes.value.data.level_1);
+      if (profileRes.status === 'fulfilled' && profileRes.value.data) {
+          setLevel(profileRes.value.data.level_1);
+          setIsAdmin(profileRes.value.data.admin_user || false);
+      }
     };
 
     fetchData();
@@ -75,14 +82,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       window.location.reload();
   };
 
-  if (config?.maintenance_mode) {
-      return (
-          <div className="min-h-screen bg-void flex flex-col items-center justify-center p-6 text-center">
-              <Lock size={48} className="text-neo-red mb-4 animate-pulse" />
-              <h1 className="text-2xl font-black text-white uppercase">System Offline</h1>
-              <p className="text-gray-400 mt-2 text-sm max-w-xs mx-auto">We are currently undergoing scheduled maintenance. Please check back later.</p>
-          </div>
-      )
+  // Only show maintenance screen if enabled AND user is NOT an admin
+  if (config?.maintenance_mode && !isAdmin) {
+      return <MaintenanceScreen />;
   }
 
   return (
@@ -236,7 +238,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                               <LogOut size={18} /> LOG OUT
                           </button>
                           <div className="mt-4 text-center text-[10px] text-gray-600 font-black font-mono">
-                              EARNHUB PRO v3.6.0
+                              EARNHUB PRO v3.7.0
                           </div>
                       </div>
                   </MotionDiv>

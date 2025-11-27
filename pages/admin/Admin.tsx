@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -24,9 +24,10 @@ import SpinSettings from './SpinSettings';
 import PaymentSettings from './PaymentSettings';
 import WithdrawSettings from './WithdrawSettings';
 import MonthlyPay from './MonthlyPay';
-import OffSystems from './OffSystems'; // New Import
+import OffSystems from './OffSystems'; 
+import HelpRequests from './HelpRequests'; // New Import
 
-type AdminSection = 'dashboard' | 'users' | 'tasks' | 'spin' | 'videos' | 'deposits' | 'withdrawals' | 'games' | 'invest' | 'revenue' | 'promos' | 'config' | 'payment' | 'withdraw_config' | 'monthly_pay' | 'off_systems';
+type AdminSection = 'dashboard' | 'users' | 'tasks' | 'spin' | 'videos' | 'deposits' | 'withdrawals' | 'games' | 'invest' | 'revenue' | 'promos' | 'config' | 'payment' | 'withdraw_config' | 'monthly_pay' | 'off_systems' | 'help_requests';
 
 const Admin: React.FC = () => {
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
@@ -36,7 +37,8 @@ const Admin: React.FC = () => {
   const items = [
     { id: 'home', icon: Home, label: 'Back to App', action: () => navigate('/') },
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400' }, // New Item
+    { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400' }, 
+    { id: 'help_requests', icon: LifeBuoy, label: 'Support Inbox', color: 'text-blue-400' }, // New Item
     { id: 'users', icon: Users, label: 'User Admin' },
     { id: 'tasks', icon: CheckCircle, label: 'Task Coord' },
     { id: 'spin', icon: PieChart, label: 'Spin Control' },
@@ -119,6 +121,7 @@ const Admin: React.FC = () => {
       switch(activeSection) {
           case 'dashboard': return <Dashboard />;
           case 'off_systems': return <OffSystems />;
+          case 'help_requests': return <HelpRequests />;
           case 'users': return <UserManagement onSelectUser={setSelectedUserId} />;
           case 'tasks': return <TaskManagement />;
           case 'spin': return <SpinSettings />;
