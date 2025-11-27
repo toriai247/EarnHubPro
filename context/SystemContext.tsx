@@ -18,12 +18,13 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const fetchConfig = async () => {
     try {
-      const { data, error } = await supabase.from('system_config').select('*').maybeSingle();
+      const { data, error } = await supabase.from('system_config').select('*').limit(1).maybeSingle();
       if (data) {
         setConfig(data as SystemConfig);
       } else if (!error) {
-        // Init if empty
+        // Init if empty to prevent app crash
         const defaultCfg = {
+            id: 'temp',
             is_tasks_enabled: true,
             is_games_enabled: true,
             is_invest_enabled: true,
@@ -31,9 +32,9 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             is_video_enabled: true,
             is_deposit_enabled: true,
             is_withdraw_enabled: true,
-            maintenance_mode: false
+            maintenance_mode: false,
+            global_alert: null
         };
-        await supabase.from('system_config').insert(defaultCfg);
         setConfig(defaultCfg as SystemConfig);
       }
     } catch (e) {
@@ -48,8 +49,9 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     
     // Subscribe to realtime changes
     const sub = supabase
-        .channel('system_config_changes')
+        .channel('system_config_global')
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_config' }, (payload) => {
+            console.log("System Config Updated:", payload.new);
             setConfig(payload.new as SystemConfig);
         })
         .subscribe();
@@ -60,7 +62,11 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const isFeatureEnabled = (feature: keyof SystemConfig) => {
-      if (!config) return true; // Default to true if loading or error to avoid blocking
+      // If still loading, assume TRUE to prevent flicker, unless specifically checked after load
+      if (loading) return true; 
+      // If config failed to load, fail open (true) to allow app usage
+      if (!config) return true; 
+      
       return !!config[feature];
   };
 

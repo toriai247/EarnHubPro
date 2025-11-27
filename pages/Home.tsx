@@ -13,12 +13,12 @@ import { motion } from 'framer-motion';
 import { Activity, WalletData, UserProfile } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
-import { useSystem } from '../context/SystemContext'; // Import System Context
+import { useSystem } from '../context/SystemContext';
 
 const MotionDiv = motion.div as any;
 
 const Home: React.FC = () => {
-  const { isFeatureEnabled } = useSystem(); // Get system config
+  const { isFeatureEnabled } = useSystem();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);

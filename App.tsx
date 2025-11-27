@@ -28,22 +28,27 @@ import Terms from './pages/Terms';
 import Leaderboard from './pages/Leaderboard';
 import BiometricSetup from './pages/BiometricSetup';
 import Admin from './pages/admin/Admin';
+import FeatureAccessBlock from './components/FeatureAccessBlock';
 import { supabase } from './integrations/supabase/client';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { UIProvider } from './context/UIContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { SystemProvider, useSystem } from './context/SystemContext'; // Import System Context
+import { SystemProvider, useSystem } from './context/SystemContext';
 
 // --- ROUTE GUARD COMPONENT ---
-// Redirects if a specific feature is disabled in System Config
+// Shows warning if a specific feature is disabled
 const FeatureGuard = ({ feature, children }: { feature: string, children?: React.ReactNode }) => {
     const { isFeatureEnabled, loading } = useSystem();
     
-    if (loading) return null; // Wait for config
+    if (loading) return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="w-8 h-8 border-4 border-royal-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
 
     // @ts-ignore
     if (!isFeatureEnabled(`is_${feature}_enabled`)) {
-        return <Navigate to="/" replace />;
+        return <FeatureAccessBlock featureName={feature} />;
     }
     return <>{children}</>;
 };
@@ -111,7 +116,7 @@ const AppContent: React.FC = () => {
       <Route element={<ProtectedRoute session={session} />}>
         <Route path="/" element={<Home />} />
         
-        {/* Guarded Routes */}
+        {/* Guarded Routes - These will show Warning if disabled */}
         <Route path="/invest" element={<FeatureGuard feature="invest"><Invest /></FeatureGuard>} />
         <Route path="/tasks" element={<FeatureGuard feature="tasks"><Tasks /></FeatureGuard>} />
         <Route path="/invite" element={<FeatureGuard feature="invite"><Invite /></FeatureGuard>} />

@@ -42,7 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { path: '/exchange', icon: Globe, label: 'Exchange', color: 'text-neo-green', bg: 'bg-neo-green/10', enabled: true },
       { path: '/deposit', icon: Wallet, label: 'Deposit', color: 'text-white', bg: 'bg-white/10', enabled: isFeatureEnabled('is_deposit_enabled') },
       { path: '/withdraw', icon: Wallet, label: 'Withdraw', color: 'text-neo-yellow', bg: 'bg-neo-yellow/10', enabled: isFeatureEnabled('is_withdraw_enabled') },
-      { path: '/biometric-setup', icon: Fingerprint, label: 'Fingerprint Setup', color: 'text-neon-green', bg: 'bg-green-500/10', enabled: true },
+      { path: '/biometric-setup', icon: Fingerprint, label: 'Fingerprint Setup', color: 'text-neo-green', bg: 'bg-green-500/10', enabled: true },
       { path: '/support', icon: Headphones, label: 'Support', color: 'text-purple-400', bg: 'bg-purple-500/10', enabled: true },
       { path: '/faq', icon: HelpCircle, label: 'FAQ', color: 'text-cyan-400', bg: 'bg-cyan-500/10', enabled: true },
       { path: '/terms', icon: FileText, label: 'Terms', color: 'text-gray-400', bg: 'bg-gray-500/10', enabled: true },
@@ -78,9 +78,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   if (config?.maintenance_mode) {
       return (
           <div className="min-h-screen bg-void flex flex-col items-center justify-center p-6 text-center">
-              <Lock size={48} className="text-neo-red mb-4" />
+              <Lock size={48} className="text-neo-red mb-4 animate-pulse" />
               <h1 className="text-2xl font-black text-white uppercase">System Offline</h1>
-              <p className="text-gray-400 mt-2">We are currently undergoing scheduled maintenance. Please check back later.</p>
+              <p className="text-gray-400 mt-2 text-sm max-w-xs mx-auto">We are currently undergoing scheduled maintenance. Please check back later.</p>
           </div>
       )
   }
@@ -90,14 +90,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       
       {/* Global Alert */}
       {config?.global_alert && (
-          <div className="bg-neo-yellow/10 border-b border-neo-yellow/20 px-4 py-2 text-center">
+          <div className="bg-neo-yellow/10 border-b border-neo-yellow/20 px-4 py-2 text-center animate-pulse">
               <p className="text-xs font-bold text-neo-yellow">{config.global_alert}</p>
           </div>
       )}
 
       {/* TOP BAR */}
       {!isVideoPage && (
-        <header className="sticky top-0 z-40 bg-void/95 border-b border-border-neo px-4 py-3 flex justify-between items-center shadow-neo-sm">
+        <header className="sticky top-0 z-40 bg-void/95 border-b border-border-neo px-4 py-3 flex justify-between items-center shadow-neo-sm backdrop-blur-md">
           
           <div className="flex items-center gap-3">
             <button 

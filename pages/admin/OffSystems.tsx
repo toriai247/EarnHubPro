@@ -4,14 +4,12 @@ import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { SystemConfig } from '../../types';
 import { 
-  Power, Save, AlertTriangle, CheckCircle, Lock, MonitorOff, 
-  Gamepad2, Zap, Users, Video, Wallet, ArrowUpRight, ShieldAlert, Activity, Eye, RefreshCw 
+  Power, Save, AlertTriangle, Lock, MonitorOff, 
+  Gamepad2, Zap, Users, Video, Wallet, ArrowUpRight, ShieldAlert, Activity, Eye, RefreshCw, X, CheckCircle2, Server, RotateCcw
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import Loader from '../../components/Loader';
-import { motion } from 'framer-motion';
-
-const MotionDiv = motion.div as any;
+import { motion, AnimatePresence } from 'framer-motion';
 
 const OffSystems: React.FC = () => {
   const { toast, confirm } = useUI();
@@ -23,6 +21,18 @@ const OffSystems: React.FC = () => {
 
   useEffect(() => {
     fetchConfig();
+    
+    // Listen for realtime changes from other admins
+    const sub = supabase
+        .channel('system_config_live')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_config' }, (payload) => {
+            const newConfig = payload.new as SystemConfig;
+            setConfig(newConfig);
+            setOriginalConfig(newConfig);
+        })
+        .subscribe();
+
+    return () => { sub.unsubscribe(); };
   }, []);
 
   // Track changes to enable/disable Save button
@@ -35,10 +45,22 @@ const OffSystems: React.FC = () => {
 
   const fetchConfig = async () => {
     setLoading(true);
-    const { data } = await supabase.from('system_config').select('*').single();
+    const { data, error } = await supabase.from('system_config').select('*').limit(1).maybeSingle();
+    
     if (data) {
         setConfig(data as SystemConfig);
         setOriginalConfig(data as SystemConfig);
+    } else {
+        // If no config exists, create a default one in local state so UI works
+        const defaultConfig: SystemConfig = {
+            id: 'temp',
+            is_tasks_enabled: true, is_games_enabled: true, is_invest_enabled: true,
+            is_invite_enabled: true, is_video_enabled: true, is_deposit_enabled: true,
+            is_withdraw_enabled: true, maintenance_mode: false, global_alert: null
+        };
+        setConfig(defaultConfig);
+        setOriginalConfig(defaultConfig);
+        if(!error) toast.warning("Database config missing. Please run SQL script.");
     }
     setLoading(false);
   };
@@ -46,7 +68,9 @@ const OffSystems: React.FC = () => {
   const handleToggle = (key: keyof SystemConfig) => {
       if (!config) return;
       // @ts-ignore
-      setConfig({ ...config, [key]: !config[key] });
+      const newVal = !config[key];
+      // @ts-ignore
+      setConfig({ ...config, [key]: newVal });
   };
 
   const handleBulkAction = async (action: 'restore' | 'shutdown') => {
@@ -54,10 +78,10 @@ const OffSystems: React.FC = () => {
       
       const isShutdown = action === 'shutdown';
       const confirmMsg = isShutdown 
-        ? "Are you sure you want to SHUT DOWN all features? Users will not be able to earn, deposit, or withdraw." 
-        : "Are you sure you want to RESTORE all systems to online?";
+        ? "⚠️ EMERGENCY SHUTDOWN: This will disable Game, Tasks, Video, Invest & Invites immediately. Are you sure?" 
+        : "✅ SYSTEM RESTORE: This will reactivate all earning modules. Confirm?";
       
-      const proceed = await confirm(confirmMsg, isShutdown ? "EMERGENCY SHUTDOWN" : "System Restore");
+      const proceed = await confirm(confirmMsg, isShutdown ? "Emergency Stop" : "Restore Systems");
       if (!proceed) return;
 
       const newState = { ...config };
@@ -68,11 +92,15 @@ const OffSystems: React.FC = () => {
       newState.is_invest_enabled = targetState;
       newState.is_invite_enabled = targetState;
       newState.is_video_enabled = targetState;
-      newState.is_deposit_enabled = targetState;
-      newState.is_withdraw_enabled = targetState;
       
       setConfig(newState);
-      toast.info(action === 'restore' ? "All systems staged for Restore. Click Save." : "All systems staged for Shutdown. Click Save.");
+      toast.info(action === 'restore' ? "Systems staged for Restore. Click Save to apply." : "Systems staged for Shutdown. Click Save to apply.");
+  };
+
+  const handleReset = () => {
+      setConfig(originalConfig);
+      setHasChanges(false);
+      toast.info("Changes discarded.");
   };
 
   const handleSave = async () => {
@@ -85,45 +113,55 @@ const OffSystems: React.FC = () => {
       }
 
       setSaving(true);
-      const { error } = await supabase.from('system_config').update({
-          is_tasks_enabled: config.is_tasks_enabled,
-          is_games_enabled: config.is_games_enabled,
-          is_invest_enabled: config.is_invest_enabled,
-          is_invite_enabled: config.is_invite_enabled,
-          is_video_enabled: config.is_video_enabled,
-          is_deposit_enabled: config.is_deposit_enabled,
-          is_withdraw_enabled: config.is_withdraw_enabled,
-          maintenance_mode: config.maintenance_mode,
-          global_alert: config.global_alert
-      }).eq('id', config.id);
-
-      if (error) {
-          toast.error("Failed to update system: " + error.message);
+      
+      // Check if ID exists, if not insert
+      if (config.id === 'temp') {
+           const { error } = await supabase.from('system_config').insert({
+              ...config, id: undefined // let DB generate ID
+           });
+           if (error) toast.error("Failed to create config: " + error.message);
+           else {
+               toast.success("System initialized!");
+               fetchConfig();
+           }
       } else {
-          toast.success("System configuration applied successfully.");
-          setOriginalConfig(config);
-          setHasChanges(false);
-          // Force refresh system context for admin immediately if possible, 
-          // though real-time sub in SystemContext will handle it.
+          const { error } = await supabase.from('system_config').update({
+              is_tasks_enabled: config.is_tasks_enabled,
+              is_games_enabled: config.is_games_enabled,
+              is_invest_enabled: config.is_invest_enabled,
+              is_invite_enabled: config.is_invite_enabled,
+              is_video_enabled: config.is_video_enabled,
+              is_deposit_enabled: config.is_deposit_enabled,
+              is_withdraw_enabled: config.is_withdraw_enabled,
+              maintenance_mode: config.maintenance_mode,
+              global_alert: config.global_alert
+          }).eq('id', config.id);
+
+          if (error) {
+              toast.error("Failed to update: " + error.message);
+          } else {
+              toast.success("System configuration updated successfully.");
+              setOriginalConfig(config);
+              setHasChanges(false);
+          }
       }
       setSaving(false);
   };
 
-  const ToggleSwitch = ({ isOn, onClick, disabled = false, danger = false }: { isOn: boolean, onClick: () => void, disabled?: boolean, danger?: boolean }) => (
+  const ToggleSwitch = ({ isOn, onClick, danger = false }: { isOn: boolean, onClick: () => void, danger?: boolean }) => (
       <button 
           onClick={onClick}
-          disabled={disabled}
-          className={`relative w-14 h-8 rounded-full p-1 transition-all duration-300 ${
+          className={`relative w-12 h-7 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black ${
               isOn 
-                ? (danger ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-neon-green shadow-[0_0_10px_#10b981]') 
-                : 'bg-gray-800 border border-gray-600'
+                ? (danger ? 'bg-red-500 focus:ring-red-500' : 'bg-neon-green focus:ring-neon-green') 
+                : 'bg-gray-700 focus:ring-gray-500'
           }`}
       >
           <motion.div 
               layout
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              className={`w-6 h-6 rounded-full shadow-md ${isOn ? 'bg-white' : 'bg-gray-500'}`}
-              style={{ x: isOn ? 24 : 0 }}
+              transition={{ type: "spring", stiffness: 700, damping: 30 }}
+              className="absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md"
+              animate={{ x: isOn ? 20 : 0 }}
           />
       </button>
   );
@@ -136,100 +174,99 @@ const OffSystems: React.FC = () => {
       toggleKey,
       isCritical = false 
   }: { title: string, desc: string, icon: any, isOn: boolean, toggleKey: keyof SystemConfig, isCritical?: boolean }) => (
-      <GlassCard className={`relative overflow-hidden transition-all duration-300 border-2 ${isOn ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/10 bg-red-500/5 opacity-80'}`}>
-          {/* Status Light */}
-          <div className={`absolute top-3 right-3 w-2 h-2 rounded-full ${isOn ? 'bg-neon-green animate-pulse shadow-[0_0_5px_#10b981]' : 'bg-red-500'}`}></div>
-          
-          <div className="flex justify-between items-center relative z-10">
-              <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${
-                      isOn 
-                      ? (isCritical ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-green-500/20 text-green-400 border-green-500/30') 
-                      : 'bg-gray-800 text-gray-500 border-gray-700'
-                  }`}>
-                      <Icon size={24} />
-                  </div>
-                  <div>
-                      <h4 className={`font-black text-sm uppercase tracking-wide ${isOn ? 'text-white' : 'text-gray-500'}`}>{title}</h4>
-                      <p className="text-[10px] text-gray-500 mt-0.5 font-bold">{desc}</p>
-                  </div>
+      <div className={`relative overflow-hidden rounded-2xl p-4 transition-all duration-300 border group ${
+          isOn 
+          ? (isCritical ? 'bg-blue-500/10 border-blue-500/30' : 'bg-green-500/5 border-green-500/20') 
+          : 'bg-black/40 border-white/5 opacity-80'
+      }`}>
+          <div className="flex justify-between items-start mb-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                  isOn 
+                  ? (isCritical ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400') 
+                  : 'bg-white/10 text-gray-500 group-hover:text-white'
+              }`}>
+                  <Icon size={20} />
               </div>
-              
               <ToggleSwitch isOn={isOn} onClick={() => handleToggle(toggleKey)} />
           </div>
           
-          {/* Background FX */}
-          {!isOn && <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/diagmonds-light.png')] opacity-10 pointer-events-none"></div>}
-      </GlassCard>
+          <h4 className={`font-bold text-sm ${isOn ? 'text-white' : 'text-gray-400'}`}>{title}</h4>
+          <p className="text-[10px] text-gray-500 mt-1 leading-snug min-h-[2.5em]">{desc}</p>
+          
+          {/* Status Dot */}
+          <div className={`absolute top-4 right-16 flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${isOn ? (isCritical ? 'text-blue-400 bg-blue-500/10' : 'text-green-400 bg-green-500/10') : 'text-red-400 bg-red-500/10'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isOn ? (isCritical ? 'bg-blue-400 shadow-[0_0_5px_#60a5fa]' : 'bg-green-400 shadow-[0_0_5px_#4ade80]') : 'bg-red-400'}`}></span>
+              {isOn ? 'Online' : 'Offline'}
+          </div>
+      </div>
   );
 
   if (loading) return <div className="p-10"><Loader /></div>;
-  if (!config) return <div className="p-10 text-center text-red-500">Config not found</div>;
+  if (!config) return <div className="p-10 text-center text-red-500">Config not found. Please refresh.</div>;
+
+  const activeSystemsCount = Object.values(config).filter(v => v === true).length;
 
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
+    <div className="space-y-8 animate-fade-in pb-32 relative min-h-screen">
         
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-6 sticky top-0 bg-dark-950/95 backdrop-blur-md z-20 pt-2">
+        {/* HEADER & HEALTH */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
             <div>
                 <h2 className="text-3xl font-display font-black text-white flex items-center gap-3">
-                    <MonitorOff className={config.maintenance_mode ? "text-red-500 animate-pulse" : "text-neon-green"} /> 
+                    <MonitorOff className={config.maintenance_mode ? "text-red-500 animate-pulse" : "text-white"} /> 
                     SYSTEM CONTROL
                 </h2>
-                <div className="flex items-center gap-2 mt-1">
-                    <span className={`w-2 h-2 rounded-full ${config.maintenance_mode ? 'bg-red-500' : 'bg-neon-green'}`}></span>
-                    <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">
-                        STATUS: {config.maintenance_mode ? 'MAINTENANCE' : 'OPERATIONAL'}
-                    </p>
-                </div>
+                <p className="text-gray-400 text-sm mt-1">Global feature management console.</p>
             </div>
             
-            <div className="flex flex-wrap gap-3">
-                <button onClick={() => handleBulkAction('shutdown')} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-bold rounded-lg border border-red-500/20 transition flex items-center gap-2">
-                    <Power size={14} /> Emergency Shutdown
-                </button>
-                <button onClick={() => handleBulkAction('restore')} className="px-4 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-500 text-xs font-bold rounded-lg border border-green-500/20 transition flex items-center gap-2">
-                    <RefreshCw size={14} /> Restore All
-                </button>
-                <button 
-                    onClick={handleSave}
-                    disabled={!hasChanges || saving}
-                    className={`px-6 py-2 rounded-xl font-bold flex items-center gap-2 transition shadow-lg ${
-                        hasChanges 
-                        ? 'bg-neon-green text-black hover:scale-105 shadow-neon-green/20' 
-                        : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    }`}
-                >
-                    {saving ? <Loader size={18} className="text-black" /> : <Save size={18} />} 
-                    {hasChanges ? 'SAVE CHANGES' : 'NO CHANGES'}
-                </button>
+            <div className="flex gap-4 w-full md:w-auto">
+                <GlassCard className="py-2 px-4 flex items-center gap-3 bg-black/40 border-white/10 flex-1 md:flex-none">
+                    <div className="relative">
+                        <Server size={20} className={config.maintenance_mode ? "text-red-500" : "text-neon-green"} />
+                        <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${config.maintenance_mode ? "bg-red-500 animate-ping" : "bg-neon-green"}`}></span>
+                    </div>
+                    <div>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase">Status</p>
+                        <p className={`text-xs font-bold ${config.maintenance_mode ? "text-red-500" : "text-neon-green"}`}>
+                            {config.maintenance_mode ? 'MAINTENANCE' : 'OPERATIONAL'}
+                        </p>
+                    </div>
+                </GlassCard>
+                
+                <GlassCard className="py-2 px-4 flex items-center gap-3 bg-black/40 border-white/10 flex-1 md:flex-none">
+                    <Activity size={20} className="text-blue-400" />
+                    <div>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase">Modules</p>
+                        <p className="text-xs font-bold text-white">{activeSystemsCount} Active</p>
+                    </div>
+                </GlassCard>
             </div>
         </div>
 
         {/* DANGER ZONE - MAINTENANCE */}
         <motion.div 
             layout
-            className={`relative overflow-hidden rounded-2xl border-2 transition-all duration-500 ${config.maintenance_mode ? 'border-red-500 bg-red-950/30' : 'border-gray-700 bg-black/40'}`}
+            className={`relative overflow-hidden rounded-2xl border-2 transition-all duration-500 ${config.maintenance_mode ? 'border-red-500 bg-red-950/20' : 'border-white/10 bg-black/40'}`}
         >
             {/* Hazard Stripes Background */}
-            <div className={`absolute inset-0 opacity-10 pointer-events-none ${config.maintenance_mode ? 'bg-[repeating-linear-gradient(45deg,#ef4444,#ef4444_10px,transparent_10px,transparent_20px)]' : ''}`}></div>
+            <div className={`absolute inset-0 opacity-5 pointer-events-none bg-[repeating-linear-gradient(45deg,#ef4444,#ef4444_10px,transparent_10px,transparent_20px)]`}></div>
 
             <div className="p-6 relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="flex items-center gap-6">
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 ${config.maintenance_mode ? 'bg-red-500 text-white border-white shadow-[0_0_20px_#ef4444]' : 'bg-gray-800 text-gray-500 border-gray-600'}`}>
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 ${config.maintenance_mode ? 'bg-red-500 text-white border-white shadow-[0_0_30px_#ef4444]' : 'bg-gray-800 text-gray-500 border-gray-600'}`}>
                         <Lock size={32} />
                     </div>
                     <div>
                         <h3 className={`text-xl font-black uppercase ${config.maintenance_mode ? 'text-red-500' : 'text-white'}`}>
                             Maintenance Mode
                         </h3>
-                        <p className="text-gray-400 text-sm max-w-md mt-1">
-                            When active, the entire application is locked. Users will see a "System Offline" screen. Only Administrators can access the dashboard.
+                        <p className="text-gray-400 text-sm max-w-md mt-1 leading-relaxed">
+                            When active, user access is completely blocked. Users will see a "System Offline" screen. <span className="text-white font-bold">Only Administrators can login.</span>
                         </p>
                     </div>
                 </div>
                 
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-3 bg-black/40 p-4 rounded-xl border border-white/5 w-full md:w-auto">
                     <span className={`text-xs font-black uppercase tracking-wider ${config.maintenance_mode ? 'text-red-500 animate-pulse' : 'text-gray-500'}`}>
                         {config.maintenance_mode ? 'SYSTEM LOCKED' : 'SYSTEM ONLINE'}
                     </span>
@@ -238,24 +275,25 @@ const OffSystems: React.FC = () => {
             </div>
         </motion.div>
 
-        {/* FEATURE MODULES GRID */}
-        <div className="space-y-4">
-            <div className="flex items-center gap-2">
+        {/* FINANCIAL SYSTEMS */}
+        <div>
+            <div className="flex items-center gap-2 mb-4 px-1">
                 <ShieldAlert className="text-blue-500" size={18} />
-                <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest">Financial Systems (Critical)</h3>
+                <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest">Financial Core</h3>
+                <div className="h-px bg-white/10 flex-1 ml-2"></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <SystemModule 
-                    title="Deposits" 
-                    desc="Accept new fund requests" 
+                    title="Deposit System" 
+                    desc="Accept new deposit requests from users." 
                     icon={Wallet} 
                     isOn={config.is_deposit_enabled} 
                     toggleKey="is_deposit_enabled"
                     isCritical
                 />
                 <SystemModule 
-                    title="Withdrawals" 
-                    desc="Process payout requests" 
+                    title="Withdrawal System" 
+                    desc="Allow users to request fund withdrawals." 
                     icon={ArrowUpRight} 
                     isOn={config.is_withdraw_enabled} 
                     toggleKey="is_withdraw_enabled"
@@ -264,43 +302,56 @@ const OffSystems: React.FC = () => {
             </div>
         </div>
 
-        <div className="space-y-4 pt-4">
-            <div className="flex items-center gap-2">
-                <Activity className="text-neon-green" size={18} />
-                <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest">Earning Modules</h3>
+        {/* EARNING MODULES */}
+        <div>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4 px-1 mt-6">
+                <div className="flex items-center gap-2">
+                    <Zap className="text-neon-green" size={18} />
+                    <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest">Earning Modules</h3>
+                </div>
+                
+                <div className="flex gap-2">
+                    <button onClick={() => handleBulkAction('restore')} className="text-[10px] font-bold text-green-400 hover:text-white flex items-center gap-1 bg-green-500/10 px-3 py-1.5 rounded border border-green-500/20 transition hover:bg-green-500/20">
+                        <RotateCcw size={12} /> RESTORE
+                    </button>
+                    <button onClick={() => handleBulkAction('shutdown')} className="text-[10px] font-bold text-red-400 hover:text-white flex items-center gap-1 bg-red-500/10 px-3 py-1.5 rounded border border-red-500/20 transition hover:bg-red-500/20">
+                        <Power size={12} /> STOP ALL
+                    </button>
+                </div>
             </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <SystemModule 
                     title="Game Hub" 
-                    desc="Crash, Spin, Ludo, Dice" 
+                    desc="Crash, Spin, Ludo, Dice & betting games." 
                     icon={Gamepad2} 
                     isOn={config.is_games_enabled} 
                     toggleKey="is_games_enabled" 
                 />
                 <SystemModule 
                     title="Task Center" 
-                    desc="Daily tasks and rewards" 
-                    icon={Zap} 
+                    desc="Daily tasks, sponsor links & tracking." 
+                    icon={CheckCircle2} 
                     isOn={config.is_tasks_enabled} 
                     toggleKey="is_tasks_enabled" 
                 />
                 <SystemModule 
                     title="Investments" 
-                    desc="Plan purchases & ROI" 
+                    desc="Plan purchasing and ROI distribution." 
                     icon={Activity} 
                     isOn={config.is_invest_enabled} 
                     toggleKey="is_invest_enabled" 
                 />
                 <SystemModule 
-                    title="Referral System" 
-                    desc="Invites & Commissions" 
+                    title="Referral Program" 
+                    desc="New signups and commission logic." 
                     icon={Users} 
                     isOn={config.is_invite_enabled} 
                     toggleKey="is_invite_enabled" 
                 />
                 <SystemModule 
-                    title="Video Watch" 
-                    desc="Video earning module" 
+                    title="Video Ads" 
+                    desc="Video earning & upload module." 
                     icon={Video} 
                     isOn={config.is_video_enabled} 
                     toggleKey="is_video_enabled" 
@@ -309,50 +360,97 @@ const OffSystems: React.FC = () => {
         </div>
 
         {/* GLOBAL ANNOUNCEMENT */}
-        <div className="space-y-4 pt-4 border-t border-white/10 mt-6">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <AlertTriangle className="text-yellow-400" size={20} /> Global Announcement
-            </h3>
+        <div className="bg-black/40 border border-white/10 rounded-2xl p-6 relative overflow-hidden mt-6">
+            <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><AlertTriangle size={100} /></div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
+            <div className="flex flex-col md:flex-row gap-8 relative z-10">
+                <div className="flex-1">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-2">
+                        <AlertTriangle className="text-yellow-400" size={20} /> Global Announcement
+                    </h3>
+                    <p className="text-sm text-gray-400 mb-4">
+                        This message appears at the top of every user's dashboard. Use it for urgent notices.
+                    </p>
+                    
                     <label className="text-xs text-gray-500 font-bold uppercase mb-2 block">Message Content</label>
                     <textarea 
                         value={config.global_alert || ''}
                         onChange={(e) => setConfig({...config, global_alert: e.target.value})}
-                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none h-32 resize-none shadow-inner"
-                        placeholder="Enter a message to broadcast to all users (e.g. 'System maintenance scheduled for 12:00 PM'). Leave empty to disable."
+                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-neon-green outline-none h-24 resize-none shadow-inner"
+                        placeholder="e.g. 'System maintenance scheduled for 12:00 PM UTC.' (Leave empty to disable)"
                     />
                 </div>
                 
-                <div>
+                <div className="w-full md:w-1/3">
                     <label className="text-xs text-gray-500 font-bold uppercase mb-2 block flex items-center gap-1">
-                        <Eye size={12}/> Live Dashboard Preview
+                        <Eye size={12}/> Live Preview
                     </label>
-                    <div className="bg-void border border-border-neo rounded-xl p-0 h-32 relative overflow-hidden flex flex-col">
-                        <div className="h-8 bg-surface border-b border-border-neo flex items-center px-4 gap-2">
-                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                            <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                        </div>
-                        {/* THE ALERT BAR SIMULATION */}
-                        {config.global_alert ? (
-                            <div className="bg-neo-yellow/10 border-b border-neo-yellow/20 px-4 py-2 text-center w-full">
-                                <p className="text-xs font-bold text-neo-yellow animate-pulse truncate">{config.global_alert}</p>
+                    {/* PHONE MOCKUP */}
+                    <div className="bg-black border-4 border-gray-800 rounded-3xl p-2 h-48 relative overflow-hidden flex flex-col shadow-2xl">
+                        <div className="h-1 w-12 bg-gray-800 rounded-full mx-auto mb-2"></div>
+                        <div className="bg-gray-900 flex-1 rounded-xl overflow-hidden relative border border-white/5">
+                            {/* The Simulated Alert */}
+                            {config.global_alert ? (
+                                <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-3 py-2 text-center">
+                                    <p className="text-[10px] font-bold text-yellow-400 animate-pulse line-clamp-2 leading-tight">{config.global_alert}</p>
+                                </div>
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-600 italic">
+                                    No alert active
+                                </div>
+                            )}
+                            
+                            {/* Dummy App Content */}
+                            <div className="p-3 opacity-30 blur-[1px]">
+                                <div className="flex justify-between items-center mb-3">
+                                    <div className="w-6 h-6 bg-gray-700 rounded"></div>
+                                    <div className="w-16 h-4 bg-gray-700 rounded"></div>
+                                </div>
+                                <div className="w-full h-16 bg-blue-900 rounded-lg mb-2"></div>
+                                <div className="flex gap-2">
+                                    <div className="w-8 h-8 bg-gray-700 rounded"></div>
+                                    <div className="w-8 h-8 bg-gray-700 rounded"></div>
+                                    <div className="w-8 h-8 bg-gray-700 rounded"></div>
+                                </div>
                             </div>
-                        ) : (
-                            <div className="flex-1 flex items-center justify-center text-gray-600 text-xs italic">
-                                (No announcement active)
-                            </div>
-                        )}
-                        <div className="flex-1 p-4">
-                            <div className="w-1/3 h-2 bg-white/10 rounded mb-2"></div>
-                            <div className="w-2/3 h-2 bg-white/5 rounded"></div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        {/* FLOATING ACTION DOCK - ONLY SHOWS WHEN CHANGES EXIST */}
+        <AnimatePresence>
+            {hasChanges && (
+                <motion.div 
+                    initial={{ y: 100, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 100, opacity: 0 }}
+                    className="fixed bottom-6 left-0 right-0 flex justify-center z-50 pointer-events-none px-4"
+                >
+                    <GlassCard className="pointer-events-auto bg-dark-900/90 backdrop-blur-xl border-neon-green/30 shadow-[0_0_50px_rgba(0,0,0,0.5)] p-2 rounded-2xl flex items-center gap-3 pl-4">
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white">Unsaved Changes</span>
+                            <span className="text-[10px] text-gray-400">Configuration modified</span>
+                        </div>
+                        <div className="h-8 w-px bg-white/10 mx-1"></div>
+                        <button 
+                            onClick={handleReset}
+                            className="px-4 py-2 hover:bg-white/10 rounded-xl text-xs font-bold text-gray-300 transition"
+                        >
+                            Discard
+                        </button>
+                        <button 
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="px-6 py-2.5 bg-neon-green text-black rounded-xl text-xs font-black flex items-center gap-2 hover:bg-emerald-400 transition shadow-lg shadow-neon-green/20"
+                        >
+                            {saving ? <Loader size={14} className="text-black"/> : <Save size={14} />} SAVE UPDATES
+                        </button>
+                    </GlassCard>
+                </motion.div>
+            )}
+        </AnimatePresence>
 
     </div>
   );
