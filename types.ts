@@ -285,5 +285,7 @@ export interface HelpRequest {
     email: string;
     message: string;
     status: 'pending' | 'resolved';
+    admin_response?: string;
+    resolved_at?: string;
     created_at: string;
 }
