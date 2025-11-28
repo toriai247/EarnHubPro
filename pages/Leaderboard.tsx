@@ -1,10 +1,11 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Trophy, Crown, User, TrendingUp, Calendar, Filter, Medal } from 'lucide-react';
+import { Trophy, Crown, User, TrendingUp, Calendar, Filter, Medal, LogIn } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { motion } from 'framer-motion';
 import Skeleton from '../components/Skeleton';
+import { Link } from 'react-router-dom';
 
 interface LeaderboardUser {
     id: string;
@@ -20,6 +21,7 @@ const Leaderboard: React.FC = () => {
   const [leaders, setLeaders] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [myRank, setMyRank] = useState<LeaderboardUser | null>(null);
+  const [isGuest, setIsGuest] = useState(true);
 
   useEffect(() => {
       fetchLeaders();
@@ -29,6 +31,7 @@ const Leaderboard: React.FC = () => {
       setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id;
+      setIsGuest(!userId);
 
       // Determine sort column based on period
       const sortColumn = period === 'daily' ? 'today_earning' : 'total_earning';
@@ -42,10 +45,6 @@ const Leaderboard: React.FC = () => {
 
       if (wallets) {
           // Fetch Profile Data for these wallets
-          // Note: We can't do a JOIN easily without RLS setups that might block reading other profiles
-          // Ideally, you'd have a public_profiles view. For now, assuming we can read minimal profile data or use Edge Function.
-          // If RLS blocks reading others, this will return nulls. Assuming RLS allows reading basic profile info (name/avatar).
-          
           const userIds = wallets.map(w => w.user_id);
           const { data: profiles } = await supabase
               .from('profiles')
@@ -70,25 +69,27 @@ const Leaderboard: React.FC = () => {
 
           setLeaders(rankedList);
 
-          // Find current user rank if not in top 50
-          const me = rankedList.find(u => u.isCurrentUser);
-          if (me) {
-              setMyRank(me);
-          } else if (userId) {
-              // Fetch my specific wallet to show at bottom
-              const { data: myWallet } = await supabase
-                  .from('wallets')
-                  .select('today_earning, total_earning')
-                  .eq('user_id', userId)
-                  .single();
-              
-              if (myWallet) {
-                  setMyRank({
-                      id: userId,
-                      name: 'You',
-                      amount: period === 'daily' ? myWallet.today_earning : myWallet.total_earning,
-                      rank: 999 // Placeholder for > 50
-                  });
+          // Only try to find my rank if logged in
+          if (userId) {
+              const me = rankedList.find(u => u.isCurrentUser);
+              if (me) {
+                  setMyRank(me);
+              } else {
+                  // Fetch my specific wallet to show at bottom
+                  const { data: myWallet } = await supabase
+                      .from('wallets')
+                      .select('today_earning, total_earning')
+                      .eq('user_id', userId)
+                      .single();
+                  
+                  if (myWallet) {
+                      setMyRank({
+                          id: userId,
+                          name: 'You',
+                          amount: period === 'daily' ? myWallet.today_earning : myWallet.total_earning,
+                          rank: 999 // Placeholder for > 50
+                      });
+                  }
               }
           }
       }
@@ -235,25 +236,46 @@ const Leaderboard: React.FC = () => {
                     </div>
                 </div>
                 
-                {/* Sticky User Rank if not in top view (or just always show for easy access) */}
-                {myRank && (
+                {/* Sticky Footer: My Rank or Login CTA */}
+                {isGuest ? (
                     <div className="fixed bottom-[70px] sm:bottom-4 left-4 right-4 z-30">
-                        <GlassCard className="bg-dark-900/90 border-neon-green/30 backdrop-blur-xl flex items-center justify-between p-3 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
-                            <div className="flex items-center gap-4">
-                                <span className="text-sm font-bold text-neon-green w-6 text-center">{myRank.rank && myRank.rank > 50 ? '50+' : myRank.rank}</span>
-                                <div className="w-10 h-10 rounded-full bg-royal-600 flex items-center justify-center text-white font-bold border border-neon-green/50">
-                                    <User size={20} />
+                        <Link to="/login">
+                            <GlassCard className="bg-electric-900/90 border-electric-500/30 backdrop-blur-xl flex items-center justify-between p-3 shadow-lg hover:bg-electric-900 transition">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-electric-500 flex items-center justify-center text-white">
+                                        <LogIn size={18} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-sm text-white">Join the Leaderboard</h4>
+                                        <p className="text-[10px] text-gray-300">Login to see your rank</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 className="font-bold text-sm text-white">My Ranking</h4>
-                                    <p className="text-[10px] text-gray-400">Keep earning to climb up!</p>
+                                <div className="text-right">
+                                    <span className="text-xs font-bold bg-white text-black px-3 py-1.5 rounded-lg">Sign In</span>
                                 </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="font-mono font-bold text-neon-green text-sm">${myRank.amount.toFixed(2)}</p>
-                            </div>
-                        </GlassCard>
+                            </GlassCard>
+                        </Link>
                     </div>
+                ) : (
+                    myRank && (
+                        <div className="fixed bottom-[70px] sm:bottom-4 left-4 right-4 z-30">
+                            <GlassCard className="bg-dark-900/90 border-neon-green/30 backdrop-blur-xl flex items-center justify-between p-3 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm font-bold text-neon-green w-6 text-center">{myRank.rank && myRank.rank > 50 ? '50+' : myRank.rank}</span>
+                                    <div className="w-10 h-10 rounded-full bg-royal-600 flex items-center justify-center text-white font-bold border border-neon-green/50">
+                                        <User size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-sm text-white">My Ranking</h4>
+                                        <p className="text-[10px] text-gray-400">Keep earning to climb up!</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-mono font-bold text-neon-green text-sm">${myRank.amount.toFixed(2)}</p>
+                                </div>
+                            </GlassCard>
+                        </div>
+                    )
                 )}
             </>
         )}

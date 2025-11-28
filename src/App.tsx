@@ -56,7 +56,7 @@ const FeatureGuard = ({ feature, children }: { feature: string, children?: React
 };
 
 // Require Auth Wrapper
-const RequireAuth = ({ session, children }: { session: any, children: React.ReactNode }) => {
+const RequireAuth = ({ session, children }: { session: any, children?: React.ReactNode }) => {
   if (!session) {
     return <Navigate to="/login" replace />;
   }

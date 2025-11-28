@@ -119,6 +119,7 @@ const NotiSender: React.FC = () => {
                     reg.showNotification("Test Notification", {
                         body: "This is a test from the Admin Panel.",
                         icon: '/icon-192x192.png',
+                        // @ts-ignore
                         vibrate: [200, 100, 200]
                     });
                 } else {

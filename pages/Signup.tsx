@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -50,16 +49,10 @@ const Signup: React.FC = () => {
       if (data.user) {
         const finalCode = referralCode.trim().toUpperCase();
         try {
-           // Pass the selected currency to the profile creation
            await createUserProfile(data.user.id, email, name, finalCode, currency);
            navigate('/');
         } catch (dbError: any) {
            console.error("DB Init Error:", dbError);
-           if (dbError.message.includes('Recursion') || dbError.message.includes('Policy')) {
-               setError('Database Configuration Error.');
-               setIsLoading(false);
-               return;
-           }
            navigate('/'); 
         }
       } else {
@@ -73,29 +66,43 @@ const Signup: React.FC = () => {
     }
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: { duration: 0.5, staggerChildren: 0.05 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, x: -10 },
+    visible: { opacity: 1, x: 0 }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-void relative overflow-hidden font-sans bg-grid-pattern bg-grid">
-       {/* Animated Background */}
-       <div className="absolute bottom-[10%] left-[10%] w-[400px] h-[400px] bg-electric-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+    <div className="min-h-screen flex items-center justify-center bg-[#050505] relative overflow-hidden font-sans">
+       {/* Background FX */}
+       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-electric-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
+       <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
       <MotionDiv 
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, type: 'spring' }}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
         className="w-full max-w-md p-6 relative z-10"
       >
-        <div className="bg-surface border border-border-neo rounded-2xl shadow-neo overflow-hidden">
+        <div className="bg-surface/80 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
           
-          {/* Top Accent Line */}
-          <div className="h-1.5 w-full bg-gradient-to-r from-electric-500 to-electric-400"></div>
+          <div className="bg-gradient-to-r from-purple-500 to-electric-500 h-1.5"></div>
 
-          <div className="px-8 pt-10 pb-8">
-            <div className="mb-8">
+          <div className="p-8">
+            <motion.div variants={itemVariants} className="mb-8">
               <h2 className="text-3xl font-display font-black text-white mb-2 uppercase tracking-tight flex items-center gap-2">
-                Join <span className="text-electric-500">Us</span>
+                Join <span className="text-electric-500">EarnHub</span>
               </h2>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Start your earning journey today.</p>
-            </div>
+              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Start your earning journey today.</p>
+            </motion.div>
 
             <form onSubmit={handleSignup} className="space-y-4">
               <AnimatePresence mode="wait">
@@ -104,7 +111,7 @@ const Signup: React.FC = () => {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className={`p-3 rounded border flex items-start gap-3 text-sm font-bold overflow-hidden ${error.includes('sent') ? 'bg-neo-green/10 border-neo-green text-neo-green' : 'bg-neo-red/10 border-neo-red text-neo-red'}`}
+                    className={`p-3 rounded-xl border flex items-start gap-3 text-sm font-bold ${error.includes('sent') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}
                   >
                     {error.includes('sent') ? <CheckCircle2 size={18} className="mt-0.5"/> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
                     <span className="flex-1">{error}</span>
@@ -112,8 +119,7 @@ const Signup: React.FC = () => {
                 )}
               </AnimatePresence>
 
-              {/* Name Field */}
-              <div className="relative group">
+              <motion.div variants={itemVariants} className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
                   <User size={20} />
                 </div>
@@ -122,13 +128,12 @@ const Signup: React.FC = () => {
                   required
                   value={name}
                   onChange={(e) => { setName(e.target.value); setError(''); }}
-                  className="w-full bg-void border border-border-neo rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-700 focus:outline-none focus:border-electric-500 focus:shadow-[4px_4px_0px_0px_#0066FF] transition-all font-medium"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
                   placeholder="Full Name"
                 />
-              </div>
+              </motion.div>
 
-              {/* Email Field */}
-              <div className="relative group">
+              <motion.div variants={itemVariants} className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
                   <Mail size={20} />
                 </div>
@@ -137,13 +142,12 @@ const Signup: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                  className="w-full bg-void border border-border-neo rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-700 focus:outline-none focus:border-electric-500 focus:shadow-[4px_4px_0px_0px_#0066FF] transition-all font-medium"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
                   placeholder="Email Address"
                 />
-              </div>
+              </motion.div>
 
-              {/* Password Field */}
-              <div className="relative group">
+              <motion.div variants={itemVariants} className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
                   <Lock size={20} />
                 </div>
@@ -152,32 +156,30 @@ const Signup: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                  className="w-full bg-void border border-border-neo rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-700 focus:outline-none focus:border-electric-500 focus:shadow-[4px_4px_0px_0px_#0066FF] transition-all font-medium"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
                   placeholder="Password (Min 6 chars)"
                 />
-              </div>
+              </motion.div>
 
-              {/* Currency Selector */}
-              <div className="relative group">
+              <motion.div variants={itemVariants} className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
                   <Globe size={20} />
                 </div>
                 <select 
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full bg-void border border-border-neo rounded-xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-electric-500 focus:shadow-[4px_4px_0px_0px_#0066FF] transition-all font-medium appearance-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-10 text-white focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium appearance-none cursor-pointer"
                 >
                     {Object.values(CURRENCY_CONFIG).map((c) => (
-                        <option key={c.code} value={c.code}>{c.code} - {c.name} ({c.symbol})</option>
+                        <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
                     ))}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-xs pointer-events-none">
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-2xl pointer-events-none">
                     {CURRENCY_CONFIG[currency as keyof typeof CURRENCY_CONFIG]?.flag}
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Referral Field */}
-              <div className="relative group">
+              <motion.div variants={itemVariants} className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-purple-500 transition-colors">
                   <Ticket size={20} />
                 </div>
@@ -185,31 +187,33 @@ const Signup: React.FC = () => {
                   type="text" 
                   value={referralCode}
                   onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                  className="w-full bg-void border border-border-neo rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-700 focus:outline-none font-mono uppercase tracking-widest transition-all focus:border-purple-500 focus:shadow-[4px_4px_0px_0px_#a855f7]"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:bg-black/60 transition-all font-mono uppercase tracking-wider"
                   placeholder="REF CODE (OPTIONAL)"
                   maxLength={10}
                 />
-              </div>
+              </motion.div>
 
-              <div className="pt-4">
-                <button 
+              <motion.div variants={itemVariants} className="pt-2">
+                <motion.button 
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     type="submit" 
                     disabled={isLoading}
-                    className="w-full py-4 bg-electric-500 text-white border-b-4 border-electric-600 rounded-xl font-black flex items-center justify-center gap-2 uppercase tracking-wider btn-neo shadow-neo-accent disabled:opacity-50 disabled:cursor-not-allowed hover:bg-electric-400"
+                    className="w-full py-4 bg-gradient-to-r from-electric-600 to-electric-500 text-white rounded-xl font-black flex items-center justify-center gap-2 uppercase tracking-wider shadow-lg shadow-electric-500/20 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-electric-500/40 transition-all"
                 >
                     {isLoading ? <Loader2 className="animate-spin" size={20} /> : <>Create Account <ArrowRight size={20} /></>}
-                </button>
-              </div>
+                </motion.button>
+              </motion.div>
             </form>
 
-            <div className="mt-8 text-center">
+            <motion.div variants={itemVariants} className="mt-8 text-center">
               <p className="text-gray-500 text-sm font-bold">
                 Already have ID?{' '}
-                <Link to="/login" className="text-electric-400 hover:text-electric-300 underline decoration-2 underline-offset-4 transition">
+                <Link to="/login" className="text-white hover:text-electric-400 underline decoration-2 underline-offset-4 transition">
                   Sign In
                 </Link>
               </p>
-            </div>
+            </motion.div>
           </div>
         </div>
       </MotionDiv>

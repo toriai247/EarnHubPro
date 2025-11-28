@@ -21,15 +21,15 @@ const TABLE_LIST = [
     'video_submissions', 'wallets', 'withdraw_requests', 'withdrawal_settings'
 ];
 
-const BROADCAST_SQL = `-- NOTIFICATION SYSTEM SETUP
--- Run this to fix "Function not found" and "Policy already exists" errors.
+const BROADCAST_SQL = `-- NOTIFICATION SYSTEM SETUP (FINAL)
+-- Run this to enable Realtime Notifications for users
 
--- 1. DROP EXISTING OBJECTS TO AVOID CONFLICTS
+-- 1. DROP OLD OBJECTS
 DROP FUNCTION IF EXISTS admin_broadcast_notification(TEXT, TEXT, TEXT);
 DROP POLICY IF EXISTS "Users can view own notifications" ON public.notifications;
 DROP POLICY IF EXISTS "Admins can insert notifications" ON public.notifications;
 
--- 2. CREATE TABLE (If not exists)
+-- 2. CREATE TABLE
 CREATE TABLE IF NOT EXISTS public.notifications (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -66,13 +66,16 @@ CREATE OR REPLACE FUNCTION admin_broadcast_notification(
     p_type TEXT
 ) RETURNS VOID AS $$
 BEGIN
-    -- Insert notification for every active user profile
     INSERT INTO notifications (user_id, title, message, type, is_read)
     SELECT id, p_title, p_message, p_type, false
     FROM profiles
     WHERE is_suspended = false;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 6. CRITICAL: ENABLE REALTIME FOR NOTIFICATIONS TABLE
+-- This line is required for users to receive the popup instantly
+ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
 `;
 
 const NOTIFICATION_TRIGGERS_SQL = `-- AUTO NOTIFICATION SYSTEM V2
@@ -504,6 +507,7 @@ const DatabaseUltra: React.FC = () => {
                             </h3>
                             <p className="text-gray-300 text-sm max-w-xl mb-6 leading-relaxed">
                                 Enable the "Send to All" feature in NotiSender by creating the tables and helper function.
+                                <br/><span className="text-yellow-400 font-bold">Important:</span> Includes <code>ALTER PUBLICATION</code> to enable Live Updates.
                             </p>
 
                             <div className="bg-black/50 rounded-xl border border-purple-500/30 p-4 mb-4">

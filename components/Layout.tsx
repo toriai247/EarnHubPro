@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Crown, Trophy, Globe, Menu, X, 
-  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send, Search, BellRing
+  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send, Search, BellRing, LogIn
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useTheme } from '../context/ThemeContext';
@@ -15,15 +15,14 @@ import { useUI } from '../context/UIContext';
 
 const MotionDiv = motion.div as any;
 
-// Simple notification sound (Base64 MP3)
-const NOTIFICATION_SOUND = "data:audio/mp3;base64,SUQzBAAAAAABAFRYWFgAAAASAAADbWFqb3JfYnJhbmQAbXA0MgBUWFhYAAAAEQAAA21pbm9yX3ZlcnNpb24AMABVFhAAAAAAAAAAAAAAAAAAAAAA//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
-
 interface LayoutProps {
   children: React.ReactNode;
+  session?: any; // Session passed from App
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useUI();
   const { isFeatureEnabled, config } = useSystem();
   const [balance, setBalance] = useState<number>(0);
@@ -32,54 +31,78 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
-  const [sessionUser, setSessionUser] = useState<any>(null);
   const [showNotiPermRequest, setShowNotiPermRequest] = useState(false);
-  
-  // Audio Ref
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   
   const isVideoPage = location.pathname === '/video';
   const isHomePage = location.pathname === '/';
+  const isGuest = !session;
 
-  // Dynamic Navigation Items based on System Config
+  // Dynamic Navigation Items
   const navItems = [
     { path: '/', icon: Home, label: 'HUB', enabled: true },
-    { path: '/invest', icon: PieChart, label: 'INVEST', enabled: isFeatureEnabled('is_invest_enabled') },
+    { path: '/invest', icon: PieChart, label: 'INVEST', enabled: isFeatureEnabled('is_invest_enabled'), protected: true },
     { path: '/leaderboard', icon: Trophy, label: 'TOP', enabled: true },
-    { path: '/games', icon: Gamepad2, label: 'PLAY', enabled: isFeatureEnabled('is_games_enabled') },
-    { path: '/profile', icon: User, label: 'ME', enabled: true },
+    { path: '/games', icon: Gamepad2, label: 'PLAY', enabled: isFeatureEnabled('is_games_enabled'), protected: true },
+    { path: '/profile', icon: User, label: 'ME', enabled: true, protected: true },
   ].filter(i => i.enabled);
 
   const menuItems = [
       // Add Admin Panel if Admin (Dynamic)
       ...(isAdmin ? [{ path: '/admin', icon: LayoutDashboard, label: 'Admin Panel', color: 'text-red-400', bg: 'bg-red-500/10', enabled: true }] : []),
       { path: '/search', icon: Search, label: 'Find User', color: 'text-blue-400', bg: 'bg-blue-500/10', enabled: true },
-      { path: '/send-money', icon: Send, label: 'Send Money', color: 'text-cyan-400', bg: 'bg-cyan-500/10', enabled: true },
-      { path: '/transfer', icon: ArrowRightLeft, label: 'Transfer Funds', color: 'text-electric-400', bg: 'bg-electric-500/10', enabled: true },
-      { path: '/exchange', icon: Globe, label: 'Exchange', color: 'text-neo-green', bg: 'bg-neo-green/10', enabled: true },
-      { path: '/deposit', icon: Wallet, label: 'Deposit', color: 'text-white', bg: 'bg-white/10', enabled: isFeatureEnabled('is_deposit_enabled') },
-      { path: '/withdraw', icon: Wallet, label: 'Withdraw', color: 'text-neo-yellow', bg: 'bg-neo-yellow/10', enabled: isFeatureEnabled('is_withdraw_enabled') },
-      { path: '/biometric-setup', icon: Fingerprint, label: 'Fingerprint Setup', color: 'text-neo-green', bg: 'bg-green-500/10', enabled: true },
+      { path: '/send-money', icon: Send, label: 'Send Money', color: 'text-cyan-400', bg: 'bg-cyan-500/10', enabled: true, protected: true },
+      { path: '/transfer', icon: ArrowRightLeft, label: 'Transfer Funds', color: 'text-electric-400', bg: 'bg-electric-500/10', enabled: true, protected: true },
+      { path: '/exchange', icon: Globe, label: 'Exchange', color: 'text-neo-green', bg: 'bg-neo-green/10', enabled: true, protected: true },
+      { path: '/deposit', icon: Wallet, label: 'Deposit', color: 'text-white', bg: 'bg-white/10', enabled: isFeatureEnabled('is_deposit_enabled'), protected: true },
+      { path: '/withdraw', icon: Wallet, label: 'Withdraw', color: 'text-neo-yellow', bg: 'bg-neo-yellow/10', enabled: isFeatureEnabled('is_withdraw_enabled'), protected: true },
+      { path: '/biometric-setup', icon: Fingerprint, label: 'Fingerprint Setup', color: 'text-neo-green', bg: 'bg-green-500/10', enabled: true, protected: true },
       { path: '/support', icon: Headphones, label: 'Support', color: 'text-purple-400', bg: 'bg-purple-500/10', enabled: true },
       { path: '/faq', icon: HelpCircle, label: 'FAQ', color: 'text-cyan-400', bg: 'bg-cyan-500/10', enabled: true },
       { path: '/terms', icon: FileText, label: 'Terms', color: 'text-gray-400', bg: 'bg-gray-500/10', enabled: true },
   ].filter(i => i.enabled);
 
-  // Initial Data Fetch
-  useEffect(() => {
-    // Initialize Audio
-    audioRef.current = new Audio(NOTIFICATION_SOUND);
+  // Web Audio API Sound Generator
+  const playNotificationSound = () => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-    // Check Notification Permission
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime); 
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3); 
+      
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3); 
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    } catch (e) {
+      console.error("Sound play failed", e);
+    }
+  };
+
+  useEffect(() => {
+    if (!session) {
+        // Reset state for guest
+        setBalance(0);
+        setUnreadCount(0);
+        setLevel(1);
+        setIsAdmin(false);
+        return;
+    }
+
     if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         setShowNotiPermRequest(true);
     }
 
     const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      setSessionUser(session.user);
-
       // Check Profile for Suspension & Admin Status
       const { data: profile } = await supabase.from('profiles').select('level_1, admin_user, is_suspended').eq('id', session.user.id).single();
       
@@ -92,7 +115,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           setIsAdmin(profile.admin_user || false);
       }
 
-      // Initial Fetch of Balance and Notifications
       const [walletRes, notifRes] = await Promise.allSettled([
         supabase.from('wallets').select('balance').eq('user_id', session.user.id).single(),
         supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('is_read', false),
@@ -106,7 +128,56 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const handleWalletUpdate = () => fetchData();
     window.addEventListener('wallet_updated', handleWalletUpdate);
     return () => window.removeEventListener('wallet_updated', handleWalletUpdate);
-  }, [location.pathname]);
+  }, [location.pathname, session]);
+
+  // Real-Time Notification Listener
+  useEffect(() => {
+      if (!session) return;
+
+      const sub = supabase
+          .channel('notifications-listener')
+          .on('postgres_changes', { 
+              event: 'INSERT', 
+              schema: 'public', 
+              table: 'notifications', 
+              filter: `user_id=eq.${session.user.id}` 
+          }, async (payload) => {
+              const newNotif = payload.new;
+              setUnreadCount(prev => prev + 1);
+              playNotificationSound();
+
+              if (newNotif.type === 'success') toast.success(newNotif.title);
+              else if (newNotif.type === 'error') toast.error(newNotif.title);
+              else toast.info(newNotif.title);
+
+              if (Notification.permission === 'granted') {
+                  try {
+                      if ('serviceWorker' in navigator) {
+                          const registration = await navigator.serviceWorker.getRegistration();
+                          if (registration) {
+                              registration.showNotification(newNotif.title, {
+                                  body: newNotif.message,
+                                  icon: '/icon-192x192.png',
+                                  badge: '/icon-96x96.png',
+                                  // @ts-ignore
+                                  vibrate: [200, 100, 200],
+                                  tag: 'earnhub-alert',
+                                  renotify: true
+                              });
+                              return;
+                          }
+                      }
+                      new Notification(newNotif.title, {
+                          body: newNotif.message,
+                          icon: '/icon-192x192.png',
+                      });
+                  } catch (e) {}
+              }
+          })
+          .subscribe();
+
+      return () => { sub.unsubscribe(); };
+  }, [session]);
 
   const requestNotificationPermission = async () => {
       if (!('Notification' in window)) return;
@@ -114,88 +185,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       if (permission === 'granted') {
           setShowNotiPermRequest(false);
           toast.success("System notifications enabled!");
-          // Send a test one immediately
-          try {
-              if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-                  const registration = await navigator.serviceWorker.ready;
-                  registration.showNotification("EarnHub Pro", {
-                      body: "Notifications active! You will receive live updates.",
-                      icon: '/icon-192x192.png',
-                      vibrate: [100, 50, 100],
-                  });
-              } else {
-                  new Notification("EarnHub Pro", { body: "Notifications active!" });
-              }
-          } catch (e) { console.error(e); }
+          playNotificationSound();
       }
   };
 
-  // Real-Time Notification Listener
-  useEffect(() => {
-      if (!sessionUser) return;
-
-      const sub = supabase
-          .channel(`user-notifications-${sessionUser.id}`)
-          .on('postgres_changes', { 
-              event: 'INSERT', 
-              schema: 'public', 
-              table: 'notifications', 
-              filter: `user_id=eq.${sessionUser.id}` 
-          }, async (payload) => {
-              // New notification received
-              const newNotif = payload.new;
-              setUnreadCount(prev => prev + 1);
-              
-              // 1. Play Sound
-              if (audioRef.current) {
-                  audioRef.current.play().catch(e => console.log("Audio play failed", e));
-              }
-
-              // 2. Show In-App Toast
-              if (newNotif.type === 'success') toast.success(newNotif.title);
-              else if (newNotif.type === 'error') toast.error(newNotif.title);
-              else if (newNotif.type === 'warning') toast.warning(newNotif.title);
-              else toast.info(newNotif.title);
-
-              // 3. Trigger System Notification (Phone Bar)
-              if (Notification.permission === 'granted') {
-                  try {
-                      // Try Service Worker first (Best for Mobile)
-                      if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-                          const registration = await navigator.serviceWorker.ready;
-                          registration.showNotification(newNotif.title, {
-                              body: newNotif.message,
-                              icon: '/icon-192x192.png',
-                              badge: '/icon-96x96.png',
-                              vibrate: [200, 100, 200],
-                              tag: 'earnhub-alert',
-                              renotify: true
-                          });
-                      } else {
-                          // Fallback
-                          new Notification(newNotif.title, {
-                              body: newNotif.message,
-                              icon: '/icon-192x192.png',
-                              // @ts-ignore
-                              vibrate: [200, 100, 200]
-                          });
-                      }
-                  } catch (e) {
-                      console.error("Notification Error:", e);
-                  }
-              }
-          })
-          .subscribe();
-
-      return () => { sub.unsubscribe(); };
-  }, [sessionUser]);
-
   const handleLogout = async () => {
       await supabase.auth.signOut();
-      window.location.reload();
+      navigate('/login');
   };
 
-  // 1. Account Suspended Screen (Highest Priority)
+  const handleNavClick = (e: React.MouseEvent, item: any) => {
+      // If item is protected and user is guest, prevent nav and show toast
+      if (item.protected && isGuest) {
+          e.preventDefault();
+          toast.error("Please login to access this feature.");
+          navigate('/login');
+      }
+  };
+
   if (isSuspended) {
       return (
           <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
@@ -203,20 +210,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Ban size={48} className="text-red-500" />
               </div>
               <h1 className="text-3xl font-black text-white uppercase mb-2">Account Suspended</h1>
-              <p className="text-gray-400 max-w-sm mb-8">
-                  Your account has been flagged for violation of our terms of service. Access is permanently revoked.
-              </p>
-              <button 
-                  onClick={handleLogout}
-                  className="px-8 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition flex items-center gap-2"
-              >
+              <button onClick={handleLogout} className="px-8 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition flex items-center gap-2">
                   <LogOut size={18} /> Sign Out
               </button>
           </div>
       );
   }
 
-  // 2. Only show maintenance screen if enabled AND user is NOT an admin
   if (config?.maintenance_mode && !isAdmin) {
       return <MaintenanceScreen />;
   }
@@ -224,7 +224,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col relative pb-24 sm:pb-0 bg-void text-white font-sans selection:bg-electric-500 selection:text-white">
       
-      {/* Global Alert */}
       {config?.global_alert && (
           <div className="bg-neo-yellow/10 border-b border-neo-yellow/20 px-4 py-2 text-center animate-pulse">
               <p className="text-xs font-bold text-neo-yellow">{config.global_alert}</p>
@@ -238,7 +237,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex items-center gap-3">
             <button 
                 onClick={() => setIsMenuOpen(true)}
-                className="p-2 rounded-lg bg-surface border border-border-neo hover:bg-surface-hover transition text-white shadow-neo-sm active:shadow-none active:translate-y-0.5"
+                className="p-2 rounded-lg bg-surface border border-border-neo hover:bg-surface-hover transition text-white shadow-neo-sm"
             >
                 <Menu size={20} />
             </button>
@@ -253,39 +252,40 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-2">
-            
-            {showNotiPermRequest && (
+            {showNotiPermRequest && !isGuest && (
                 <button 
                     onClick={requestNotificationPermission}
                     className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 transition animate-pulse"
-                    title="Enable Notifications"
                 >
                     <BellRing size={20} />
                 </button>
             )}
 
-            {/* Search Button */}
-            <Link to="/search" className="p-2 rounded-lg bg-surface hover:bg-surface-hover transition text-white border border-border-neo shadow-neo-sm">
-                <Search size={20} />
-            </Link>
-
-            {!isHomePage && (
-              <>
-                <div className="hidden sm:flex px-3 py-1.5 rounded bg-surface border border-neo-yellow/50 text-xs font-bold text-neo-yellow items-center gap-1 shadow-[2px_2px_0px_0px_rgba(255,204,0,0.3)]">
-                    <Crown size={14} className="fill-current" /> LVL {level}
-                </div>
-                <div className="px-3 py-1.5 rounded bg-surface border border-border-neo text-xs font-bold text-white flex items-center gap-1 shadow-neo-sm font-mono">
-                    <BalanceDisplay amount={balance} isHeader={true} isNative={true} />
-                </div>
-              </>
+            {isGuest ? (
+                <Link to="/login" className="px-4 py-2 bg-electric-500 text-white text-xs font-bold rounded-lg shadow-neo-accent hover:bg-electric-400 transition flex items-center gap-2">
+                    <LogIn size={16} /> Sign In
+                </Link>
+            ) : (
+                <>
+                    <Link to="/search" className="p-2 rounded-lg bg-surface hover:bg-surface-hover transition text-white border border-border-neo shadow-neo-sm">
+                        <Search size={20} />
+                    </Link>
+                    {!isHomePage && (
+                      <>
+                        <div className="hidden sm:flex px-3 py-1.5 rounded bg-surface border border-neo-yellow/50 text-xs font-bold text-neo-yellow items-center gap-1 shadow-[2px_2px_0px_0px_rgba(255,204,0,0.3)]">
+                            <Crown size={14} className="fill-current" /> LVL {level}
+                        </div>
+                        <div className="px-3 py-1.5 rounded bg-surface border border-border-neo text-xs font-bold text-white flex items-center gap-1 shadow-neo-sm font-mono">
+                            <BalanceDisplay amount={balance} isHeader={true} isNative={true} />
+                        </div>
+                      </>
+                    )}
+                    <Link to="/notifications" className="relative p-2 rounded-lg bg-surface hover:bg-surface-hover transition text-white border border-border-neo shadow-neo-sm">
+                      <Bell size={20} className={unreadCount > 0 ? "animate-pulse" : ""} />
+                      {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-neo-red rounded-full border-2 border-surface"></span>}
+                    </Link>
+                </>
             )}
-            
-            <Link to="/notifications" className="relative p-2 rounded-lg bg-surface hover:bg-surface-hover transition text-white border border-border-neo shadow-neo-sm active:translate-y-0.5 active:shadow-none">
-              <Bell size={20} className={unreadCount > 0 ? "animate-pulse" : ""} />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-neo-red rounded-full border-2 border-surface"></span>
-              )}
-            </Link>
           </div>
         </header>
       )}
@@ -304,6 +304,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Link
                 key={item.path}
                 to={item.path}
+                onClick={(e) => handleNavClick(e, item)}
                 className={`flex flex-col items-center justify-center w-full h-full transition-all duration-200 ${
                   isActive ? 'text-electric-500' : 'text-gray-500 hover:text-gray-300'
                 }`}
@@ -327,7 +328,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {navItems.map((item) => {
              const isActive = location.pathname === item.path;
              return (
-              <Link key={item.path} to={item.path} className={`p-3 rounded-xl mx-auto transition-all relative group ${isActive ? 'bg-electric-500 text-white shadow-neo-accent border-2 border-electric-600' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
+              <Link 
+                key={item.path} 
+                to={item.path} 
+                onClick={(e) => handleNavClick(e, item)}
+                className={`p-3 rounded-xl mx-auto transition-all relative group ${isActive ? 'bg-electric-500 text-white shadow-neo-accent border-2 border-electric-600' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+              >
                 <item.icon size={24} />
                 <div className="absolute left-16 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-black border border-white/20 text-white text-xs font-bold rounded opacity-0 group-hover:opacity-100 pointer-events-none transition whitespace-nowrap z-50 shadow-xl">
                     {item.label}
@@ -362,33 +368,46 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       </div>
 
                       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                          {menuItems.map((item, idx) => (
-                              <Link 
-                                  key={idx} 
-                                  to={item.path} 
-                                  onClick={() => setIsMenuOpen(false)}
-                                  className="flex items-center gap-4 p-4 rounded-lg bg-void border border-border-neo hover:border-electric-500 hover:translate-x-1 transition group shadow-neo-sm"
-                              >
-                                  <div className={`w-8 h-8 rounded flex items-center justify-center ${item.color}`}>
-                                      <item.icon size={20} />
-                                  </div>
-                                  <div className="flex-1">
-                                      <h4 className="text-sm font-bold text-gray-200 group-hover:text-white uppercase tracking-wide">{item.label}</h4>
-                                  </div>
-                                  <ChevronRight size={16} className="text-gray-600 group-hover:text-electric-500" />
-                              </Link>
-                          ))}
+                          {menuItems.map((item, idx) => {
+                              // If protected and guest, don't show in menu or show but lock
+                              if (isGuest && (item as any).protected) return null;
+                              return (
+                                  <Link 
+                                      key={idx} 
+                                      to={item.path} 
+                                      onClick={() => setIsMenuOpen(false)}
+                                      className="flex items-center gap-4 p-4 rounded-lg bg-void border border-border-neo hover:border-electric-500 hover:translate-x-1 transition group shadow-neo-sm"
+                                  >
+                                      <div className={`w-8 h-8 rounded flex items-center justify-center ${item.color}`}>
+                                          <item.icon size={20} />
+                                      </div>
+                                      <div className="flex-1">
+                                          <h4 className="text-sm font-bold text-gray-200 group-hover:text-white uppercase tracking-wide">{item.label}</h4>
+                                      </div>
+                                      <ChevronRight size={16} className="text-gray-600 group-hover:text-electric-500" />
+                                  </Link>
+                              );
+                          })}
                       </div>
 
                       <div className="p-4 border-t border-border-neo bg-void">
-                          <button 
-                              onClick={handleLogout}
-                              className="w-full flex items-center justify-center gap-2 p-4 rounded-lg bg-neo-red text-white font-bold hover:bg-red-600 transition border-b-4 border-red-800 active:border-b-0 active:translate-y-1 shadow-neo-red"
-                          >
-                              <LogOut size={18} /> LOG OUT
-                          </button>
+                          {isGuest ? (
+                              <button 
+                                  onClick={() => { setIsMenuOpen(false); navigate('/login'); }}
+                                  className="w-full flex items-center justify-center gap-2 p-4 rounded-lg bg-electric-500 text-white font-bold hover:bg-electric-400 transition border-b-4 border-electric-600 active:border-b-0 active:translate-y-1 shadow-neo-accent"
+                              >
+                                  <LogIn size={18} /> SIGN IN / REGISTER
+                              </button>
+                          ) : (
+                              <button 
+                                  onClick={handleLogout}
+                                  className="w-full flex items-center justify-center gap-2 p-4 rounded-lg bg-neo-red text-white font-bold hover:bg-red-600 transition border-b-4 border-red-800 active:border-b-0 active:translate-y-1 shadow-neo-red"
+                              >
+                                  <LogOut size={18} /> LOG OUT
+                              </button>
+                          )}
                           <div className="mt-4 text-center text-[10px] text-gray-600 font-black font-mono">
-                              EARNHUB PRO v4.5.3
+                              EARNHUB PRO v4.6.0
                           </div>
                       </div>
                   </MotionDiv>

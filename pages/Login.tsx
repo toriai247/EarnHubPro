@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Mail, LogIn, AlertCircle, Loader2, ChevronRight, Zap, ScanFace } from 'lucide-react';
+import { Lock, Mail, LogIn, AlertCircle, Loader2, ChevronRight, Zap, ScanFace, ArrowRight } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { deriveKeyFromId, decryptData } from '../lib/crypto';
 
@@ -47,96 +47,93 @@ const Login: React.FC = () => {
       setIsBiometricLoading(true);
 
       try {
-          // 1. Request Discoverable Credential (Usernameless Flow)
-          // The browser will pop up asking for fingerprint/faceid
-          // It will check if any passkey matches this domain (earnhub pro)
           const credential = await navigator.credentials.get({
               publicKey: {
                   challenge: crypto.getRandomValues(new Uint8Array(32)),
-                  rpId: window.location.hostname, // Important for domain matching
+                  rpId: window.location.hostname,
                   userVerification: "required"
               }
           }) as PublicKeyCredential;
 
           if (!credential) throw new Error("No credential received from device.");
 
-          // 2. Get the Credential ID found by the browser
           const rawId = bufferToBase64(credential.rawId);
-          console.log("Device Credential ID:", rawId);
-
-          // 3. Lookup this ID in our centralized Database using SECURE RPC
-          // We cannot select directly from table because RLS blocks unauthenticated users.
+          
           const { data, error } = await supabase.rpc('fetch_biometric_credentials', {
               p_credential_id: rawId
           });
 
-          if (error) {
-              console.error("RPC Error:", error);
-              throw new Error("Security check failed. Please login with password.");
-          }
+          if (error) throw new Error("Security check failed. Please login with password.");
+          if (!data || !data.email_enc) throw new Error("Passkey not found.");
 
-          if (!data || !data.email_enc) {
-              throw new Error("Passkey not found in system. Please setup biometrics again.");
-          }
-
-          // 4. Derive Decryption Key (Deterministic based on ID)
           const aesKey = await deriveKeyFromId(rawId);
-          
-          // 5. Decrypt Credentials
           const savedEmail = await decryptData(data.email_enc, aesKey);
           const savedPass = await decryptData(data.password_enc, aesKey);
 
-          if (!savedEmail || !savedPass) {
-              throw new Error("Decryption failed. Data mismatch.");
-          }
-
-          // 6. Perform Auto Login
           const { error: loginError } = await supabase.auth.signInWithPassword({
               email: savedEmail,
               password: savedPass
           });
 
           if (loginError) throw loginError;
-
-          // Success
           navigate('/');
 
       } catch (e: any) {
-          console.error("Bio Login Error:", e);
-          if (e.name === 'NotAllowedError') {
-              setError("Login cancelled.");
-          } else {
-              setError(e.message || "Biometric login failed.");
-          }
+          if (e.name === 'NotAllowedError') setError("Login cancelled.");
+          else setError(e.message || "Biometric login failed.");
       } finally {
           setIsBiometricLoading(false);
       }
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: { 
+        duration: 0.5,
+        staggerChildren: 0.1 
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, x: -10 },
+    visible: { opacity: 1, x: 0 }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-void relative overflow-hidden font-sans bg-grid-pattern bg-grid">
+    <div className="min-h-screen flex items-center justify-center bg-[#050505] relative overflow-hidden font-sans">
       
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-electric-500/10 blur-[120px] rounded-full pointer-events-none"></div>
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-electric-500/20 blur-[120px] rounded-full animate-float"></div>
+          <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-purple-600/10 blur-[100px] rounded-full animate-float" style={{ animationDelay: '2s' }}></div>
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+      </div>
 
       <MotionDiv 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4 }}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
         className="w-full max-w-md p-6 relative z-10"
       >
-        <div className="bg-surface border border-border-neo shadow-neo rounded-2xl overflow-hidden">
-          <div className="h-1.5 w-full bg-electric-500"></div>
-
+        <div className="bg-surface/80 backdrop-blur-xl border border-white/10 shadow-2xl rounded-3xl overflow-hidden">
+          
+          {/* Header */}
+          <div className="bg-gradient-to-r from-electric-600 to-electric-400 p-1"></div>
+          
           <div className="p-8">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 mx-auto bg-void border border-border-neo rounded-xl flex items-center justify-center mb-4 shadow-neo-sm">
-                <Zap className="text-electric-500" size={32} fill="currentColor" />
+            <motion.div variants={itemVariants} className="text-center mb-8">
+              <div className="w-16 h-16 mx-auto bg-surface border border-white/10 rounded-2xl flex items-center justify-center mb-4 shadow-lg group">
+                <Zap className="text-electric-500 group-hover:scale-110 transition-transform duration-300" size={32} fill="currentColor" />
               </div>
-              <h1 className="text-3xl font-display font-black text-white mb-1 tracking-tight uppercase">
-                Earn<span className="text-electric-500">Hub</span>
+              <h1 className="text-3xl font-display font-black text-white mb-1 tracking-tight">
+                EARNHUB
               </h1>
-              <p className="text-gray-500 text-xs font-bold tracking-widest uppercase">Secure Access</p>
-            </div>
+              <p className="text-gray-400 text-xs font-bold tracking-[0.2em] uppercase">Secure Gateway</p>
+            </motion.div>
 
             <form onSubmit={handleLogin} className="space-y-5">
               <AnimatePresence mode="wait">
@@ -145,7 +142,7 @@ const Login: React.FC = () => {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="bg-neo-red/10 border border-neo-red/50 p-3 rounded flex items-start gap-3 text-neo-red text-sm font-bold overflow-hidden"
+                    className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl flex items-start gap-3 text-red-400 text-sm font-bold"
                   >
                     <AlertCircle size={18} className="mt-0.5 shrink-0" />
                     <span className="flex-1">{error}</span>
@@ -153,8 +150,8 @@ const Login: React.FC = () => {
                 )}
               </AnimatePresence>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-black uppercase tracking-wider text-gray-500 ml-1">Email</label>
+              <motion.div variants={itemVariants} className="space-y-1.5">
+                <label className="text-xs font-bold uppercase text-gray-500 ml-1">Email Access</label>
                 <div className="relative group">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
                     <Mail size={20} />
@@ -164,15 +161,15 @@ const Login: React.FC = () => {
                     required
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                    className="w-full bg-void border border-border-neo rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-700 focus:outline-none focus:border-electric-500 focus:shadow-[4px_4px_0px_0px_#0066FF] transition-all font-medium"
-                    placeholder="user@earnhub.pro"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
+                    placeholder="name@example.com"
                   />
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="space-y-1.5">
+              <motion.div variants={itemVariants} className="space-y-1.5">
                 <div className="flex justify-between items-center ml-1">
-                  <label className="text-xs font-black uppercase tracking-wider text-gray-500">Password</label>
+                  <label className="text-xs font-bold uppercase text-gray-500">Passcode</label>
                 </div>
                 <div className="relative group">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
@@ -183,46 +180,52 @@ const Login: React.FC = () => {
                     required
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                    className="w-full bg-void border border-border-neo rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-700 focus:outline-none focus:border-electric-500 focus:shadow-[4px_4px_0px_0px_#0066FF] transition-all font-medium"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
                     placeholder="••••••••"
                   />
                 </div>
-              </div>
+              </motion.div>
 
-              <button 
+              <motion.button 
+                variants={itemVariants}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 type="submit" 
                 disabled={isLoading || isBiometricLoading}
-                className="w-full py-4 bg-electric-500 text-white border-b-4 border-electric-600 rounded-xl font-black flex items-center justify-center gap-2 uppercase tracking-wider btn-neo shadow-neo-accent disabled:opacity-50 disabled:cursor-not-allowed mt-4 hover:bg-electric-400"
+                className="w-full py-4 bg-electric-600 hover:bg-electric-500 text-white rounded-xl font-black flex items-center justify-center gap-2 uppercase tracking-wider shadow-lg shadow-electric-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
               >
-                {isLoading ? <Loader2 className="animate-spin" size={20} /> : <><LogIn size={20} /> Login</>}
-              </button>
+                {isLoading ? <Loader2 className="animate-spin" size={20} /> : <><LogIn size={20} /> Authenticate</>}
+              </motion.button>
             </form>
 
-            <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-800"></div></div>
-                <div className="relative flex justify-center text-xs uppercase"><span className="bg-surface px-2 text-gray-500 font-bold">OR</span></div>
-            </div>
+            <motion.div variants={itemVariants} className="relative my-8">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
+                <div className="relative flex justify-center text-[10px] font-bold tracking-widest uppercase"><span className="bg-[#111] px-3 text-gray-500">Quick Access</span></div>
+            </motion.div>
 
-            <button 
+            <motion.button 
+                variants={itemVariants}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={handleFingerprintLogin}
                 disabled={isLoading || isBiometricLoading}
-                className="w-full py-4 bg-surface border border-neon-green/50 text-neon-green rounded-xl font-bold flex items-center justify-center gap-2 uppercase tracking-wider hover:bg-neon-green/10 transition shadow-[0_0_15px_rgba(16,185,129,0.1)] relative overflow-hidden active:scale-95"
+                className="w-full py-3 bg-white/5 border border-white/10 text-white rounded-xl font-bold flex items-center justify-center gap-3 uppercase tracking-wider hover:bg-white/10 hover:border-white/20 transition-all group"
             >
                 {isBiometricLoading ? (
-                    <><Loader2 className="animate-spin" size={20} /> Scanning...</>
+                    <><Loader2 className="animate-spin text-neon-green" size={18} /> Verifying...</>
                 ) : (
-                    <><ScanFace size={20} /> Scan Fingerprint</>
+                    <><ScanFace size={20} className="text-neon-green group-hover:scale-110 transition" /> Biometric Login</>
                 )}
-            </button>
+            </motion.button>
 
-            <div className="mt-8 text-center">
+            <motion.div variants={itemVariants} className="mt-8 text-center">
               <p className="text-gray-500 text-sm font-bold">
-                No access ID?{' '}
-                <Link to="/signup" className="text-electric-400 hover:text-electric-300 underline decoration-2 underline-offset-4 transition inline-flex items-center gap-1 group">
-                  Register Now <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform"/>
+                New to EarnHub?{' '}
+                <Link to="/signup" className="text-white hover:text-electric-400 underline decoration-2 underline-offset-4 transition inline-flex items-center gap-1 group">
+                  Create ID <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
                 </Link>
               </p>
-            </div>
+            </motion.div>
           </div>
         </div>
       </MotionDiv>

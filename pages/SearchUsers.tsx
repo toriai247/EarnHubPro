@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Search, User, ArrowRight, ExternalLink, Send, Loader2 } from 'lucide-react';
+import { Search, User, ArrowRight, ExternalLink, Send, Loader2, LogIn } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,16 @@ const SearchUsers: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [results, setResults] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isGuest, setIsGuest] = useState(true);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const checkSession = async () => {
+            const { data } = await supabase.auth.getSession();
+            setIsGuest(!data.session);
+        };
+        checkSession();
+    }, []);
 
     const handleSearch = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -95,13 +104,24 @@ const SearchUsers: React.FC = () => {
                                         >
                                             <ExternalLink size={18} />
                                         </Link>
-                                        <Link 
-                                            to={`/send-money?to=${user.user_uid}`}
-                                            className="p-2 bg-neon-green/10 rounded-lg text-neon-green hover:bg-neon-green/20 transition"
-                                            title="Send Money"
-                                        >
-                                            <Send size={18} />
-                                        </Link>
+                                        
+                                        {isGuest ? (
+                                            <Link 
+                                                to="/login"
+                                                className="p-2 bg-white/5 rounded-lg text-gray-400 hover:bg-white/10 transition"
+                                                title="Login to Send Money"
+                                            >
+                                                <LogIn size={18} />
+                                            </Link>
+                                        ) : (
+                                            <Link 
+                                                to={`/send-money?to=${user.user_uid}`}
+                                                className="p-2 bg-neon-green/10 rounded-lg text-neon-green hover:bg-neon-green/20 transition"
+                                                title="Send Money"
+                                            >
+                                                <Send size={18} />
+                                            </Link>
+                                        )}
                                     </div>
                                 </GlassCard>
                             </motion.div>

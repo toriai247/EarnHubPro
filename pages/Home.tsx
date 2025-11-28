@@ -1,11 +1,9 @@
 
-
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   TrendingUp, Gift, Zap, Users, ArrowRight, Sparkles, 
-  Activity as ActivityIcon, AlertCircle, RefreshCw, ArrowDownLeft, ArrowUpRight, Trophy
+  Activity as ActivityIcon, AlertCircle, RefreshCw, ArrowDownLeft, ArrowUpRight, Trophy, Lock, BarChart3, Rocket
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import Skeleton from '../components/Skeleton';
@@ -27,6 +25,7 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [chartData, setChartData] = useState<number[]>([]);
+  const [isGuest, setIsGuest] = useState(true);
   
   const [aiMotivation] = useState<string>('The future belongs to the bold.');
 
@@ -34,26 +33,19 @@ const Home: React.FC = () => {
     fetchData();
   }, []);
 
-  // Safety Timeout
-  useEffect(() => {
-      if (loading) {
-          const timer = setTimeout(() => {
-              if (loading) {
-                  setLoading(false);
-                  if (!wallet) setError("Network timeout. Please refresh.");
-              }
-          }, 15000);
-          return () => clearTimeout(timer);
-      }
-  }, [loading, wallet]);
-
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      
+      if (!session) {
+          setIsGuest(true);
+          setLoading(false);
+          return;
+      }
 
+      setIsGuest(false);
       let { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).maybeSingle();
 
       if (!walletData) {
@@ -93,6 +85,7 @@ const Home: React.FC = () => {
             }));
             setActivities(acts);
 
+           // Chart Data Generation
            const days = 7;
            const chartHistory: number[] = [];
            let currentBal = (walletData as WalletData).balance;
@@ -159,7 +152,7 @@ const Home: React.FC = () => {
     );
   }
   
-  if (error || !wallet) {
+  if (error && !isGuest) {
       return (
         <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
             <div className="w-16 h-16 bg-neo-red/10 rounded-full flex items-center justify-center text-neo-red border border-neo-red/20">
@@ -176,6 +169,95 @@ const Home: React.FC = () => {
       );
   }
 
+  // --- GUEST VIEW ---
+  if (isGuest) {
+      return (
+        <MotionDiv variants={container} initial="hidden" animate="show" className="space-y-8 pb-24 relative">
+            {/* Live Ticker */}
+            <div className="overflow-hidden bg-white/5 border-y border-white/10 py-2 -mx-4 sm:mx-0 sm:rounded-xl">
+                <div className="flex items-center gap-8 animate-marquee whitespace-nowrap px-4">
+                    {[
+                        { u: 'Alex**', a: '$520', t: 'Withdraw' },
+                        { u: 'Sarah**', a: '$1,200', t: 'Invest' },
+                        { u: 'Mike**', a: '$45', t: 'Game Win' },
+                        { u: 'Jone**', a: '$800', t: 'Bonus' },
+                        { u: 'Guest**', a: '$150', t: 'Deposit' },
+                        { u: 'Lisa**', a: '$2,500', t: 'Jackpot' },
+                    ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs font-mono">
+                            <span className="text-gray-400">{item.u}</span>
+                            <span className="text-neon-green font-bold">{item.a}</span>
+                            <span className="text-gray-600 text-[10px] uppercase">[{item.t}]</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Guest Hero Card */}
+            <div className="relative rounded-2xl overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-900 to-purple-900 opacity-80 group-hover:opacity-100 transition duration-500"></div>
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                
+                <div className="relative z-10 p-8 flex flex-col items-center text-center">
+                    <motion.div 
+                        animate={{ y: [0, -10, 0] }} 
+                        transition={{ duration: 3, repeat: Infinity }}
+                        className="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md mb-6 border border-white/20 shadow-2xl"
+                    >
+                        <Rocket size={40} className="text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]" />
+                    </motion.div>
+                    
+                    <h1 className="text-4xl font-display font-black text-white mb-2 uppercase tracking-tight">
+                        EarnHub <span className="text-electric-400">Pro</span>
+                    </h1>
+                    <p className="text-gray-300 text-sm mb-8 max-w-sm mx-auto leading-relaxed">
+                        The ultimate platform for daily earning, staking, and gaming. Join 50,000+ users building wealth today.
+                    </p>
+                    
+                    <div className="flex flex-col w-full gap-3 max-w-xs">
+                        <Link to="/signup" className="w-full py-4 bg-electric-500 hover:bg-electric-400 text-white rounded-xl font-black shadow-lg shadow-electric-500/20 active:scale-95 transition flex items-center justify-center gap-2 uppercase tracking-wider">
+                            Start Earning Now <ArrowRight size={18} />
+                        </Link>
+                        <Link to="/login" className="w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold backdrop-blur-md transition">
+                            Member Login
+                        </Link>
+                    </div>
+                </div>
+            </div>
+
+            {/* Feature Grid */}
+            <div>
+                <h3 className="text-sm font-black text-white mb-4 uppercase tracking-wider px-1 flex items-center gap-2">
+                    <Lock size={16} className="text-electric-500" /> Premium Features
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-white/10 transition group cursor-not-allowed">
+                        <div className="p-3 bg-green-500/10 rounded-xl mb-3 text-green-400 group-hover:scale-110 transition"><DollarSign size={24}/></div>
+                        <h4 className="font-bold text-white text-sm">Daily ROI</h4>
+                        <p className="text-[10px] text-gray-500">Up to 4.5% daily</p>
+                    </div>
+                    <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-white/10 transition group cursor-not-allowed">
+                        <div className="p-3 bg-purple-500/10 rounded-xl mb-3 text-purple-400 group-hover:scale-110 transition"><Zap size={24}/></div>
+                        <h4 className="font-bold text-white text-sm">Instant Tasks</h4>
+                        <p className="text-[10px] text-gray-500">Earn from ads</p>
+                    </div>
+                    <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-white/10 transition group cursor-not-allowed">
+                        <div className="p-3 bg-yellow-500/10 rounded-xl mb-3 text-yellow-400 group-hover:scale-110 transition"><Gift size={24}/></div>
+                        <h4 className="font-bold text-white text-sm">Bonuses</h4>
+                        <p className="text-[10px] text-gray-500">Welcome & Refer</p>
+                    </div>
+                    <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-white/10 transition group cursor-not-allowed">
+                        <div className="p-3 bg-blue-500/10 rounded-xl mb-3 text-blue-400 group-hover:scale-110 transition"><BarChart3 size={24}/></div>
+                        <h4 className="font-bold text-white text-sm">Trading</h4>
+                        <p className="text-[10px] text-gray-500">Real-time games</p>
+                    </div>
+                </div>
+            </div>
+        </MotionDiv>
+      );
+  }
+
+  // --- LOGGED IN VIEW ---
   return (
     <MotionDiv variants={container} initial="hidden" animate="show" className="space-y-8 pb-24 relative">
       
@@ -214,11 +296,11 @@ const Home: React.FC = () => {
               <div>
                 <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Asset Value</p>
                 <h1 className="text-4xl font-display font-black text-white tracking-tight">
-                  <BalanceDisplay amount={wallet.balance} isNative={true} />
+                  <BalanceDisplay amount={wallet?.balance || 0} isNative={true} />
                 </h1>
               </div>
               <div className="bg-electric-500/10 px-3 py-1.5 rounded border border-electric-500/30 text-xs font-bold text-electric-400 flex items-center gap-1">
-                <TrendingUp size={14} /> +{wallet.today_earning > 0 && wallet.balance > 0 ? ((wallet.today_earning/wallet.balance)*100).toFixed(1) : '0.0'}%
+                <TrendingUp size={14} /> +{wallet && wallet.today_earning > 0 && wallet.balance > 0 ? ((wallet.today_earning/wallet.balance)*100).toFixed(1) : '0.0'}%
               </div>
             </div>
 
@@ -231,15 +313,15 @@ const Home: React.FC = () => {
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-black/40 rounded p-3 border border-white/5">
                 <p className="text-[9px] text-gray-500 uppercase font-bold mb-1">Deposit</p>
-                <p className="font-bold text-white text-sm font-mono"><BalanceDisplay amount={wallet.deposit} isNative={true} /></p>
+                <p className="font-bold text-white text-sm font-mono"><BalanceDisplay amount={wallet?.deposit || 0} isNative={true} /></p>
               </div>
               <div className="bg-black/40 rounded p-3 border border-white/5">
                 <p className="text-[9px] text-gray-500 uppercase font-bold mb-1">Withdrawable</p>
-                <p className="font-bold text-white text-sm font-mono"><BalanceDisplay amount={wallet.withdrawable} isNative={true} /></p>
+                <p className="font-bold text-white text-sm font-mono"><BalanceDisplay amount={wallet?.withdrawable || 0} isNative={true} /></p>
               </div>
               <div className="bg-electric-900/20 rounded p-3 border border-electric-500/20">
                 <p className="text-[9px] text-electric-400 uppercase font-bold mb-1">Today</p>
-                <p className="font-bold text-electric-400 text-sm font-mono">+<BalanceDisplay amount={wallet.today_earning} isNative={true} /></p>
+                <p className="font-bold text-electric-400 text-sm font-mono">+<BalanceDisplay amount={wallet?.today_earning || 0} isNative={true} /></p>
               </div>
             </div>
 
@@ -366,3 +448,23 @@ const Home: React.FC = () => {
 };
 
 export default Home;
+
+function DollarSign(props: any) {
+    return (
+        <svg
+            {...props}
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <line x1="12" x2="12" y1="2" y2="22" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+    )
+}
