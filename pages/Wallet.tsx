@@ -6,7 +6,7 @@ import GlassCard from '../components/GlassCard';
 import Loader from '../components/Loader';
 import { 
   ArrowDownLeft, ArrowUpRight, Wallet as WalletIcon, ShieldCheck, 
-  Zap, Trophy, Gamepad2, Target, TrendingUp, Users, PieChart, Gift, ArrowRightLeft, RefreshCw, AlertCircle 
+  Zap, Trophy, Gamepad2, Target, TrendingUp, Users, PieChart, Gift, ArrowRightLeft, RefreshCw, AlertCircle, Send
 } from 'lucide-react';
 import { WalletData, Activity } from '../types';
 import { supabase } from '../integrations/supabase/client';
@@ -159,18 +159,22 @@ const Wallet: React.FC = () => {
               </p>
           </div>
           
-          <div className="grid grid-cols-3 gap-4 px-2 max-w-md mx-auto">
-             <Link to="/deposit" className="flex flex-col items-center justify-center bg-surface hover:bg-surface-hover p-3 rounded border border-border-neo group transition active:scale-95">
-                <div className="w-10 h-10 rounded bg-neo-green/10 flex items-center justify-center mb-2 text-neo-green border border-neo-green/30"><ArrowDownLeft size={20} /></div>
-                <span className="text-[10px] font-black text-gray-300 uppercase tracking-wide">Deposit</span>
+          <div className="grid grid-cols-4 gap-2 px-2 max-w-md mx-auto">
+             <Link to="/send-money" className="flex flex-col items-center justify-center bg-surface hover:bg-surface-hover p-2 rounded border border-border-neo group transition active:scale-95">
+                <div className="w-9 h-9 rounded bg-cyan-500/10 flex items-center justify-center mb-1 text-cyan-400 border border-cyan-500/30 group-hover:scale-110 transition"><Send size={18} /></div>
+                <span className="text-[9px] font-black text-gray-300 uppercase tracking-wide">Send</span>
              </Link>
-             <Link to="/transfer" className="flex flex-col items-center justify-center bg-surface hover:bg-surface-hover p-3 rounded border border-border-neo group transition active:scale-95">
-                <div className="w-10 h-10 rounded bg-electric-500/10 flex items-center justify-center mb-2 text-electric-400 border border-electric-500/30"><ArrowRightLeft size={20} /></div>
-                <span className="text-[10px] font-black text-gray-300 uppercase tracking-wide">Transfer</span>
+             <Link to="/deposit" className="flex flex-col items-center justify-center bg-surface hover:bg-surface-hover p-2 rounded border border-border-neo group transition active:scale-95">
+                <div className="w-9 h-9 rounded bg-neo-green/10 flex items-center justify-center mb-1 text-neo-green border border-neo-green/30 group-hover:scale-110 transition"><ArrowDownLeft size={18} /></div>
+                <span className="text-[9px] font-black text-gray-300 uppercase tracking-wide">Deposit</span>
              </Link>
-             <Link to="/withdraw" className="flex flex-col items-center justify-center bg-surface hover:bg-surface-hover p-3 rounded border border-border-neo group transition active:scale-95">
-                <div className="w-10 h-10 rounded bg-neo-yellow/10 flex items-center justify-center mb-2 text-neo-yellow border border-neo-yellow/30"><ArrowUpRight size={20} /></div>
-                <span className="text-[10px] font-black text-gray-300 uppercase tracking-wide">Withdraw</span>
+             <Link to="/transfer" className="flex flex-col items-center justify-center bg-surface hover:bg-surface-hover p-2 rounded border border-border-neo group transition active:scale-95">
+                <div className="w-9 h-9 rounded bg-electric-500/10 flex items-center justify-center mb-1 text-electric-400 border border-electric-500/30 group-hover:scale-110 transition"><ArrowRightLeft size={18} /></div>
+                <span className="text-[9px] font-black text-gray-300 uppercase tracking-wide">Transfer</span>
+             </Link>
+             <Link to="/withdraw" className="flex flex-col items-center justify-center bg-surface hover:bg-surface-hover p-2 rounded border border-border-neo group transition active:scale-95">
+                <div className="w-9 h-9 rounded bg-neo-yellow/10 flex items-center justify-center mb-1 text-neo-yellow border border-neo-yellow/30 group-hover:scale-110 transition"><ArrowUpRight size={18} /></div>
+                <span className="text-[9px] font-black text-gray-300 uppercase tracking-wide">Withdraw</span>
              </Link>
           </div>
         </div>

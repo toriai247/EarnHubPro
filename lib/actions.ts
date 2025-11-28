@@ -12,6 +12,16 @@ const isValidUUID = (uuid: string) => {
     return regex.test(uuid);
 };
 
+export const createNotification = async (userId: string, title: string, message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
+    await supabase.from('notifications').insert({
+        user_id: userId,
+        title,
+        message,
+        type,
+        is_read: false
+    });
+};
+
 export const createTransaction = async (userId: string, type: string, amount: number, description: string) => {
   if (!userId || typeof userId !== 'string' || userId.trim() === '') {
       console.warn(`Skipping transaction log: Invalid userId "${userId}"`);
@@ -162,6 +172,7 @@ export const createUserProfile = async (userId: string, email: string, fullName:
       if (!txCount) {
           // Log transaction
           await createTransaction(userId, 'bonus', welcomeBonus, `Welcome Bonus`);
+          await createNotification(userId, 'Welcome! 🎁', `You received a welcome bonus of $${welcomeBonus.toFixed(2)}`, 'success');
           
           if (referrerId && isValidUUID(referrerId)) {
               const { count: refTxCount } = await supabase.from('transactions')
@@ -177,21 +188,12 @@ export const createUserProfile = async (userId: string, email: string, fullName:
                       earned: 0
                   }, { onConflict: 'referred_id', ignoreDuplicates: true });
                   
-                  if (!refError) {
-                      await supabase.from('notifications').insert({
-                          user_id: referrerId,
-                          title: 'New Recruit! 🚀',
-                          message: `${fullName || 'A new user'} joined your team using code ${referralCode}.`,
-                          type: 'success'
-                      });
-                  }
+                  // DB Trigger `notify_new_referral` handles notification now
               }
           }
       }
   }
 };
-
-// ... (Rest of existing functions remain unchanged)
 
 // --- REFERRAL COMMISSION LOGIC ---
 const distributeReferralReward = async (userId: string, earningAmount: number) => {
@@ -229,12 +231,8 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
             }).eq('id', refRecord.id);
         }
 
-        await supabase.from('notifications').insert({
-            user_id: referrerProfile.id,
-            title: 'Commission Earned! 💸',
-            message: `You earned ${commission.toFixed(2)} (5%) commission.`,
-            type: 'success'
-        });
+        // Keep this manual trigger as it's specific to an activity, not just a row insert/update
+        await createNotification(referrerProfile.id, 'Commission Earned! 💸', `You earned ${commission.toFixed(2)} (5%) commission.`, 'success');
     }
 };
 
@@ -281,6 +279,11 @@ export const processGameResult = async (userId: string, gameId: string, gameName
     }
 
     await createTransaction(userId, finalProfit > 0 ? 'game_win' : 'game_loss', Math.abs(finalProfit), details);
+    
+    // Notify on BIG wins only (> $50)
+    if (finalProfit > 50) {
+        await createNotification(userId, 'Big Win! 🏆', `You won $${finalProfit.toFixed(2)} in ${gameName}!`, 'success');
+    }
 };
 
 export const claimTask = async (userId: string, task: Task) => {
@@ -349,6 +352,7 @@ export const claimInvestmentReturn = async (userId: string, investment: ActiveIn
         await updateWallet(userId, investment.amount, 'increment', 'main_balance');
         await createTransaction(userId, 'earn', investment.amount, `Capital Return: ${investment.plan_name}`);
         await supabase.from('investments').update({ status: 'completed' }).eq('id', investment.id);
+        // DB Trigger `notify_investment_complete` handles notification
     }
 };
 
@@ -433,10 +437,5 @@ export const processMonthlyPayment = async (userId: string, balance: number, met
         processed_at: new Date().toISOString()
     });
 
-    await supabase.from('notifications').insert({
-        user_id: userId,
-        title: 'Monthly Payment Sent',
-        message: `We have sent $${totalPayout.toFixed(2)} (includes 2% bonus) to your ${method} account.`,
-        type: 'success'
-    });
+    // Notification is handled by the new database trigger on withdraw_requests table
 };

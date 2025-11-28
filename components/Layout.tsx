@@ -1,9 +1,9 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Crown, Trophy, Globe, Menu, X, 
-  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send
+  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send, Search
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useTheme } from '../context/ThemeContext';
@@ -11,8 +11,12 @@ import BalanceDisplay from './BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSystem } from '../context/SystemContext';
 import MaintenanceScreen from './MaintenanceScreen';
+import { useUI } from '../context/UIContext';
 
 const MotionDiv = motion.div as any;
+
+// Simple notification sound (Base64 MP3)
+const NOTIFICATION_SOUND = "data:audio/mp3;base64,SUQzBAAAAAABAFRYWFgAAAASAAADbWFqb3JfYnJhbmQAbXA0MgBUWFhYAAAAEQAAA21pbm9yX3ZlcnNpb24AMABVFhAAAAAAAAAAAAAAAAAAAAAA//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,6 +24,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
+  const { toast } = useUI();
   const { isFeatureEnabled, config } = useSystem();
   const [balance, setBalance] = useState<number>(0);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -27,6 +32,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
+  const [sessionUser, setSessionUser] = useState<any>(null);
+  
+  // Audio Ref
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   
   const isVideoPage = location.pathname === '/video';
   const isHomePage = location.pathname === '/';
@@ -43,6 +52,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const menuItems = [
       // Add Admin Panel if Admin (Dynamic)
       ...(isAdmin ? [{ path: '/admin', icon: LayoutDashboard, label: 'Admin Panel', color: 'text-red-400', bg: 'bg-red-500/10', enabled: true }] : []),
+      { path: '/search', icon: Search, label: 'Find User', color: 'text-blue-400', bg: 'bg-blue-500/10', enabled: true },
       { path: '/send-money', icon: Send, label: 'Send Money', color: 'text-cyan-400', bg: 'bg-cyan-500/10', enabled: true },
       { path: '/transfer', icon: ArrowRightLeft, label: 'Transfer Funds', color: 'text-electric-400', bg: 'bg-electric-500/10', enabled: true },
       { path: '/exchange', icon: Globe, label: 'Exchange', color: 'text-neo-green', bg: 'bg-neo-green/10', enabled: true },
@@ -54,10 +64,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       { path: '/terms', icon: FileText, label: 'Terms', color: 'text-gray-400', bg: 'bg-gray-500/10', enabled: true },
   ].filter(i => i.enabled);
 
+  // Initial Data Fetch
   useEffect(() => {
+    // Initialize Audio
+    audioRef.current = new Audio(NOTIFICATION_SOUND);
+
     const fetchData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
+      setSessionUser(session.user);
 
       // Check Profile for Suspension & Admin Status
       const { data: profile } = await supabase.from('profiles').select('level_1, admin_user, is_suspended').eq('id', session.user.id).single();
@@ -65,12 +80,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       if (profile) {
           if (profile.is_suspended) {
               setIsSuspended(true);
-              return; // Stop loading other data
+              return; 
           }
           setLevel(profile.level_1);
           setIsAdmin(profile.admin_user || false);
       }
 
+      // Initial Fetch of Balance and Notifications
       const [walletRes, notifRes] = await Promise.allSettled([
         supabase.from('wallets').select('balance').eq('user_id', session.user.id).single(),
         supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('is_read', false),
@@ -85,6 +101,49 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     window.addEventListener('wallet_updated', handleWalletUpdate);
     return () => window.removeEventListener('wallet_updated', handleWalletUpdate);
   }, [location.pathname]);
+
+  // Real-Time Notification Listener
+  useEffect(() => {
+      if (!sessionUser) return;
+
+      const sub = supabase
+          .channel(`user-notifications-${sessionUser.id}`)
+          .on('postgres_changes', { 
+              event: 'INSERT', 
+              schema: 'public', 
+              table: 'notifications', 
+              filter: `user_id=eq.${sessionUser.id}` 
+          }, (payload) => {
+              // New notification received
+              const newNotif = payload.new;
+              setUnreadCount(prev => prev + 1);
+              
+              // 1. Play Sound
+              if (audioRef.current) {
+                  audioRef.current.play().catch(e => console.log("Audio play failed (interaction needed)", e));
+              }
+
+              // 2. Show In-App Toast
+              if (newNotif.type === 'success') toast.success(newNotif.title);
+              else if (newNotif.type === 'error') toast.error(newNotif.title);
+              else if (newNotif.type === 'warning') toast.warning(newNotif.title);
+              else toast.info(newNotif.title);
+
+              // 3. Trigger System Notification (Phone Bar)
+              if (Notification.permission === 'granted') {
+                  new Notification(newNotif.title, {
+                      body: newNotif.message,
+                      icon: '/icon-192x192.png',
+                      badge: '/icon-96x96.png',
+                      // @ts-ignore
+                      vibrate: [200, 100, 200]
+                  });
+              }
+          })
+          .subscribe();
+
+      return () => { sub.unsubscribe(); };
+  }, [sessionUser]);
 
   const handleLogout = async () => {
       await supabase.auth.signOut();
@@ -148,7 +207,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </Link>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            
+            {/* Search Button */}
+            <Link to="/search" className="p-2 rounded-lg bg-surface hover:bg-surface-hover transition text-white border border-border-neo shadow-neo-sm">
+                <Search size={20} />
+            </Link>
+
             {!isHomePage && (
               <>
                 <div className="hidden sm:flex px-3 py-1.5 rounded bg-surface border border-neo-yellow/50 text-xs font-bold text-neo-yellow items-center gap-1 shadow-[2px_2px_0px_0px_rgba(255,204,0,0.3)]">
@@ -161,7 +226,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             )}
             
             <Link to="/notifications" className="relative p-2 rounded-lg bg-surface hover:bg-surface-hover transition text-white border border-border-neo shadow-neo-sm active:translate-y-0.5 active:shadow-none">
-              <Bell size={20} />
+              <Bell size={20} className={unreadCount > 0 ? "animate-pulse" : ""} />
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-neo-red rounded-full border-2 border-surface"></span>
               )}
@@ -268,7 +333,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                               <LogOut size={18} /> LOG OUT
                           </button>
                           <div className="mt-4 text-center text-[10px] text-gray-600 font-black font-mono">
-                              EARNHUB PRO v4.2.0
+                              EARNHUB PRO v4.5.2
                           </div>
                       </div>
                   </MotionDiv>

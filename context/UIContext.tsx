@@ -11,14 +11,6 @@ interface Toast {
   type: ToastType;
 }
 
-interface ConfirmOptions {
-  title: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  type?: 'danger' | 'info' | 'success';
-}
-
 interface UIContextType {
   toast: {
     success: (msg: string) => void;
@@ -27,17 +19,21 @@ interface UIContextType {
     warning: (msg: string) => void;
   };
   confirm: (message: string, title?: string) => Promise<boolean>;
+  alert: (message: string, title?: string) => Promise<void>;
 }
 
 const UIContext = createContext<UIContextType | undefined>(undefined);
 
 export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [confirmDialog, setConfirmDialog] = useState<{
+  
+  // Unified Modal State for Confirm and Alert
+  const [modal, setModal] = useState<{
     isOpen: boolean;
+    type: 'confirm' | 'alert';
     title: string;
     message: string;
-    resolve: (val: boolean) => void;
+    resolve: (val: any) => void;
   } | null>(null);
 
   // --- TOAST LOGIC ---
@@ -58,11 +54,12 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     warning: (msg: string) => addToast(msg, 'warning'),
   };
 
-  // --- CONFIRM LOGIC ---
+  // --- POPUP LOGIC ---
   const confirm = useCallback((message: string, title: string = 'Are you sure?') => {
     return new Promise<boolean>((resolve) => {
-      setConfirmDialog({
+      setModal({
         isOpen: true,
+        type: 'confirm',
         title,
         message,
         resolve,
@@ -70,15 +67,27 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     });
   }, []);
 
-  const handleConfirm = (result: boolean) => {
-    if (confirmDialog) {
-      confirmDialog.resolve(result);
-      setConfirmDialog(null);
+  const alert = useCallback((message: string, title: string = 'Notice') => {
+    return new Promise<void>((resolve) => {
+      setModal({
+        isOpen: true,
+        type: 'alert',
+        title,
+        message,
+        resolve: () => resolve(undefined),
+      });
+    });
+  }, []);
+
+  const handleCloseModal = (result: boolean) => {
+    if (modal) {
+      modal.resolve(result);
+      setModal(null);
     }
   };
 
   return (
-    <UIContext.Provider value={{ toast, confirm }}>
+    <UIContext.Provider value={{ toast, confirm, alert }}>
       {children}
 
       {/* TOAST CONTAINER */}
@@ -117,15 +126,15 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         </AnimatePresence>
       </div>
 
-      {/* CONFIRM MODAL */}
+      {/* GLOBAL POPUP MODAL (CONFIRM & ALERT) */}
       <AnimatePresence>
-        {confirmDialog && (
+        {modal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => handleConfirm(false)}
+            onClick={() => modal.type === 'confirm' ? handleCloseModal(false) : handleCloseModal(true)}
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
@@ -135,25 +144,35 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
               className="bg-dark-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative overflow-hidden"
             >
               {/* Background FX */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-royal-600 via-neon-green to-royal-600"></div>
+              <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${modal.type === 'alert' ? 'from-red-600 via-orange-500 to-red-600' : 'from-royal-600 via-neon-green to-royal-600'}`}></div>
               
-              <h3 className="text-xl font-bold text-white mb-2">{confirmDialog.title}</h3>
-              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                {confirmDialog.message}
+              <div className="flex items-center gap-3 mb-4">
+                  {modal.type === 'alert' && <AlertTriangle className="text-red-500" size={24} />}
+                  <h3 className="text-xl font-bold text-white">{modal.title}</h3>
+              </div>
+              
+              <p className="text-gray-400 text-sm mb-6 leading-relaxed whitespace-pre-line">
+                {modal.message}
               </p>
               
               <div className="flex gap-3">
+                {modal.type === 'confirm' && (
+                    <button
+                      onClick={() => handleCloseModal(false)}
+                      className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white text-sm font-bold rounded-xl transition border border-white/5"
+                    >
+                      Cancel
+                    </button>
+                )}
                 <button
-                  onClick={() => handleConfirm(false)}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white text-sm font-bold rounded-xl transition border border-white/5"
+                  onClick={() => handleCloseModal(true)}
+                  className={`flex-1 py-3 text-white text-sm font-bold rounded-xl transition shadow-lg ${
+                      modal.type === 'alert' 
+                      ? 'bg-white text-black hover:bg-gray-200' 
+                      : 'bg-gradient-to-r from-royal-600 to-royal-500 hover:from-royal-500 hover:to-royal-400 shadow-royal-600/20'
+                  }`}
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleConfirm(true)}
-                  className="flex-1 py-3 bg-gradient-to-r from-royal-600 to-royal-500 hover:from-royal-500 hover:to-royal-400 text-white text-sm font-bold rounded-xl transition shadow-lg shadow-royal-600/20"
-                >
-                  Confirm
+                  {modal.type === 'alert' ? 'OK' : 'Confirm'}
                 </button>
               </div>
             </motion.div>

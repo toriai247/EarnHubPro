@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { ArrowLeft, ArrowRightLeft, Wallet, ChevronDown, ArrowDown, ShieldCheck, AlertCircle, CheckCircle2, X } from 'lucide-react';
@@ -10,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import BalanceDisplay from '../components/BalanceDisplay';
 
 const Transfer: React.FC = () => {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, alert } = useUI();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -106,8 +107,16 @@ const Transfer: React.FC = () => {
       
       const val = parseFloat(amount);
       if (isNaN(val) || val <= 0) { toast.error("Invalid amount"); return; }
-      if (!toWallet) { toast.error("Invalid destination for this wallet."); return; }
-      if (val > getBalance(fromWallet)) { toast.error("Insufficient balance in source wallet."); return; }
+      if (!toWallet) { await alert("Invalid destination for this wallet.", "Configuration Error"); return; }
+      
+      const available = getBalance(fromWallet);
+      if (val > available) { 
+          await alert(
+              `Insufficient funds in ${wallets.find(w => w.id === fromWallet)?.label}.\n\nRequired: $${val.toFixed(2)}\nAvailable: $${available.toFixed(2)}`,
+              "Transfer Failed"
+          ); 
+          return; 
+      }
 
       const sourceLabel = wallets.find(w => w.id === fromWallet)?.label;
       const destLabel = wallets.find(w => w.id === toWallet)?.label;
@@ -145,7 +154,7 @@ const Transfer: React.FC = () => {
           if (msg.includes('violates check constraint') || msg.includes('transactions_type_check')) {
               msg = "System Error: Database transaction type missing. Please contact Admin.";
           }
-          toast.error(msg);
+          await alert(msg, "Error");
       } finally {
           setProcessing(false);
       }

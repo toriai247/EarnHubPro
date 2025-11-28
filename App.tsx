@@ -17,9 +17,11 @@ import Wallet from './pages/Wallet';
 import Deposit from './pages/Deposit';
 import Withdraw from './pages/Withdraw';
 import Transfer from './pages/Transfer';
-import SendMoney from './pages/SendMoney'; // Import
+import SendMoney from './pages/SendMoney'; 
 import Exchange from './pages/Exchange'; 
 import Profile from './pages/Profile';
+import PublicProfile from './pages/PublicProfile';
+import SearchUsers from './pages/SearchUsers'; 
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Notifications from './pages/Notifications';
@@ -75,6 +77,13 @@ const AppContent: React.FC = () => {
         const { data, error } = await supabase.auth.getSession();
         if (error) console.error("Session error:", error);
         setSession(data.session);
+        
+        // Request Notification Permission on successful session check
+        if (data.session) {
+            if (Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        }
       } catch (e) {
         console.error("Unexpected auth error:", e);
       } finally {
@@ -87,6 +96,11 @@ const AppContent: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
+      
+      // Request Permission on login event
+      if (session && Notification.permission === 'default') {
+          Notification.requestPermission();
+      }
     });
 
     return () => {
@@ -136,6 +150,9 @@ const AppContent: React.FC = () => {
         <Route path="/exchange" element={<Exchange />} />
         
         <Route path="/profile" element={<Profile />} />
+        <Route path="/u/:uid" element={<PublicProfile />} /> 
+        <Route path="/search" element={<SearchUsers />} /> 
+        
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/biometric-setup" element={<BiometricSetup />} />
         <Route path="/support" element={<Support />} />

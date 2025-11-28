@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -27,6 +27,7 @@ import MonthlyPay from './MonthlyPay';
 import OffSystems from './OffSystems'; 
 import HelpRequests from './HelpRequests';
 import DatabaseUltra from './DatabaseUltra';
+import NotiSender from './NotiSender';
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ const Admin: React.FC = () => {
     { id: 'home', icon: Home, label: 'Back to App', path: '/' },
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
     { id: 'database_ultra', icon: HardDrive, label: 'Database Ultra', color: 'text-cyan-400', path: '/admin/database_ultra' },
+    { id: 'noti_sender', icon: BellRing, label: 'Noti Sender', color: 'text-yellow-400', path: '/admin/noti_sender' },
     { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400', path: '/admin/off_systems' }, 
     { id: 'help_requests', icon: LifeBuoy, label: 'Support Inbox', color: 'text-blue-400', path: '/admin/help_requests' },
     { id: 'users', icon: Users, label: 'User Admin', path: '/admin/users' },
@@ -129,6 +131,7 @@ const Admin: React.FC = () => {
       switch(activeSection) {
           case 'dashboard': return <Dashboard />;
           case 'database_ultra': return <DatabaseUltra />;
+          case 'noti_sender': return <NotiSender />;
           case 'off_systems': return <OffSystems />;
           case 'help_requests': return <HelpRequests />;
           case 'users': return <UserManagement onSelectUser={setSelectedUserId} />;

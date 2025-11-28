@@ -11,7 +11,7 @@ import { useCurrency } from '../context/CurrencyContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 
 const Withdraw: React.FC = () => {
-  const { toast } = useUI();
+  const { toast, alert } = useUI();
   const { rate, symbol, currency } = useCurrency();
   const [balance, setBalance] = useState(0);
   const [amount, setAmount] = useState('');
@@ -35,7 +35,10 @@ const Withdraw: React.FC = () => {
       e.preventDefault();
       if (!amount) return;
       const val = parseFloat(amount);
-      if (val > balance) { toast.error("Insufficient Balance"); return; }
+      if (val > balance) { 
+          await alert(`Insufficient Withdrawable Balance.\n\nRequested: $${val.toFixed(2)}\nAvailable: $${balance.toFixed(2)}`, "Transaction Failed");
+          return; 
+      }
       
       setLoading(true);
       try {
@@ -44,7 +47,7 @@ const Withdraw: React.FC = () => {
           setAmount('');
           setBalance(prev => prev - val);
       } catch (e: any) {
-          toast.error(e.message);
+          await alert(e.message, "Withdrawal Error");
       }
       setLoading(false);
   };

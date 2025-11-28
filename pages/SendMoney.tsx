@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, User, Search, Send, ShieldCheck, DollarSign, Loader2, CheckCircle } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, User, Search, Send, ShieldCheck, DollarSign, Loader2, CheckCircle, Copy, AtSign, Hash } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { useUI } from '../context/UIContext';
 import { useSystem } from '../context/SystemContext';
@@ -9,18 +10,20 @@ import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Recipient {
-    uid: string;
+    uid: number;
     name: string;
     avatar: string;
+    email: string;
 }
 
 const SendMoney: React.FC = () => {
-    const { toast, confirm } = useUI();
+    const { toast, confirm, alert } = useUI();
     const { config } = useSystem();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     
     const [balance, setBalance] = useState(0);
-    const [recipientId, setRecipientId] = useState('');
+    const [searchInput, setSearchInput] = useState(searchParams.get('to') || '');
     const [recipient, setRecipient] = useState<Recipient | null>(null);
     const [amount, setAmount] = useState('');
     const [loading, setLoading] = useState(false);
@@ -32,20 +35,23 @@ const SendMoney: React.FC = () => {
 
     useEffect(() => {
         fetchInitialData();
+        if (searchParams.get('to')) {
+            lookupRecipient(searchParams.get('to')!);
+        }
     }, []);
 
-    // Debounce search
+    // Debounce search input
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
-            if (recipientId.length === 8) {
-                lookupRecipient(recipientId);
-            } else {
+            if (searchInput && !recipient) {
+                lookupRecipient(searchInput);
+            } else if (!searchInput) {
                 setRecipient(null);
             }
         }, 800);
 
         return () => clearTimeout(delayDebounceFn);
-    }, [recipientId]);
+    }, [searchInput]);
 
     const fetchInitialData = async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -58,50 +64,76 @@ const SendMoney: React.FC = () => {
         }
     };
 
-    const lookupRecipient = async (uidStr: string) => {
-        if (!uidStr || uidStr.length < 8) return;
+    const lookupRecipient = async (input: string) => {
+        if (!input || input.length < 4) return; // Min length check
+        
         setSearching(true);
-        const uid = parseInt(uidStr);
-        
-        if (uid === myUid) {
-            toast.error("You cannot send money to yourself.");
-            setSearching(false);
-            return;
-        }
+        setRecipient(null); // Clear previous result while searching
 
-        const { data } = await supabase.from('profiles')
-            .select('name_1, avatar_1')
-            .eq('user_uid', uid)
-            .maybeSingle();
-        
-        if (data) {
-            setRecipient({
-                uid: uidStr,
-                name: data.name_1 || 'Unknown User',
-                avatar: data.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.name_1}`
-            });
-        } else {
-            toast.error("User not found");
-            setRecipient(null);
+        try {
+            let query = supabase.from('profiles').select('user_uid, name_1, avatar_1, email_1');
+            let isId = false;
+
+            if (input.includes('@')) {
+                // Email Search
+                query = query.eq('email_1', input);
+            } else if (/^\d+$/.test(input) && input.length === 8) {
+                // ID Search (Must be 8 digits)
+                query = query.eq('user_uid', parseInt(input));
+                isId = true;
+            } else {
+                setSearching(false);
+                return;
+            }
+
+            const { data, error } = await query.maybeSingle();
+
+            if (data) {
+                if (data.user_uid === myUid) {
+                    toast.error("You cannot send money to yourself.");
+                } else {
+                    setRecipient({
+                        uid: data.user_uid,
+                        name: data.name_1 || 'Unknown User',
+                        avatar: data.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.name_1}`,
+                        email: data.email_1
+                    });
+                }
+            } else if (input.length >= 8 || input.includes('@')) {
+                // Only show not found if input looks complete
+                toast.error("User not found");
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setSearching(false);
         }
-        setSearching(false);
     };
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!recipient) { toast.error("Please enter a valid Recipient ID"); return; }
+        if (!recipient) { toast.error("Please select a valid recipient"); return; }
         
         const val = parseFloat(amount);
         if (isNaN(val) || val <= 0) { toast.error("Invalid amount"); return; }
-        if (val < minTransfer) { toast.error(`Minimum transfer is $${minTransfer}`); return; }
+        if (val < minTransfer) { 
+            await alert(`The minimum transfer amount is $${minTransfer}.`, "Validation Error"); 
+            return; 
+        }
         
         const fee = (val * feePercent) / 100;
         const total = val + fee;
 
-        if (total > balance) { toast.error("Insufficient Main Balance (Amount + Fee)"); return; }
+        if (total > balance) { 
+            await alert(
+                `Insufficient Main Balance.\n\nAmount: $${val.toFixed(2)}\nFee: $${fee.toFixed(2)}\nTotal Required: $${total.toFixed(2)}\nAvailable: $${balance.toFixed(2)}`, 
+                "Transaction Failed"
+            ); 
+            return; 
+        }
 
         const confirmed = await confirm(
-            `Send $${val.toFixed(2)} to ${recipient.name}? \n\nFee: $${fee.toFixed(2)}\nTotal Deducted: $${total.toFixed(2)}`,
+            `Send $${val.toFixed(2)} to ${recipient.name}? \n\nRecipient ID: ${recipient.uid}\nFee: $${fee.toFixed(2)}\nTotal Deducted: $${total.toFixed(2)}`,
             "Confirm Transfer"
         );
 
@@ -114,7 +146,7 @@ const SendMoney: React.FC = () => {
 
             const { data, error } = await supabase.rpc('p2p_transfer_funds', {
                 p_sender_id: session.user.id,
-                p_receiver_uid: parseInt(recipient.uid),
+                p_receiver_uid: recipient.uid,
                 p_amount: val
             });
 
@@ -124,11 +156,11 @@ const SendMoney: React.FC = () => {
             toast.success("Funds Sent Successfully!");
             setAmount('');
             setRecipient(null);
-            setRecipientId('');
+            setSearchInput('');
             fetchInitialData(); // Refresh balance
             
         } catch (e: any) {
-            toast.error(e.message || "Transfer failed");
+            await alert(e.message || "Transfer failed", "System Error");
         } finally {
             setLoading(false);
         }
@@ -153,9 +185,16 @@ const SendMoney: React.FC = () => {
                         <BalanceDisplay amount={balance} />
                     </h2>
                     {myUid && (
-                        <div className="mt-2 inline-flex items-center gap-2 bg-black/30 px-3 py-1 rounded-full border border-white/10">
-                            <span className="text-[10px] text-gray-400 font-bold uppercase">My ID:</span>
-                            <span className="text-sm font-mono font-bold text-white select-all">{myUid}</span>
+                        <div 
+                            className="mt-4 flex items-center justify-between bg-black/30 px-4 py-2 rounded-xl border border-white/10"
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-400 font-bold uppercase">My ID:</span>
+                                <span className="text-sm font-mono font-bold text-white select-all">{myUid}</span>
+                            </div>
+                            <button onClick={() => { navigator.clipboard.writeText(myUid.toString()); toast.success('ID Copied'); }} className="text-gray-400 hover:text-white">
+                                <Copy size={14} />
+                            </button>
                         </div>
                     )}
                 </GlassCard>
@@ -163,17 +202,20 @@ const SendMoney: React.FC = () => {
                 <form onSubmit={handleSend} className="space-y-6">
                     {/* Recipient Input */}
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-400 uppercase ml-1">Recipient ID (8 Digits)</label>
+                        <label className="text-xs font-bold text-gray-400 uppercase ml-1">Recipient (ID or Email)</label>
                         <div className="relative">
-                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                                {searchInput.includes('@') ? <AtSign size={18} /> : <Hash size={18} />}
+                            </div>
                             <input 
-                                type="number" 
-                                value={recipientId}
+                                type="text" 
+                                value={searchInput}
                                 onChange={e => {
-                                    if(e.target.value.length <= 8) setRecipientId(e.target.value);
+                                    setSearchInput(e.target.value);
+                                    if(e.target.value === '') setRecipient(null);
                                 }}
                                 className={`w-full bg-black/40 border rounded-xl py-4 pl-12 pr-4 text-white font-mono text-lg focus:outline-none transition ${recipient ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.2)]' : 'border-white/10 focus:border-cyan-500'}`}
-                                placeholder="e.g. 27539878"
+                                placeholder="8-digit ID or Email"
                             />
                             {searching && (
                                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -187,19 +229,23 @@ const SendMoney: React.FC = () => {
                     <AnimatePresence>
                         {recipient && (
                             <motion.div 
-                                initial={{ opacity: 0, height: 0 }} 
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
+                                initial={{ opacity: 0, height: 0, y: -10 }} 
+                                animate={{ opacity: 1, height: 'auto', y: 0 }}
+                                exit={{ opacity: 0, height: 0, y: -10 }}
                                 className="overflow-hidden"
                             >
-                                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-center gap-4">
-                                    <img src={recipient.avatar} alt={recipient.name} className="w-12 h-12 rounded-full border-2 border-green-500" />
-                                    <div>
-                                        <p className="text-xs text-green-400 font-bold uppercase">Verified User</p>
-                                        <h3 className="text-white font-bold text-lg">{recipient.name}</h3>
-                                        <p className="text-xs text-gray-400 font-mono">ID: {recipient.uid}</p>
+                                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-center gap-4 relative">
+                                    <div className="relative">
+                                        <img src={recipient.avatar} alt={recipient.name} className="w-12 h-12 rounded-full border-2 border-green-500" />
+                                        <div className="absolute -bottom-1 -right-1 bg-green-500 text-black p-0.5 rounded-full"><CheckCircle size={10} strokeWidth={4} /></div>
                                     </div>
-                                    <CheckCircle size={24} className="text-green-500 ml-auto" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] text-green-400 font-bold uppercase tracking-wide">Verified Receiver</p>
+                                        <h3 className="text-white font-bold text-lg truncate">{recipient.name}</h3>
+                                        <p className="text-xs text-gray-400 font-mono flex items-center gap-2">
+                                            ID: {recipient.uid}
+                                        </p>
+                                    </div>
                                 </div>
                             </motion.div>
                         )}

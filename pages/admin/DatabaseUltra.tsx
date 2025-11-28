@@ -3,9 +3,9 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { 
-    Database, Download, Upload, Server, ShieldCheck, 
+    Database, Download, Server, ShieldCheck, 
     FileJson, Clock, RefreshCw, Loader2, 
-    Code, Terminal, Save, Activity, Trash2, HardDrive, Globe, Copy, Table, AlertTriangle, Skull
+    Code, Terminal, Save, Trash2, HardDrive, Globe, Copy, Table, AlertTriangle, Skull, Users, BellRing, Radio
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,54 +21,163 @@ const TABLE_LIST = [
     'video_submissions', 'wallets', 'withdraw_requests', 'withdrawal_settings'
 ];
 
-// The Schema SQL provided by the user
-const FULL_SCHEMA_SQL = `-- WARNING: This schema is for recovery purposes.
+const BROADCAST_SQL = `-- NOTIFICATION SYSTEM SETUP
+-- Run this to fix "Function not found" and "Policy already exists" errors.
 
-CREATE TABLE public.active_ludo_matches (
-  user_id uuid NOT NULL,
-  game_state jsonb NOT NULL,
-  stake_amount numeric NOT NULL,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT active_ludo_matches_pkey PRIMARY KEY (user_id),
-  CONSTRAINT active_ludo_matches_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+-- 1. DROP EXISTING OBJECTS TO AVOID CONFLICTS
+DROP FUNCTION IF EXISTS admin_broadcast_notification(TEXT, TEXT, TEXT);
+DROP POLICY IF EXISTS "Users can view own notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Admins can insert notifications" ON public.notifications;
+
+-- 2. CREATE TABLE (If not exists)
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  type TEXT CHECK (type IN ('info', 'success', 'warning', 'error')) DEFAULT 'info',
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-CREATE TABLE public.bot_profiles (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  avatar text,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT bot_profiles_pkey PRIMARY KEY (id)
+
+-- 3. ENABLE RLS
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- 4. CREATE POLICIES
+CREATE POLICY "Users can view own notifications"
+ON public.notifications FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can insert notifications"
+ON public.notifications FOR INSERT
+TO authenticated
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND admin_user = true
+  )
 );
--- ... (Schema continues for all tables)
+
+-- 5. CREATE BROADCAST FUNCTION
+CREATE OR REPLACE FUNCTION admin_broadcast_notification(
+    p_title TEXT,
+    p_message TEXT,
+    p_type TEXT
+) RETURNS VOID AS $$
+BEGIN
+    -- Insert notification for every active user profile
+    INSERT INTO notifications (user_id, title, message, type, is_read)
+    SELECT id, p_title, p_message, p_type, false
+    FROM profiles
+    WHERE is_suspended = false;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+`;
+
+const NOTIFICATION_TRIGGERS_SQL = `-- AUTO NOTIFICATION SYSTEM V2
+-- Run this to enable automatic notifications for Deposits, Withdrawals, and Referrals.
+
+-- 1. Function to Notify on Deposit Status Change
+CREATE OR REPLACE FUNCTION notify_deposit_update() RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status = 'approved' AND OLD.status != 'approved' THEN
+    INSERT INTO notifications (user_id, title, message, type, is_read)
+    VALUES (NEW.user_id, 'Deposit Successful', 'Your deposit of $' || NEW.amount || ' via ' || NEW.method_name || ' has been approved.', 'success', false);
+  ELSIF NEW.status = 'rejected' AND OLD.status != 'rejected' THEN
+    INSERT INTO notifications (user_id, title, message, type, is_read)
+    VALUES (NEW.user_id, 'Deposit Rejected', 'Your deposit request was rejected. Reason: ' || COALESCE(NEW.admin_note, 'Contact Support'), 'error', false);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_deposit_update ON deposit_requests;
+CREATE TRIGGER on_deposit_update
+AFTER UPDATE ON deposit_requests
+FOR EACH ROW EXECUTE FUNCTION notify_deposit_update();
+
+-- 2. Function to Notify on Withdrawal Status Change
+CREATE OR REPLACE FUNCTION notify_withdraw_update() RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status = 'approved' AND OLD.status != 'approved' THEN
+    INSERT INTO notifications (user_id, title, message, type, is_read)
+    VALUES (NEW.user_id, 'Payment Sent', 'Your withdrawal of $' || NEW.amount || ' has been processed successfully.', 'success', false);
+  ELSIF NEW.status = 'rejected' AND OLD.status != 'rejected' THEN
+    INSERT INTO notifications (user_id, title, message, type, is_read)
+    VALUES (NEW.user_id, 'Withdrawal Refunded', 'Your withdrawal request was rejected and funds returned.', 'error', false);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_withdraw_update ON withdraw_requests;
+CREATE TRIGGER on_withdraw_update
+AFTER UPDATE ON withdraw_requests
+FOR EACH ROW EXECUTE FUNCTION notify_withdraw_update();
+
+-- 3. Function to Notify on New Referral
+CREATE OR REPLACE FUNCTION notify_new_referral() RETURNS TRIGGER AS $$
+DECLARE
+  referrer_name TEXT;
+  new_user_name TEXT;
+BEGIN
+  SELECT name_1 INTO new_user_name FROM profiles WHERE id = NEW.referred_id;
+  
+  INSERT INTO notifications (user_id, title, message, type, is_read)
+  VALUES (NEW.referrer_id, 'New Team Member', COALESCE(new_user_name, 'A new user') || ' has joined your team!', 'info', false);
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_referral_add ON referrals;
+CREATE TRIGGER on_referral_add
+AFTER INSERT ON referrals
+FOR EACH ROW EXECUTE FUNCTION notify_new_referral();
+
+-- 4. Function to Notify on Investment Completion
+CREATE OR REPLACE FUNCTION notify_investment_complete() RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status = 'completed' AND OLD.status != 'completed' THEN
+    INSERT INTO notifications (user_id, title, message, type, is_read)
+    VALUES (NEW.user_id, 'Plan Matured', 'Your investment plan ' || NEW.plan_name || ' has finished. Capital returned.', 'success', false);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS on_investment_update ON investments;
+CREATE TRIGGER on_investment_update
+AFTER UPDATE ON investments
+FOR EACH ROW EXECUTE FUNCTION notify_investment_complete();
+`;
+
+const PUBLIC_PROFILE_SQL = `-- ENABLE PUBLIC PROFILES & USER SEARCH
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON "public"."profiles";
+
+CREATE POLICY "Enable read access for authenticated users"
+ON "public"."profiles"
+AS PERMISSIVE
+FOR SELECT
+TO authenticated
+USING (true);
 `;
 
 const RESET_SCRIPT_SQL = `-- DANGER: SYSTEM RESET SCRIPT
 -- This will delete ALL transaction history but keep user accounts.
--- Everyone gets $1.00 USD (120 TK) Bonus.
-
 BEGIN;
-
--- 1. Wipe All Transaction History
 TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, referrals, user_tasks, video_submissions, active_ludo_matches CASCADE;
-
--- 2. Reset All Wallets to 0.00
 UPDATE wallets SET 
   balance = 0, main_balance = 0, deposit_balance = 0, 
   game_balance = 0, earning_balance = 0, investment_balance = 0, 
   referral_balance = 0, commission_balance = 0, bonus_balance = 0,
   deposit = 0, withdrawable = 0, total_earning = 0, 
   today_earning = 0, pending_withdraw = 0, referral_earnings = 0;
-
--- 3. Give 120 TK Bonus (Calculated as $1.00 USD)
 UPDATE wallets SET bonus_balance = 1.00;
-
--- 4. Log the Bonus Transaction
 INSERT INTO transactions (id, user_id, type, amount, status, description, created_at)
 SELECT gen_random_uuid(), user_id, 'bonus', 1.00, 'success', 'System Reset Bonus (120 TK)', now()
 FROM wallets;
-
 COMMIT;
 `;
 
@@ -100,7 +209,6 @@ const DatabaseUltra: React.FC = () => {
 
     const fetchTableCounts = async () => {
         const counts: Record<string, number> = {};
-        // Process in batches to avoid network congestion but here we'll do parallel for speed in admin panel
         const promises = TABLE_LIST.map(async (table) => {
             const { count } = await supabase.from(table).select('*', { count: 'exact', head: true });
             return { table, count: count || 0 };
@@ -140,7 +248,6 @@ const DatabaseUltra: React.FC = () => {
             setTimeUntilBackup(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
 
             if (diff <= 1000 && diff > 0) {
-                console.log("Auto-backup trigger time reached.");
                 handleGenerateBackup(true);
             }
         }, 1000);
@@ -155,9 +262,6 @@ const DatabaseUltra: React.FC = () => {
         });
         if (data) {
             setBackups(data as BackupFile[]);
-        }
-        if (error && error.message.includes('bucket not found')) {
-            toast.error("Bucket 'db-backups' not found. Please run SQL setup.");
         }
     };
 
@@ -193,17 +297,19 @@ const DatabaseUltra: React.FC = () => {
 
             if (uploadError) throw uploadError;
 
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-            if (!isAuto) toast.success("Backup Uploaded & Downloaded!");
-            else toast.info("Daily Backup Completed.");
+            if (!isAuto) {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                toast.success("Backup Uploaded & Downloaded!");
+            } else {
+                toast.info("Daily Backup Completed.");
+            }
             
             fetchBackups();
 
@@ -381,34 +487,6 @@ const DatabaseUltra: React.FC = () => {
                                 ))}
                             </div>
                         </div>
-
-                        <GlassCard>
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <Code className="text-purple-400" /> Complete Schema Reference
-                                    </h3>
-                                    <p className="text-sm text-gray-400 mt-1">
-                                        Full SQL structure for table reconstruction.
-                                    </p>
-                                </div>
-                                <button 
-                                    onClick={() => { navigator.clipboard.writeText(FULL_SCHEMA_SQL); toast.success("SQL Copied!"); }}
-                                    className="text-xs bg-cyan-500 text-black font-bold px-4 py-2 rounded-lg hover:bg-cyan-400 flex items-center gap-2"
-                                >
-                                    <Copy size={16}/> Copy SQL
-                                </button>
-                            </div>
-
-                            <div className="bg-black rounded-xl border border-white/10 p-4 font-mono text-xs overflow-x-auto relative group h-[600px] shadow-inner">
-                                <div className="absolute top-0 left-0 right-0 bg-white/5 px-4 py-2 flex items-center gap-2 border-b border-white/5 text-gray-500 z-10 backdrop-blur-sm">
-                                    <Terminal size={12} /> schema_dump.sql
-                                </div>
-                                <pre className="mt-8 text-green-400/90 leading-relaxed whitespace-pre-wrap select-text p-2">
-                                    {FULL_SCHEMA_SQL}
-                                </pre>
-                            </div>
-                        </GlassCard>
                     </motion.div>
                 )}
 
@@ -418,6 +496,86 @@ const DatabaseUltra: React.FC = () => {
                         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                         className="space-y-6"
                     >
+                        {/* BROADCAST SQL */}
+                        <GlassCard className="bg-purple-950/20 border-purple-500/40 relative overflow-hidden">
+                            <div className="absolute -right-10 -bottom-10 opacity-10"><Radio size={200} className="text-purple-500"/></div>
+                            <h3 className="text-2xl font-black text-purple-400 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                                <Radio size={32} /> Notification System Setup
+                            </h3>
+                            <p className="text-gray-300 text-sm max-w-xl mb-6 leading-relaxed">
+                                Enable the "Send to All" feature in NotiSender by creating the tables and helper function.
+                            </p>
+
+                            <div className="bg-black/50 rounded-xl border border-purple-500/30 p-4 mb-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-purple-400 text-xs font-bold font-mono">NOTIFICATION_SETUP.SQL</span>
+                                    <button 
+                                        onClick={() => { navigator.clipboard.writeText(BROADCAST_SQL); toast.success("SQL Copied!"); }}
+                                        className="text-xs bg-purple-600 text-white px-3 py-1 rounded font-bold hover:bg-purple-500 flex items-center gap-1"
+                                    >
+                                        <Copy size={12}/> Copy SQL
+                                    </button>
+                                </div>
+                                <pre className="text-[10px] text-purple-200/80 font-mono whitespace-pre-wrap select-text h-40 overflow-y-auto custom-scrollbar">
+                                    {BROADCAST_SQL}
+                                </pre>
+                            </div>
+                        </GlassCard>
+
+                        {/* NOTIFICATION TRIGGERS (NEW) */}
+                        <GlassCard className="bg-blue-950/20 border-blue-500/40 relative overflow-hidden">
+                            <div className="absolute -right-10 -bottom-10 opacity-10"><BellRing size={200} className="text-blue-500"/></div>
+                            <h3 className="text-2xl font-black text-blue-400 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                                <BellRing size={32} /> Auto-Notification Triggers
+                            </h3>
+                            <p className="text-gray-300 text-sm max-w-xl mb-6 leading-relaxed">
+                                Install database triggers to automatically send notifications to users for specific events (Deposit Approved, Withdrawal Paid, New Referral, etc.). This makes the system "Live".
+                            </p>
+
+                            <div className="bg-black/50 rounded-xl border border-blue-500/30 p-4 mb-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-blue-400 text-xs font-bold font-mono">AUTO_NOTIFY_TRIGGERS.SQL</span>
+                                    <button 
+                                        onClick={() => { navigator.clipboard.writeText(NOTIFICATION_TRIGGERS_SQL); toast.success("SQL Copied!"); }}
+                                        className="text-xs bg-blue-600 text-white px-3 py-1 rounded font-bold hover:bg-blue-500 flex items-center gap-1"
+                                    >
+                                        <Copy size={12}/> Copy SQL
+                                    </button>
+                                </div>
+                                <pre className="text-[10px] text-blue-200/80 font-mono whitespace-pre-wrap select-text h-32 overflow-y-auto custom-scrollbar">
+                                    {NOTIFICATION_TRIGGERS_SQL}
+                                </pre>
+                            </div>
+                        </GlassCard>
+
+                        {/* RLS POLICY HELPER */}
+                        <GlassCard className="bg-green-950/20 border-green-500/40 relative overflow-hidden">
+                            <div className="absolute -right-10 -bottom-10 opacity-10"><Users size={200} className="text-green-500"/></div>
+                            <h3 className="text-2xl font-black text-green-400 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                                <ShieldCheck size={32} /> Enable Public Profiles
+                            </h3>
+                            <p className="text-gray-300 text-sm max-w-xl mb-6 leading-relaxed">
+                                If users cannot see other profiles or search doesn't work, it means **Row Level Security (RLS)** is blocking read access. 
+                                Run the script below in your Supabase SQL Editor to fix it.
+                            </p>
+
+                            <div className="bg-black/50 rounded-xl border border-green-500/30 p-4 mb-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-green-400 text-xs font-bold font-mono">ENABLE_PUBLIC_PROFILES.SQL</span>
+                                    <button 
+                                        onClick={() => { navigator.clipboard.writeText(PUBLIC_PROFILE_SQL); toast.success("Policy SQL Copied!"); }}
+                                        className="text-xs bg-green-600 text-white px-3 py-1 rounded font-bold hover:bg-green-500 flex items-center gap-1"
+                                    >
+                                        <Copy size={12}/> Copy SQL
+                                    </button>
+                                </div>
+                                <pre className="text-[10px] text-green-200/80 font-mono whitespace-pre-wrap select-text h-32 overflow-y-auto custom-scrollbar">
+                                    {PUBLIC_PROFILE_SQL}
+                                </pre>
+                            </div>
+                        </GlassCard>
+
+                        {/* RESET */}
                         <GlassCard className="bg-red-950/20 border-red-500/40 relative overflow-hidden">
                             <div className="absolute -right-10 -bottom-10 opacity-20"><Skull size={200} className="text-red-500"/></div>
                             <h3 className="text-2xl font-black text-red-500 mb-4 flex items-center gap-2 uppercase tracking-widest">
@@ -448,10 +606,6 @@ const DatabaseUltra: React.FC = () => {
                                     {RESET_SCRIPT_SQL}
                                 </pre>
                             </div>
-
-                            <p className="text-xs text-red-500/70 italic">
-                                * Run this script in your Supabase SQL Editor to execute the reset immediately.
-                            </p>
                         </GlassCard>
                     </motion.div>
                 )}
