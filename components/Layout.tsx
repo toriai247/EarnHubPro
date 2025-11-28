@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Crown, Trophy, Globe, Menu, X, 
-  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send, Search
+  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send, Search, BellRing
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useTheme } from '../context/ThemeContext';
@@ -33,6 +33,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
   const [sessionUser, setSessionUser] = useState<any>(null);
+  const [showNotiPermRequest, setShowNotiPermRequest] = useState(false);
   
   // Audio Ref
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -69,6 +70,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // Initialize Audio
     audioRef.current = new Audio(NOTIFICATION_SOUND);
 
+    // Check Notification Permission
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        setShowNotiPermRequest(true);
+    }
+
     const fetchData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -102,6 +108,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return () => window.removeEventListener('wallet_updated', handleWalletUpdate);
   }, [location.pathname]);
 
+  const requestNotificationPermission = async () => {
+      if (!('Notification' in window)) return;
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+          setShowNotiPermRequest(false);
+          toast.success("System notifications enabled!");
+          // Send a test one immediately
+          try {
+              if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+                  const registration = await navigator.serviceWorker.ready;
+                  registration.showNotification("EarnHub Pro", {
+                      body: "Notifications active! You will receive live updates.",
+                      icon: '/icon-192x192.png',
+                      vibrate: [100, 50, 100],
+                  });
+              } else {
+                  new Notification("EarnHub Pro", { body: "Notifications active!" });
+              }
+          } catch (e) { console.error(e); }
+      }
+  };
+
   // Real-Time Notification Listener
   useEffect(() => {
       if (!sessionUser) return;
@@ -113,14 +141,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               schema: 'public', 
               table: 'notifications', 
               filter: `user_id=eq.${sessionUser.id}` 
-          }, (payload) => {
+          }, async (payload) => {
               // New notification received
               const newNotif = payload.new;
               setUnreadCount(prev => prev + 1);
               
               // 1. Play Sound
               if (audioRef.current) {
-                  audioRef.current.play().catch(e => console.log("Audio play failed (interaction needed)", e));
+                  audioRef.current.play().catch(e => console.log("Audio play failed", e));
               }
 
               // 2. Show In-App Toast
@@ -131,13 +159,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
               // 3. Trigger System Notification (Phone Bar)
               if (Notification.permission === 'granted') {
-                  new Notification(newNotif.title, {
-                      body: newNotif.message,
-                      icon: '/icon-192x192.png',
-                      badge: '/icon-96x96.png',
-                      // @ts-ignore
-                      vibrate: [200, 100, 200]
-                  });
+                  try {
+                      // Try Service Worker first (Best for Mobile)
+                      if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+                          const registration = await navigator.serviceWorker.ready;
+                          registration.showNotification(newNotif.title, {
+                              body: newNotif.message,
+                              icon: '/icon-192x192.png',
+                              badge: '/icon-96x96.png',
+                              vibrate: [200, 100, 200],
+                              tag: 'earnhub-alert',
+                              renotify: true
+                          });
+                      } else {
+                          // Fallback
+                          new Notification(newNotif.title, {
+                              body: newNotif.message,
+                              icon: '/icon-192x192.png',
+                              // @ts-ignore
+                              vibrate: [200, 100, 200]
+                          });
+                      }
+                  } catch (e) {
+                      console.error("Notification Error:", e);
+                  }
               }
           })
           .subscribe();
@@ -209,6 +254,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           <div className="flex items-center gap-2">
             
+            {showNotiPermRequest && (
+                <button 
+                    onClick={requestNotificationPermission}
+                    className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 transition animate-pulse"
+                    title="Enable Notifications"
+                >
+                    <BellRing size={20} />
+                </button>
+            )}
+
             {/* Search Button */}
             <Link to="/search" className="p-2 rounded-lg bg-surface hover:bg-surface-hover transition text-white border border-border-neo shadow-neo-sm">
                 <Search size={20} />
@@ -333,7 +388,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                               <LogOut size={18} /> LOG OUT
                           </button>
                           <div className="mt-4 text-center text-[10px] text-gray-600 font-black font-mono">
-                              EARNHUB PRO v4.5.2
+                              EARNHUB PRO v4.5.3
                           </div>
                       </div>
                   </MotionDiv>

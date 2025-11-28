@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
-import { BellRing, Send, Search, CheckCircle, Users, User, AlertCircle, Loader2 } from 'lucide-react';
+import { BellRing, Send, Search, CheckCircle, Users, User, AlertCircle, Loader2, Smartphone } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -106,6 +106,40 @@ const NotiSender: React.FC = () => {
         }
     };
 
+    const handleTestLocal = async () => {
+        if (!('Notification' in window)) {
+            toast.error("This browser does not support desktop notifications");
+            return;
+        }
+        
+        if (Notification.permission === 'granted') {
+            try {
+                if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+                    const reg = await navigator.serviceWorker.ready;
+                    reg.showNotification("Test Notification", {
+                        body: "This is a test from the Admin Panel.",
+                        icon: '/icon-192x192.png',
+                        vibrate: [200, 100, 200]
+                    });
+                } else {
+                    new Notification("Test Notification", {
+                        body: "This is a test from the Admin Panel."
+                    });
+                }
+                toast.success("Test notification triggered");
+            } catch(e) {
+                toast.error("Error triggering: " + e);
+            }
+        } else if (Notification.permission !== 'denied') {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                handleTestLocal();
+            }
+        } else {
+            toast.error("Permission denied. Check browser settings.");
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in pb-20">
             <div className="flex justify-between items-end">
@@ -117,6 +151,9 @@ const NotiSender: React.FC = () => {
                         Send real-time alerts to users or broadcast system announcements.
                     </p>
                 </div>
+                <button onClick={handleTestLocal} className="text-xs bg-white/10 px-3 py-1.5 rounded flex items-center gap-2 hover:bg-white/20">
+                    <Smartphone size={14}/> Test My Device
+                </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
