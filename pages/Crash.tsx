@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Rocket, Trophy, History, Volume2, VolumeX, Zap, Clock, ShieldCheck, DollarSign, Users } from 'lucide-react';
+import { Rocket, Trophy, History, Volume2, VolumeX, Zap, Clock, ShieldCheck, DollarSign, Users, AlertTriangle } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { WalletData, CrashGameState, CrashBet } from '../types';
 import { processGameResult, updateWallet } from '../lib/actions';
@@ -34,6 +34,9 @@ const Crash: React.FC = () => {
       id: 1, status: 'BETTING', current_round_id: '', start_time: new Date().toISOString(), crash_point: 1.0, total_bets_current_round: 0, last_crash_point: 0
   });
   
+  // Ref to hold latest state for the Interval Loop
+  const gameStateRef = useRef<CrashGameState>(gameState);
+  
   // Local Calculated State
   const [multiplier, setMultiplier] = useState(1.00);
   const [countdown, setCountdown] = useState(0);
@@ -56,6 +59,11 @@ const Crash: React.FC = () => {
   const starsRef = useRef<Star[]>([]);
   const particlesRef = useRef<Particle[]>([]);
   const explosionRef = useRef<Particle[]>([]);
+
+  // Update Ref whenever state changes
+  useEffect(() => {
+      gameStateRef.current = gameState;
+  }, [gameState]);
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -86,7 +94,7 @@ const Crash: React.FC = () => {
         .subscribe();
 
       // GAME LOOP (Client Side Animation & Tick)
-      const interval = setInterval(gameTick, 50);
+      const interval = setInterval(gameTick, 30); // 30ms for smoother updates
       requestRef.current = requestAnimationFrame(animateCanvas);
 
       return () => {
@@ -116,10 +124,14 @@ const Crash: React.FC = () => {
 
   // --- GAME LOGIC ENGINE ---
   const gameTick = () => {
+      // ALWAYS read from REF to get latest state inside closure
+      const current = gameStateRef.current;
       const now = Date.now();
-      const startTime = new Date(gameState.start_time).getTime();
+      
+      // Parse server time safely (handle if string)
+      const startTime = new Date(current.start_time).getTime();
 
-      if (gameState.status === 'BETTING') {
+      if (current.status === 'BETTING') {
           const elapsed = now - startTime;
           const timeLeft = Math.max(0, BETTING_DURATION_MS - elapsed);
           setCountdown(timeLeft / 1000);
@@ -127,23 +139,24 @@ const Crash: React.FC = () => {
 
           // MASTER CLIENT LOGIC: If I am the first to notice time is up, trigger state change
           if (timeLeft <= 0) {
-              // This relies on RPC to be safe. Only one call will succeed conceptually or multiple calls result in same state.
               advanceGameState('BETTING'); 
           }
       } 
-      else if (gameState.status === 'FLYING') {
-          const elapsed = (now - startTime) / 1000;
-          // Calculate growth curve (Matches server logic ideally)
-          const currentMult = 1 + (0.06 * elapsed) + (0.06 * Math.pow(elapsed, 2.2));
+      else if (current.status === 'FLYING') {
+          const elapsed = Math.max(0, (now - startTime) / 1000);
           
-          if (currentMult >= gameState.crash_point) {
-              setMultiplier(gameState.crash_point); // Clamp
-              advanceGameState('FLYING'); // Trigger Crash
+          // Calculate growth curve (Matches typical Crash logic)
+          // Starts slow, speeds up exponentially
+          const currentMult = 1.00 + (0.06 * elapsed) + (0.06 * Math.pow(elapsed, 2.2));
+          
+          if (currentMult >= current.crash_point) {
+              setMultiplier(current.crash_point); // Clamp visual
+              advanceGameState('FLYING'); // Trigger Crash Transition
           } else {
               setMultiplier(currentMult);
           }
       }
-      else if (gameState.status === 'CRASHED') {
+      else if (current.status === 'CRASHED') {
           // Wait for Cooldown
           const elapsed = now - startTime;
           if (elapsed >= COOLDOWN_MS) {
@@ -155,8 +168,7 @@ const Crash: React.FC = () => {
   // Safe wrapper to call RPC
   const advanceGameState = async (currentStatus: string) => {
       // Small random delay to prevent ALL clients hitting exact same ms
-      // In production, a server worker does this. Here, clients cooperate.
-      if (Math.random() > 0.1) return; 
+      if (Math.random() > 0.05) return; 
       
       await supabase.rpc('next_crash_round_phase', { p_current_status: currentStatus });
   };
@@ -182,7 +194,9 @@ const Crash: React.FC = () => {
 
       if (error) {
           toast.error("Bet Failed");
-          // Refund logic would go here
+          // Revert wallet if failed
+          await updateWallet(userId, amount, 'increment', 'balance');
+          setWallet(prev => prev ? {...prev, balance: prev.balance + amount} : null);
       } else {
           setHasBet(true);
           playSound('bet');
@@ -201,11 +215,11 @@ const Crash: React.FC = () => {
       setProfit(net);
       playSound('cashout');
 
-      // 1. Update Wallet
+      // 1. Update Wallet (Add winnings)
       await updateWallet(userId, win, 'increment', 'balance');
       setWallet(prev => prev ? {...prev, balance: prev.balance + win} : null);
 
-      // 2. Record Win
+      // 2. Record Win in DB
       await supabase.from('crash_bets')
         .update({ cashed_out_at: cashoutMult, profit: net })
         .eq('user_id', userId)
@@ -264,6 +278,7 @@ const Crash: React.FC = () => {
       const cvs = canvasRef.current;
       const ctx = cvs?.getContext('2d');
       const container = containerRef.current;
+      const current = gameStateRef.current; // Use REF for visual state too
       
       if (cvs && ctx && container) {
           if (cvs.width !== container.clientWidth) cvs.width = container.clientWidth;
@@ -277,8 +292,10 @@ const Crash: React.FC = () => {
           // Stars
           ctx.fillStyle = '#FFF';
           starsRef.current.forEach(s => {
-              if (gameState.status === 'FLYING') {
-                  s.x -= 0.001 * multiplier; // Move faster as mult increases
+              if (current.status === 'FLYING') {
+                  // Speed up stars based on elapsed time logic implicitly via global multiplier state
+                  // Since multiplier is updated in gameTick, we can use the state 'multiplier' here
+                  s.x -= 0.002 * (multiplier || 1); 
                   if(s.x < 0) s.x = 1;
               }
               ctx.globalAlpha = s.alpha * 0.5;
@@ -289,12 +306,12 @@ const Crash: React.FC = () => {
           ctx.globalAlpha = 1;
 
           // Rocket / Graph Line
-          if (gameState.status !== 'BETTING') {
+          if (current.status !== 'BETTING') {
               const progress = Math.min(1, (multiplier - 1) / 10); // Normalize visual position
               const rx = 50 + (progress * (w - 100));
               const ry = (h - 50) - (progress * (h - 100)); // Go up
 
-              if (gameState.status === 'FLYING') {
+              if (current.status === 'FLYING') {
                   // Draw Curve
                   ctx.strokeStyle = '#ec4899';
                   ctx.lineWidth = 4;
@@ -302,6 +319,7 @@ const Crash: React.FC = () => {
                   ctx.shadowColor = '#ec4899';
                   ctx.beginPath();
                   ctx.moveTo(50, h-50);
+                  // Quadratic curve to current position
                   ctx.quadraticCurveTo(50 + (rx-50)/2, ry, rx, ry);
                   ctx.stroke();
                   ctx.shadowBlur = 0;
@@ -309,7 +327,7 @@ const Crash: React.FC = () => {
                   // Rocket Body
                   ctx.save();
                   ctx.translate(rx, ry);
-                  ctx.rotate(-Math.PI / 4);
+                  ctx.rotate(-Math.PI / 8 - (progress * Math.PI/8)); // Tilt up slightly as it goes
                   ctx.fillStyle = '#fff';
                   ctx.beginPath(); ctx.ellipse(0,0, 20, 8, 0, 0, Math.PI*2); ctx.fill();
                   
@@ -319,13 +337,14 @@ const Crash: React.FC = () => {
                   ctx.beginPath(); ctx.moveTo(-15, -4); ctx.lineTo(-30 - Math.random()*10, 0); ctx.lineTo(-15, 4); ctx.fill();
                   ctx.restore();
               } else {
-                  // Explosion
+                  // Explosion (CRASHED)
                   if (explosionRef.current.length === 0) {
-                      for(let i=0; i<30; i++) explosionRef.current.push({ x: rx, y: ry, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, life: 1, color: '#ef4444', size: Math.random()*4+2 });
+                      playSound('crash');
+                      for(let i=0; i<30; i++) explosionRef.current.push({ x: rx, y: ry, vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15, life: 1, color: '#ef4444', size: Math.random()*4+2 });
                   }
                   explosionRef.current.forEach((p, i) => {
-                      p.x += p.vx; p.y += p.vy; p.life -= 0.05;
-                      ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
+                      p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+                      ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.life);
                       ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
                       if(p.life <= 0) explosionRef.current.splice(i,1);
                   });
@@ -335,7 +354,7 @@ const Crash: React.FC = () => {
               explosionRef.current = [];
               ctx.fillStyle = '#3b82f6';
               ctx.shadowBlur = 20; ctx.shadowColor = '#3b82f6';
-              ctx.beginPath(); ctx.arc(50, h-50, 5, 0, Math.PI*2); ctx.fill();
+              ctx.beginPath(); ctx.arc(50, h-50, 6, 0, Math.PI*2); ctx.fill();
           }
       }
       requestRef.current = requestAnimationFrame(animateCanvas);
@@ -388,9 +407,9 @@ const Crash: React.FC = () => {
                    {gameState.status === 'CRASHED' && (
                        <div className="text-center">
                            <div className="text-red-500 font-black text-xl uppercase tracking-[0.5em] mb-2">CRASHED</div>
-                           <div className="text-5xl font-black text-white">{multiplier.toFixed(2)}x</div>
+                           <div className="text-5xl font-black text-white">{gameState.last_crash_point ? gameState.last_crash_point.toFixed(2) : multiplier.toFixed(2)}x</div>
                            {hasBet && (
-                               <div className={`mt-4 px-4 py-2 rounded-xl font-bold ${cashedOut ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                               <div className={`mt-4 px-4 py-2 rounded-xl font-bold backdrop-blur-md border ${cashedOut ? 'bg-green-500/20 text-green-400 border-green-500/50' : 'bg-red-500/20 text-red-400 border-red-500/50'}`}>
                                    {cashedOut ? `WON +$${profit.toFixed(2)}` : `LOST $${betAmount}`}
                                </div>
                            )}
@@ -403,14 +422,17 @@ const Crash: React.FC = () => {
            <div className="w-full lg:w-1/4 shrink-0 z-20 order-2 lg:order-1 flex flex-col gap-4">
                <GlassCard className="bg-dark-900/90 border-royal-500/20 p-4 shadow-xl">
                    <div className="flex gap-2 mb-4">
-                       <input 
-                           type="number" 
-                           value={betAmount} 
-                           onChange={e => setBetAmount(e.target.value)} 
-                           disabled={hasBet && gameState.status !== 'CRASHED'}
-                           className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white font-bold text-lg focus:border-neon-green outline-none"
-                       />
-                       <button onClick={() => setBetAmount((parseFloat(betAmount)*2).toString())} className="bg-white/10 rounded-xl px-3 text-xs font-bold text-gray-400 hover:text-white">2x</button>
+                       <div className="relative flex-1">
+                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                           <input 
+                               type="number" 
+                               value={betAmount} 
+                               onChange={e => setBetAmount(e.target.value)} 
+                               disabled={hasBet && gameState.status !== 'CRASHED'}
+                               className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-7 pr-4 text-white font-bold text-lg focus:border-neon-green outline-none"
+                           />
+                       </div>
+                       <button onClick={() => setBetAmount((parseFloat(betAmount)*2).toString())} className="bg-white/10 rounded-xl px-3 text-xs font-bold text-gray-400 hover:text-white border border-white/5">2x</button>
                    </div>
 
                    {gameState.status === 'BETTING' ? (
@@ -424,12 +446,12 @@ const Crash: React.FC = () => {
                            </button>
                        )
                    ) : gameState.status === 'FLYING' && hasBet && !cashedOut ? (
-                       <button onClick={handleCashout} className="w-full py-4 bg-yellow-400 text-black font-black text-xl rounded-xl hover:bg-yellow-300 transition shadow-[0_0_30px_rgba(250,204,21,0.5)]">
+                       <button onClick={handleCashout} className="w-full py-4 bg-yellow-400 text-black font-black text-xl rounded-xl hover:bg-yellow-300 transition shadow-[0_0_30px_rgba(250,204,21,0.5)] transform active:scale-95">
                            CASHOUT <span className="text-sm block font-mono">${(parseFloat(betAmount) * multiplier).toFixed(2)}</span>
                        </button>
                    ) : (
                        <button disabled className="w-full py-4 bg-gray-800 text-gray-500 font-bold rounded-xl border border-white/10">
-                           WAITING...
+                           {gameState.status === 'FLYING' ? 'WAITING...' : 'PREPARING'}
                        </button>
                    )}
                </GlassCard>
@@ -442,17 +464,24 @@ const Crash: React.FC = () => {
                    </div>
                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
                        {activeBets.map((bet) => (
-                           <div key={bet.id} className={`flex justify-between items-center p-2 rounded-lg text-xs ${bet.cashed_out_at ? 'bg-green-500/10 border border-green-500/20' : 'bg-white/5'}`}>
+                           <div key={bet.id} className={`flex justify-between items-center p-2 rounded-lg text-xs transition-colors ${bet.cashed_out_at ? 'bg-green-500/10 border border-green-500/20' : 'bg-white/5'}`}>
                                <div className="flex items-center gap-2">
-                                   <div className="w-5 h-5 rounded-full bg-gray-700 overflow-hidden"><img src={bet.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${bet.user_id}`} /></div>
-                                   <span className="text-gray-300">{bet.user_name || 'User'}</span>
+                                   <div className="w-6 h-6 rounded-full bg-gray-700 overflow-hidden border border-white/10"><img src={bet.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${bet.user_id}`} alt="Av" className="w-full h-full object-cover" /></div>
+                                   <span className="text-gray-300 font-medium truncate max-w-[80px]">{bet.user_name || 'User'}</span>
                                </div>
                                <div className="text-right">
                                    <div className="text-white font-bold">${bet.amount}</div>
-                                   {bet.cashed_out_at && <div className="text-green-400 font-mono">@{bet.cashed_out_at.toFixed(2)}x</div>}
+                                   {bet.cashed_out_at ? (
+                                       <div className="text-green-400 font-mono font-bold">+{bet.profit?.toFixed(2)}</div>
+                                   ) : (
+                                       <div className="text-gray-600">...</div>
+                                   )}
                                </div>
                            </div>
                        ))}
+                       {activeBets.length === 0 && (
+                           <div className="text-center text-gray-600 text-[10px] mt-4">No bets yet</div>
+                       )}
                    </div>
                </div>
            </div>
