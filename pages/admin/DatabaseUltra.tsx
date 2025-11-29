@@ -5,7 +5,7 @@ import { supabase } from '../../integrations/supabase/client';
 import { 
     Database, Download, Server, ShieldCheck, 
     FileJson, Clock, RefreshCw, Loader2, 
-    Code, Terminal, Save, Trash2, HardDrive, Globe, Copy, Table, AlertTriangle, Skull, Users, BellRing, Radio, Settings
+    Code, Terminal, Save, Trash2, HardDrive, Globe, Copy, Table, AlertTriangle, Skull, Users, BellRing, Radio, Settings, Rocket
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,8 +18,124 @@ const TABLE_LIST = [
     'notifications', 'payment_methods', 'player_rigging', 'profiles',
     'referrals', 'spin_items', 'system_config', 'tasks', 'transactions',
     'user_biometrics', 'user_tasks', 'user_withdrawal_methods',
-    'video_submissions', 'wallets', 'withdraw_requests', 'withdrawal_settings'
+    'video_submissions', 'wallets', 'withdraw_requests', 'withdrawal_settings',
+    'crash_game_state', 'crash_bets' // Added new tables
 ];
+
+const CRASH_GAME_SQL = `-- 1. CRASH GAME STATE (Singleton)
+CREATE TABLE IF NOT EXISTS public.crash_game_state (
+    id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1), -- Ensure single row
+    status TEXT CHECK (status IN ('BETTING', 'FLYING', 'CRASHED')) DEFAULT 'BETTING',
+    current_round_id UUID DEFAULT gen_random_uuid(),
+    start_time TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    crash_point NUMERIC DEFAULT 1.00,
+    last_crash_point NUMERIC DEFAULT 0.00,
+    total_bets_current_round NUMERIC DEFAULT 0,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Insert initial row if not exists
+INSERT INTO public.crash_game_state (id, status)
+SELECT 1, 'BETTING'
+WHERE NOT EXISTS (SELECT 1 FROM public.crash_game_state);
+
+-- Enable RLS (Public Read)
+ALTER TABLE public.crash_game_state ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Read Crash State" ON public.crash_game_state;
+CREATE POLICY "Public Read Crash State" ON public.crash_game_state FOR SELECT TO authenticated, anon USING (true);
+-- Admin/Server update
+DROP POLICY IF EXISTS "Admin Update Crash State" ON public.crash_game_state;
+CREATE POLICY "Admin Update Crash State" ON public.crash_game_state FOR UPDATE TO authenticated USING (true); -- Simplified for game loop
+
+-- 2. CRASH BETS (Round History)
+CREATE TABLE IF NOT EXISTS public.crash_bets (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    round_id UUID,
+    user_id UUID,
+    user_name TEXT,
+    avatar_url TEXT,
+    amount NUMERIC NOT NULL,
+    cashed_out_at NUMERIC DEFAULT NULL,
+    profit NUMERIC DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+ALTER TABLE public.crash_bets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Read Bets" ON public.crash_bets;
+CREATE POLICY "Public Read Bets" ON public.crash_bets FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "User Place Bet" ON public.crash_bets;
+CREATE POLICY "User Place Bet" ON public.crash_bets FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "User Update Bet" ON public.crash_bets;
+CREATE POLICY "User Update Bet" ON public.crash_bets FOR UPDATE TO authenticated USING (auth.uid() = user_id);
+
+-- 3. ENABLE REALTIME
+ALTER PUBLICATION supabase_realtime ADD TABLE crash_game_state;
+ALTER PUBLICATION supabase_realtime ADD TABLE crash_bets;
+
+-- 4. GAME LOOP LOGIC (RPC)
+CREATE OR REPLACE FUNCTION next_crash_round_phase(p_current_status TEXT) RETURNS JSON AS $$
+DECLARE
+    state RECORD;
+    v_total_bets NUMERIC;
+    v_crash_point NUMERIC;
+    v_random NUMERIC;
+BEGIN
+    SELECT * INTO state FROM crash_game_state WHERE id = 1;
+    
+    -- If currently BETTING and time is up -> Go FLYING
+    IF p_current_status = 'BETTING' AND state.status = 'BETTING' THEN
+        -- Calculate Crash Point based on Bets (House Edge Logic)
+        SELECT COALESCE(SUM(amount), 0) INTO v_total_bets FROM crash_bets WHERE round_id = state.current_round_id;
+        
+        -- Default Algo: Random biased + Pool Check
+        -- Simple logic for demo: 
+        v_random := random();
+        
+        IF v_random < 0.03 THEN v_crash_point := 1.00; -- Instant Crash (3% chance)
+        ELSIF v_random < 0.50 THEN v_crash_point := 1.00 + (random() * 1.50); -- 1x - 2.5x
+        ELSIF v_random < 0.80 THEN v_crash_point := 2.50 + (random() * 2.50); -- 2.5x - 5x
+        ELSE v_crash_point := 5.00 + (random() * 15.00); -- Moon
+        END IF;
+        
+        -- Apply Limit if bets are high (Rigging Protection)
+        IF v_total_bets > 100 AND v_crash_point > 2.0 THEN
+             v_crash_point := 1.20 + (random() * 0.80);
+        END IF;
+
+        UPDATE crash_game_state SET
+            status = 'FLYING',
+            start_time = now(), -- Flight Start Time
+            crash_point = round(v_crash_point, 2),
+            total_bets_current_round = v_total_bets;
+            
+        RETURN json_build_object('status', 'FLYING', 'crash_point', round(v_crash_point, 2));
+    END IF;
+
+    -- If currently FLYING and crashed -> Go CRASHED
+    IF p_current_status = 'FLYING' AND state.status = 'FLYING' THEN
+        UPDATE crash_game_state SET
+            status = 'CRASHED',
+            last_crash_point = state.crash_point,
+            start_time = now(); -- Cooldown Start Time
+            
+        RETURN json_build_object('status', 'CRASHED');
+    END IF;
+
+    -- If currently CRASHED and cooldown over -> Go BETTING
+    IF p_current_status = 'CRASHED' AND state.status = 'CRASHED' THEN
+        UPDATE crash_game_state SET
+            status = 'BETTING',
+            current_round_id = gen_random_uuid(),
+            start_time = now(), -- Betting Start Time
+            total_bets_current_round = 0;
+            
+        RETURN json_build_object('status', 'BETTING');
+    END IF;
+
+    RETURN json_build_object('status', state.status, 'message', 'No change');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+`;
 
 const BROADCAST_SQL = `-- NOTIFICATION SYSTEM SETUP
 DROP FUNCTION IF EXISTS admin_broadcast_notification(TEXT, TEXT, TEXT);
@@ -435,6 +551,32 @@ const DatabaseUltra: React.FC = () => {
                         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                         className="space-y-6"
                     >
+                        {/* CRASH GAME SQL (NEW) */}
+                        <GlassCard className="bg-pink-950/20 border-pink-500/40 relative overflow-hidden">
+                            <div className="absolute -right-10 -bottom-10 opacity-10"><Rocket size={200} className="text-pink-500"/></div>
+                            <h3 className="text-2xl font-black text-pink-400 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                                <Rocket size={32} /> Realtime Crash Game Setup
+                            </h3>
+                            <p className="text-gray-300 text-sm max-w-xl mb-6 leading-relaxed">
+                                Initializes the synchronized Crash Game engine. Creates <span className="font-mono text-white">crash_game_state</span> and <span className="font-mono text-white">crash_bets</span> tables, adds RLS policies, and defines the logic for calculating multipliers based on the betting pool.
+                            </p>
+
+                            <div className="bg-black/50 rounded-xl border border-pink-500/30 p-4 mb-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-pink-400 text-xs font-bold font-mono">CRASH_GAME_INIT.SQL</span>
+                                    <button 
+                                        onClick={() => { navigator.clipboard.writeText(CRASH_GAME_SQL); toast.success("SQL Copied!"); }}
+                                        className="text-xs bg-pink-600 text-white px-3 py-1 rounded font-bold hover:bg-pink-500 flex items-center gap-1"
+                                    >
+                                        <Copy size={12}/> Copy SQL
+                                    </button>
+                                </div>
+                                <pre className="text-[10px] text-pink-200/80 font-mono whitespace-pre-wrap select-text h-40 overflow-y-auto custom-scrollbar">
+                                    {CRASH_GAME_SQL}
+                                </pre>
+                            </div>
+                        </GlassCard>
+
                         {/* SYSTEM CONFIG FIX (NEW) */}
                         <GlassCard className="bg-orange-950/20 border-orange-500/40 relative overflow-hidden">
                             <div className="absolute -right-10 -bottom-10 opacity-10"><Settings size={200} className="text-orange-500"/></div>

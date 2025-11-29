@@ -324,3 +324,25 @@ export interface HelpRequest {
     resolved_at?: string;
     created_at: string;
 }
+
+// REALTIME CRASH GAME TYPES
+export interface CrashGameState {
+    id: number;
+    status: 'BETTING' | 'FLYING' | 'CRASHED';
+    current_round_id: string;
+    start_time: string; // ISO String
+    crash_point: number;
+    total_bets_current_round: number;
+    last_crash_point: number;
+}
+
+export interface CrashBet {
+    id: string;
+    round_id: string;
+    user_id: string;
+    amount: number;
+    cashed_out_at: number | null;
+    profit: number;
+    avatar_url?: string;
+    user_name?: string;
+}
