@@ -13,6 +13,7 @@ import { createTransaction } from '../../lib/actions';
 import { useUI } from '../../context/UIContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import BalanceDisplay from '../../components/BalanceDisplay';
+import { CURRENCY_CONFIG } from '../../constants';
 
 interface UserInfoProps {
     userId: string;
@@ -43,6 +44,9 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
     const [adjustAmount, setAdjustAmount] = useState('');
     const [adjustAction, setAdjustAction] = useState<'credit' | 'debit'>('credit');
     const [adjustNote, setAdjustNote] = useState('');
+    
+    // NEW: Currency Input State
+    const [adjustCurrency, setAdjustCurrency] = useState('USD');
 
     // Message/Note State
     const [messageText, setMessageText] = useState('');
@@ -72,7 +76,11 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
             });
             setAdminNoteText(prof.data.admin_notes || '');
         }
-        if (wal.data) setWallet(wal.data as WalletData);
+        if (wal.data) {
+            setWallet(wal.data as WalletData);
+            // Default admin currency adjustment to user's preference if set
+            if (wal.data.currency) setAdjustCurrency(wal.data.currency);
+        }
         if (txs.data) setTransactions(txs.data as Transaction[]);
         if (games.data) {
             setGameHistory(games.data.map((g: any) => ({
@@ -176,11 +184,15 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
         e.preventDefault();
         if (!wallet || !adjustAmount) return;
         
-        const amount = parseFloat(adjustAmount);
+        let amount = parseFloat(adjustAmount);
         if (isNaN(amount) || amount <= 0) { toast.error("Invalid amount"); return; }
 
+        // Logic Change: Convert Input to USD based on Selection
+        const selectedConfig = CURRENCY_CONFIG[adjustCurrency as keyof typeof CURRENCY_CONFIG] || CURRENCY_CONFIG.USD;
+        const usdAmount = amount / selectedConfig.rate;
+
         const confirmed = await confirm(
-            `Are you sure you want to ${adjustAction.toUpperCase()} $${amount} from ${selectedWalletType.replace('_balance', '')} wallet?`,
+            `Confirm ${adjustAction.toUpperCase()} of ${selectedConfig.symbol}${amount.toLocaleString()} (${adjustCurrency})? \n\nSystem will store: $${usdAmount.toFixed(4)} USD`,
             'Confirm Adjustment'
         );
         if (!confirmed) return;
@@ -188,7 +200,7 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
         try {
             // @ts-ignore
             const currentBal = wallet[selectedWalletType] || 0;
-            const newBal = adjustAction === 'credit' ? currentBal + amount : Math.max(0, currentBal - amount);
+            const newBal = adjustAction === 'credit' ? currentBal + usdAmount : Math.max(0, currentBal - usdAmount);
             
             const updates: any = { [selectedWalletType]: newBal };
             // Legacy Sync
@@ -203,8 +215,8 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
             await createTransaction(
                 userId, 
                 adjustAction === 'credit' ? 'bonus' : 'penalty', 
-                amount, 
-                `Admin Adjustment (${adjustAction}): ${adjustNote || 'Manual Update'}`
+                usdAmount, 
+                `Admin Adj: ${adjustNote || 'Manual'} (${amount} ${adjustCurrency})`
             );
 
             toast.success("Wallet adjusted successfully");
@@ -602,9 +614,23 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
                                     </button>
                                 </div>
 
-                                <div>
-                                    <label className="text-xs text-gray-400 block mb-1">Amount ($)</label>
-                                    <input required type="number" step="0.01" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" />
+                                <div className="flex gap-3 items-end">
+                                    <div className="flex-1">
+                                        <label className="text-xs text-gray-400 block mb-1">Amount</label>
+                                        <input required type="number" step="0.01" value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" />
+                                    </div>
+                                    <div className="w-1/3">
+                                        <label className="text-xs text-gray-400 block mb-1">Currency</label>
+                                        <select 
+                                            value={adjustCurrency} 
+                                            onChange={e => setAdjustCurrency(e.target.value)} 
+                                            className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-neon-green outline-none"
+                                        >
+                                            {Object.keys(CURRENCY_CONFIG).map(code => (
+                                                <option key={code} value={code}>{code}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
 
                                 <div>

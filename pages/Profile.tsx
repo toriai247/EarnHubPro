@@ -8,7 +8,8 @@ import {
   MapPin, Globe, Laptop, Smartphone,
   Hash, Mail, QrCode, ExternalLink,
   Camera, Calendar, Award, Fingerprint, Lock,
-  Twitter, Send, MessageCircle, Phone, Save, X, User
+  Twitter, Send, MessageCircle, Phone, Save, X, User,
+  UploadCloud, FileText, CreditCard, Loader2, Clock
 } from 'lucide-react';
 import { UserProfile, WalletData } from '../types';
 import { supabase } from '../integrations/supabase/client';
@@ -18,17 +19,34 @@ import { BADGES } from '../constants';
 import { createUserProfile } from '../lib/actions';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { useUI } from '../context/UIContext';
+import { useSystem } from '../context/SystemContext';
+import { useCurrency } from '../context/CurrencyContext';
 
 const MotionDiv = motion.div as any;
 
 const Profile: React.FC = () => {
   const { toast } = useUI();
+  const { config } = useSystem();
+  const { format } = useCurrency();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'badges' | 'security'>('overview');
   
+  // KYC State
+  const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [kycStep, setKycStep] = useState(1);
+  const [kycForm, setKycForm] = useState({
+      fullName: '',
+      idType: 'passport',
+      idNumber: '',
+      frontImage: null as File | null,
+      backImage: null as File | null
+  });
+  const [kycUploading, setKycUploading] = useState(false);
+
   // Form State
   const [formData, setFormData] = useState({
     name_1: '',
@@ -72,7 +90,25 @@ const Profile: React.FC = () => {
                 const res = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
                 profileData = res.data;
             }
-            if (profileData) setUser(profileData as UserProfile);
+            if (profileData) {
+                setUser(profileData as UserProfile);
+                
+                // Determine KYC Status from new table
+                if (profileData.is_kyc_1) {
+                    setKycStatus('verified');
+                } else {
+                    // Check for pending request in new KYC table
+                    const { data: kycreq } = await supabase.from('kyc_requests')
+                        .select('status')
+                        .eq('user_id', session.user.id)
+                        .order('created_at', {ascending: false})
+                        .limit(1)
+                        .maybeSingle();
+                    
+                    if (kycreq) setKycStatus(kycreq.status as any);
+                    else setKycStatus('unverified');
+                }
+            }
 
             const { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
             if (walletData) setWallet(walletData as WalletData);
@@ -133,17 +169,71 @@ const Profile: React.FC = () => {
       if(!user || !wallet) return [];
       const earned: string[] = user.badges_1 || [];
       
-      // Auto-calculate dynamic badges for display
       const dynamicBadges = [];
       
-      // Join Date Badge (Everyone gets verified or early adopter based on logic, simplified here)
       if (user.is_kyc_1) dynamicBadges.push('verified');
       if (wallet.deposit > 1000) dynamicBadges.push('high_roller');
-      // Assume referrer count logic is handled elsewhere, but we can check rank
       if ((user.level_1 || 1) >= 5) dynamicBadges.push('top_inviter');
       
-      // Combine unique
       return Array.from(new Set([...earned, ...dynamicBadges, 'early_adopter']));
+  };
+
+  const handleKYCStart = () => {
+      if (config?.is_activation_enabled && !user?.is_account_active) {
+          toast.error(`Please deposit ${format(config.activation_amount || 1)} first to activate your account.`);
+          navigate('/deposit');
+          return;
+      }
+      if (kycStatus === 'pending') {
+          toast.info("Your KYC is currently under review.");
+          return;
+      }
+      setIsKycModalOpen(true);
+  };
+
+  const handleKycSubmit = async () => {
+      if (!user) return;
+      if (!kycForm.frontImage || !kycForm.backImage) {
+          toast.error("Please upload both ID images.");
+          return;
+      }
+
+      setKycUploading(true);
+      try {
+          // 1. Upload Images to new kyc-documents bucket
+          const timestamp = Date.now();
+          // Important: Use user ID as folder name for RLS policy
+          const frontPath = `${user.id}/front_${timestamp}`;
+          const backPath = `${user.id}/back_${timestamp}`;
+
+          await supabase.storage.from('kyc-documents').upload(frontPath, kycForm.frontImage);
+          await supabase.storage.from('kyc-documents').upload(backPath, kycForm.backImage);
+
+          const { data: frontUrl } = supabase.storage.from('kyc-documents').getPublicUrl(frontPath);
+          const { data: backUrl } = supabase.storage.from('kyc-documents').getPublicUrl(backPath);
+
+          // 2. Insert into kyc_requests table
+          const { error } = await supabase.from('kyc_requests').insert({
+              user_id: user.id,
+              full_name: kycForm.fullName,
+              id_type: kycForm.idType,
+              id_number: kycForm.idNumber,
+              front_image_url: frontUrl.publicUrl,
+              back_image_url: backUrl.publicUrl,
+              status: 'pending'
+          });
+
+          if (error) throw error;
+
+          setKycStatus('pending');
+          setIsKycModalOpen(false);
+          toast.success("KYC Submitted for Review!");
+
+      } catch (e: any) {
+          toast.error("Submission failed: " + e.message);
+      } finally {
+          setKycUploading(false);
+      }
   };
 
   const userBadges = getUserBadges();
@@ -223,6 +313,19 @@ const Profile: React.FC = () => {
 
         {/* CONTENT TABS */}
         <div className="px-4 sm:px-8">
+            
+            {/* Activation Alert */}
+            {config?.is_activation_enabled && !user?.is_account_active && (
+                <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl mb-6 flex items-center gap-3">
+                    <div className="p-2 bg-red-500/20 rounded-lg text-red-500"><Lock size={20}/></div>
+                    <div className="flex-1">
+                        <h4 className="text-white font-bold text-sm">Account Inactive</h4>
+                        <p className="text-xs text-red-300">Deposit <span className="font-bold text-white">{format(config.activation_amount || 1)}</span> to unlock withdrawals and KYC.</p>
+                    </div>
+                    <Link to="/deposit" className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600">Activate</Link>
+                </div>
+            )}
+
             {/* Stats Row */}
             <div className="grid grid-cols-3 gap-3 mb-6">
                 <GlassCard className="p-3 text-center border-l-2 border-l-neon-green">
@@ -445,21 +548,37 @@ const Profile: React.FC = () => {
                         initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                         className="space-y-4"
                     >
-                        <GlassCard className="flex items-center justify-between p-4">
-                            <div className="flex items-center gap-4">
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${user?.is_kyc_1 ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                        <GlassCard className="flex flex-col sm:flex-row items-center justify-between p-4 gap-4">
+                            <div className="flex items-center gap-4 w-full">
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${kycStatus === 'verified' ? 'bg-green-500/20 text-green-500' : kycStatus === 'pending' ? 'bg-yellow-500/20 text-yellow-500' : kycStatus === 'rejected' ? 'bg-red-500/20 text-red-500' : 'bg-gray-500/20 text-gray-500'}`}>
                                     <ShieldCheck size={24} />
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-white">KYC Verification</h4>
-                                    <p className="text-xs text-gray-400">{user?.is_kyc_1 ? 'Your identity is verified.' : 'Verification required for higher limits.'}</p>
+                                    <p className="text-xs text-gray-400">
+                                        {kycStatus === 'verified' ? 'Identity verified securely.' : kycStatus === 'pending' ? 'Verification in progress.' : kycStatus === 'rejected' ? 'Submission rejected. Try again.' : 'Verify identity to unlock limits.'}
+                                    </p>
                                 </div>
                             </div>
-                            {user?.is_kyc_1 ? (
-                                <span className="bg-green-500/10 text-green-500 px-3 py-1 rounded-lg text-xs font-bold uppercase border border-green-500/20">Verified</span>
-                            ) : (
-                                <button className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-xs font-bold transition">Start KYC</button>
-                            )}
+                            
+                            <div className="w-full sm:w-auto">
+                                {kycStatus === 'verified' ? (
+                                    <span className="flex items-center justify-center gap-1 w-full sm:w-auto bg-green-500/10 text-green-500 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-green-500/20">
+                                        <CheckCircle2 size={14}/> Verified
+                                    </span>
+                                ) : kycStatus === 'pending' ? (
+                                    <span className="flex items-center justify-center gap-1 w-full sm:w-auto bg-yellow-500/10 text-yellow-500 px-4 py-2 rounded-lg text-xs font-bold uppercase border border-yellow-500/20">
+                                        <Clock size={14}/> Pending Review
+                                    </span>
+                                ) : (
+                                    <button 
+                                        onClick={handleKYCStart}
+                                        className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2"
+                                    >
+                                        {kycStatus === 'rejected' ? 'Retry KYC' : 'Start KYC'}
+                                    </button>
+                                )}
+                            </div>
                         </GlassCard>
 
                         <Link to="/biometric-setup" className="block">
@@ -482,6 +601,161 @@ const Profile: React.FC = () => {
                         <button onClick={handleLogout} className="w-full py-4 rounded-xl border border-red-500/30 text-red-500 font-bold hover:bg-red-500/10 transition flex items-center justify-center gap-2 mt-4">
                             <LogOut size={18} /> Log Out
                         </button>
+                    </MotionDiv>
+                )}
+            </AnimatePresence>
+
+            {/* KYC MODAL */}
+            <AnimatePresence>
+                {isKycModalOpen && (
+                    <MotionDiv 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => setIsKycModalOpen(false)}
+                    >
+                        <MotionDiv 
+                            initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }}
+                            className="bg-dark-900 w-full max-w-lg rounded-2xl border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+                            onClick={(e: MouseEvent) => e.stopPropagation()}
+                        >
+                            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+                                <h3 className="font-bold text-white flex items-center gap-2"><ShieldCheck className="text-neon-green"/> Identity Verification</h3>
+                                <button onClick={() => setIsKycModalOpen(false)} className="text-gray-500 hover:text-white"><X size={20}/></button>
+                            </div>
+
+                            <div className="p-6 overflow-y-auto custom-scrollbar">
+                                {/* Steps Indicator */}
+                                <div className="flex items-center justify-between mb-8 relative">
+                                    <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-white/10 -z-10"></div>
+                                    {[1, 2, 3].map(step => (
+                                        <div key={step} className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${kycStep >= step ? 'bg-neon-green text-black' : 'bg-black border border-white/20 text-gray-500'}`}>
+                                            {step}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {kycStep === 1 && (
+                                    <div className="space-y-4">
+                                        <h4 className="text-lg font-bold text-white">Personal Details</h4>
+                                        <div>
+                                            <label className="text-xs text-gray-400 block mb-1">Full Name (As per ID)</label>
+                                            <input 
+                                                type="text" 
+                                                value={kycForm.fullName} 
+                                                onChange={e => setKycForm({...kycForm, fullName: e.target.value})}
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-neon-green outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-gray-400 block mb-1">Document Type</label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {['passport', 'national_id', 'license'].map(type => (
+                                                    <button
+                                                        key={type}
+                                                        onClick={() => setKycForm({...kycForm, idType: type})}
+                                                        className={`p-3 rounded-xl border text-xs font-bold capitalize transition ${kycForm.idType === type ? 'bg-neon-green/20 border-neon-green text-neon-green' : 'bg-white/5 border-white/10 text-gray-400'}`}
+                                                    >
+                                                        {type.replace('_', ' ')}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-gray-400 block mb-1">ID Number</label>
+                                            <input 
+                                                type="text" 
+                                                value={kycForm.idNumber} 
+                                                onChange={e => setKycForm({...kycForm, idNumber: e.target.value})}
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-neon-green outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {kycStep === 2 && (
+                                    <div className="space-y-4">
+                                        <h4 className="text-lg font-bold text-white">Document Upload</h4>
+                                        <div className="grid grid-cols-1 gap-4">
+                                            <div className="border-2 border-dashed border-white/10 rounded-xl p-6 text-center hover:bg-white/5 transition relative group">
+                                                <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={e => e.target.files && setKycForm({...kycForm, frontImage: e.target.files[0]})} />
+                                                <div className="flex flex-col items-center">
+                                                    {kycForm.frontImage ? (
+                                                        <div className="text-neon-green flex flex-col items-center">
+                                                            <CheckCircle2 size={32} className="mb-2"/>
+                                                            <span className="text-xs font-bold">{kycForm.frontImage.name}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <CreditCard size={32} className="text-gray-500 mb-2 group-hover:text-white transition"/>
+                                                            <p className="text-sm font-bold text-white">Front Side</p>
+                                                            <p className="text-[10px] text-gray-500">Tap to upload</p>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="border-2 border-dashed border-white/10 rounded-xl p-6 text-center hover:bg-white/5 transition relative group">
+                                                <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={e => e.target.files && setKycForm({...kycForm, backImage: e.target.files[0]})} />
+                                                <div className="flex flex-col items-center">
+                                                    {kycForm.backImage ? (
+                                                        <div className="text-neon-green flex flex-col items-center">
+                                                            <CheckCircle2 size={32} className="mb-2"/>
+                                                            <span className="text-xs font-bold">{kycForm.backImage.name}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="bg-gray-800 w-8 h-5 rounded mb-2 group-hover:bg-gray-700"></div>
+                                                            <p className="text-sm font-bold text-white">Back Side</p>
+                                                            <p className="text-[10px] text-gray-500">Tap to upload</p>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {kycStep === 3 && (
+                                    <div className="space-y-4 text-center">
+                                        <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-blue-500/50">
+                                            <FileText size={40} className="text-blue-400" />
+                                        </div>
+                                        <h4 className="text-xl font-bold text-white">Confirm Submission</h4>
+                                        <p className="text-sm text-gray-400 max-w-xs mx-auto">
+                                            Please verify all details are correct. Review typically takes 24-48 hours.
+                                        </p>
+                                        <div className="bg-white/5 rounded-xl p-4 text-left space-y-2 text-sm border border-white/10">
+                                            <div className="flex justify-between"><span className="text-gray-500">Name:</span> <span className="text-white">{kycForm.fullName}</span></div>
+                                            <div className="flex justify-between"><span className="text-gray-500">Type:</span> <span className="text-white capitalize">{kycForm.idType.replace('_', ' ')}</span></div>
+                                            <div className="flex justify-between"><span className="text-gray-500">ID:</span> <span className="text-white">{kycForm.idNumber}</span></div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="p-4 border-t border-white/10 bg-black/40 flex gap-3">
+                                {kycStep > 1 && (
+                                    <button onClick={() => setKycStep(s => s - 1)} className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-sm">
+                                        Back
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => {
+                                        if (kycStep < 3) {
+                                            if (kycStep === 1 && (!kycForm.fullName || !kycForm.idNumber)) return toast.error("Fill all fields");
+                                            if (kycStep === 2 && (!kycForm.frontImage || !kycForm.backImage)) return toast.error("Upload both images");
+                                            setKycStep(s => s + 1);
+                                        } else {
+                                            handleKycSubmit();
+                                        }
+                                    }}
+                                    disabled={kycUploading}
+                                    className="flex-1 py-3 rounded-xl bg-neon-green text-black font-bold text-sm hover:bg-emerald-400 transition flex items-center justify-center gap-2"
+                                >
+                                    {kycUploading ? <Loader2 className="animate-spin"/> : kycStep === 3 ? 'Submit Verification' : 'Continue'}
+                                </button>
+                            </div>
+                        </MotionDiv>
                     </MotionDiv>
                 )}
             </AnimatePresence>

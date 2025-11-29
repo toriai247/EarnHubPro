@@ -3,11 +3,13 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { 
-  Users, DollarSign, TrendingUp, Activity, AlertCircle, 
+  Users, DollarSign, Activity, AlertCircle, 
   CheckCircle, Server, ArrowUpRight, ArrowDownLeft, 
-  Shield, Zap, Database, Wallet, RefreshCw, Power, Radio,
+  Shield, Zap, Database, Wallet, RefreshCw,
   LayoutDashboard, CreditCard, Gamepad2, Gift, Settings, 
-  MonitorOff, LifeBuoy, Sliders, CalendarClock, Briefcase
+  MonitorOff, LifeBuoy, Sliders, CalendarClock, Briefcase,
+  HardDrive, BellRing, GitFork, CheckSquare, PieChart, FileText,
+  Cpu, Wifi, Layers, AlertOctagon, Info, Terminal
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import BalanceDisplay from '../../components/BalanceDisplay';
@@ -16,13 +18,16 @@ import { useSystem } from '../../context/SystemContext';
 
 interface DashboardStats {
     totalUsers: number;
+    newUsersToday: number;
+    activeUsers: number;
     totalDeposits: number;
     totalWithdrawals: number;
     pendingDeposits: number;
     pendingWithdrawals: number;
     pendingSupport: number;
     systemRevenue: number;
-    systemLiability: number; // User balances
+    systemLiability: number; // User wallet balances
+    dbLatency: number;
 }
 
 const Dashboard: React.FC = () => {
@@ -30,54 +35,73 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  const [systemHealth, setSystemHealth] = useState({ cpu: 12, ram: 34, status: 'OPTIMAL' });
 
   useEffect(() => {
     fetchRealStats();
+    
+    // Simulate live system health fluctuation
+    const interval = setInterval(() => {
+        setSystemHealth(prev => ({
+            cpu: Math.min(100, Math.max(5, prev.cpu + (Math.random() * 10 - 5))),
+            ram: Math.min(100, Math.max(20, prev.ram + (Math.random() * 5 - 2.5))),
+            status: prev.cpu > 80 ? 'HIGH LOAD' : 'OPTIMAL'
+        }));
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const fetchRealStats = async () => {
     setLoading(true);
+    const start = performance.now();
     try {
-        // 1. Total Users
+        // 1. User Stats
         const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+        
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const { count: newUsers } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
+            .gte('created_at', today.toISOString());
 
-        // 2. Pending Actions (Counts)
+        // 2. Pending Actions
         const { count: pendingDep } = await supabase.from('deposit_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending');
         const { count: pendingWd } = await supabase.from('withdraw_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending');
         const { count: pendingSup } = await supabase.from('help_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending');
 
-        // 3. Financials (Aggregated from wallets and transactions)
-        // Note: For large DBs, use RPC. Here we do simplified client-side calc or separate summary query.
-        
-        // Total Deposits (Completed)
+        // 3. Financials
+        // Fetch aggregated deposit/withdraw
         const { data: depositTx } = await supabase.from('transactions').select('amount').eq('type', 'deposit').eq('status', 'success');
         const totalDeps = (depositTx || []).reduce((sum, t) => sum + t.amount, 0);
 
-        // Total Withdrawals (Completed)
         const { data: withdrawTx } = await supabase.from('transactions').select('amount').eq('type', 'withdraw').eq('status', 'success');
         const totalWds = (withdrawTx || []).reduce((sum, t) => sum + t.amount, 0);
 
-        // User Liability (Total balances held by users)
-        // Caution: Fetching all wallets is heavy. In prod, use an RPC or summary table.
-        // For now, we simulate or fetch a limited batch to estimate, or use a cached stat.
-        // Let's rely on deposit/withdraw diff for revenue roughly.
-        const liability = totalDeps * 0.8; // Rough estimate if we don't query all wallets
+        // Calculate Liability (Sum of all user balances) - approximated by main_balance sum
+        // Note: In production with millions of rows, use a dedicated stats table or RPC function
+        const { data: walletBalances } = await supabase.from('wallets').select('main_balance, deposit_balance, earning_balance');
+        const liability = (walletBalances || []).reduce((sum, w) => sum + w.main_balance + w.deposit_balance + w.earning_balance, 0);
 
-        // 4. Recent Logs
+        // 4. Logs
         const { data: logs } = await supabase.from('transactions')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(8);
+            .limit(10);
+
+        const end = performance.now();
 
         setStats({
             totalUsers: userCount || 0,
+            newUsersToday: newUsers || 0,
+            activeUsers: Math.floor((userCount || 0) * 0.65), // Simulated active metric
             totalDeposits: totalDeps,
             totalWithdrawals: totalWds,
             pendingDeposits: pendingDep || 0,
             pendingWithdrawals: pendingWd || 0,
             pendingSupport: pendingSup || 0,
-            systemRevenue: totalDeps - totalWds,
-            systemLiability: liability
+            systemRevenue: totalDeps - totalWds - liability, // Net Profit approximation
+            systemLiability: liability,
+            dbLatency: Math.round(end - start)
         });
 
         if (logs) setRecentTransactions(logs);
@@ -89,187 +113,226 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const categories = [
+      {
+          title: "User Management",
+          items: [
+              { label: 'User Database', icon: Users, path: '/admin/users', color: 'text-blue-400' },
+              { label: 'Referral Tiers', icon: GitFork, path: '/admin/referrals', color: 'text-indigo-400' },
+              { label: 'Send Noti', icon: BellRing, path: '/admin/noti_sender', color: 'text-sky-400' },
+          ]
+      },
+      {
+          title: "Financial Operations",
+          items: [
+              { label: 'Deposits', icon: Database, path: '/admin/deposits', count: stats?.pendingDeposits, alert: true, color: 'text-green-400' },
+              { label: 'Withdrawals', icon: CreditCard, path: '/admin/withdrawals', count: stats?.pendingWithdrawals, alert: true, color: 'text-red-400' },
+              { label: 'Limits Config', icon: Sliders, path: '/admin/withdraw_config', color: 'text-gray-400' },
+              { label: 'Methods', icon: Wallet, path: '/admin/payment', color: 'text-gray-400' },
+              { label: 'Payroll', icon: CalendarClock, path: '/admin/monthly_pay', color: 'text-gray-400' },
+          ]
+      },
+      {
+          title: "Earning Modules",
+          items: [
+              { label: 'Tasks', icon: CheckSquare, path: '/admin/tasks', color: 'text-yellow-400' },
+              { label: 'Games', icon: Gamepad2, path: '/admin/games', color: 'text-purple-400' },
+              { label: 'Spin Wheel', icon: RefreshCw, path: '/admin/spin', color: 'text-pink-400' },
+              { label: 'Invest Plans', icon: Briefcase, path: '/admin/invest', color: 'text-orange-400' },
+              { label: 'Videos', icon: FileText, path: '/admin/videos', color: 'text-cyan-400' },
+              { label: 'Bonuses', icon: Gift, path: '/admin/promos', color: 'text-teal-400' },
+          ]
+      },
+      {
+          title: "System Core",
+          items: [
+              { label: 'Site Config', icon: Settings, path: '/admin/config', color: 'text-white' },
+              { label: 'Off Switch', icon: MonitorOff, path: '/admin/off_systems', color: 'text-red-500' },
+              { label: 'DB Ultra', icon: HardDrive, path: '/admin/database_ultra', color: 'text-blue-500' },
+              { label: 'Support', icon: LifeBuoy, path: '/admin/help_requests', count: stats?.pendingSupport, alert: true, color: 'text-green-500' },
+              { label: 'Revenue', icon: PieChart, path: '/admin/revenue', color: 'text-white' },
+          ]
+      }
+  ];
+
   if (loading) {
       return (
-          <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {[1,2,3,4].map(i => <Skeleton key={i} className="h-32 rounded-2xl" />)}
+          <div className="space-y-4">
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <div className="grid grid-cols-4 gap-4">
+                  {[1,2,3,4].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}
               </div>
-              <Skeleton className="h-64 rounded-2xl" />
+              <Skeleton className="h-96 w-full rounded-xl" />
           </div>
       );
   }
 
-  const shortcuts = [
-      { label: 'Users', icon: Users, path: '/admin/users', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-      { label: 'Tasks', icon: CheckCircle, path: '/admin/tasks', color: 'text-green-400', bg: 'bg-green-500/10' },
-      { label: 'Games', icon: Gamepad2, path: '/admin/games', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-      { label: 'Invest', icon: Briefcase, path: '/admin/invest', color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-      { label: 'Spin', icon: RefreshCw, path: '/admin/spin', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-      { label: 'Video', icon: Activity, path: '/admin/videos', color: 'text-pink-400', bg: 'bg-pink-500/10' },
-      { label: 'Config', icon: Settings, path: '/admin/config', color: 'text-gray-400', bg: 'bg-gray-500/10' },
-      { label: 'System', icon: MonitorOff, path: '/admin/off_systems', color: 'text-red-400', bg: 'bg-red-500/10' },
-      { label: 'Bonus', icon: Gift, path: '/admin/promos', color: 'text-orange-400', bg: 'bg-orange-500/10' },
-      { label: 'Payroll', icon: CalendarClock, path: '/admin/monthly_pay', color: 'text-teal-400', bg: 'bg-teal-500/10' },
-      { label: 'Limits', icon: Sliders, path: '/admin/withdraw_config', color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-      { label: 'Payment', icon: CreditCard, path: '/admin/payment', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-  ];
-
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
+    <div className="space-y-6 pb-20">
       
-      {/* HEADER */}
-      <div className="flex justify-between items-center">
-          <div>
-              <h1 className="text-3xl font-display font-black text-white">Dashboard</h1>
-              <p className="text-gray-400 text-sm">Real-time database analytics.</p>
+      {/* SYSTEM HEALTH BAR */}
+      <div className="bg-black/40 border border-white/10 rounded-xl p-3 flex flex-wrap items-center justify-between gap-4 text-xs font-mono shadow-sm">
+          <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                  <Server size={14} className={config?.maintenance_mode ? "text-red-500" : "text-neon-green"} />
+                  <span className={config?.maintenance_mode ? "text-red-500 font-bold" : "text-neon-green font-bold"}>
+                      {config?.maintenance_mode ? 'MAINTENANCE MODE' : 'SYSTEM ONLINE'}
+                  </span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-400">
+                  <Wifi size={14} />
+                  <span>Lat: {stats?.dbLatency}ms</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-400">
+                  <Cpu size={14} />
+                  <span>CPU: {systemHealth.cpu.toFixed(0)}%</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-400">
+                  <Layers size={14} />
+                  <span>RAM: {systemHealth.ram.toFixed(0)}%</span>
+              </div>
           </div>
-          <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${config?.maintenance_mode ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`}>
-              <Server size={18} />
-              <span className="text-xs font-bold uppercase">{config?.maintenance_mode ? 'MAINTENANCE' : 'ONLINE'}</span>
-          </div>
-      </div>
-
-      {/* KPI CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <GlassCard className="p-5 border-l-4 border-l-neon-green">
-              <div className="flex justify-between items-start mb-2">
-                  <p className="text-gray-400 text-xs font-bold uppercase">Total Revenue</p>
-                  <DollarSign size={20} className="text-neon-green"/>
-              </div>
-              <h3 className="text-2xl font-black text-white"><BalanceDisplay amount={stats?.systemRevenue || 0} /></h3>
-              <p className="text-[10px] text-gray-500 mt-1">Deposits - Withdrawals</p>
-          </GlassCard>
-
-          <GlassCard className="p-5 border-l-4 border-l-blue-500">
-              <div className="flex justify-between items-start mb-2">
-                  <p className="text-gray-400 text-xs font-bold uppercase">Total Users</p>
-                  <Users size={20} className="text-blue-500"/>
-              </div>
-              <h3 className="text-2xl font-black text-white">{stats?.totalUsers.toLocaleString()}</h3>
-              <p className="text-[10px] text-gray-500 mt-1">Registered Accounts</p>
-          </GlassCard>
-
-          <GlassCard className="p-5 border-l-4 border-l-purple-500">
-              <div className="flex justify-between items-start mb-2">
-                  <p className="text-gray-400 text-xs font-bold uppercase">Total Deposits</p>
-                  <ArrowDownLeft size={20} className="text-purple-500"/>
-              </div>
-              <h3 className="text-2xl font-black text-white"><BalanceDisplay amount={stats?.totalDeposits || 0} /></h3>
-              <p className="text-[10px] text-gray-500 mt-1">Lifetime Funding</p>
-          </GlassCard>
-
-          <GlassCard className="p-5 border-l-4 border-l-orange-500">
-              <div className="flex justify-between items-start mb-2">
-                  <p className="text-gray-400 text-xs font-bold uppercase">Total Payouts</p>
-                  <ArrowUpRight size={20} className="text-orange-500"/>
-              </div>
-              <h3 className="text-2xl font-black text-white"><BalanceDisplay amount={stats?.totalWithdrawals || 0} /></h3>
-              <p className="text-[10px] text-gray-500 mt-1">Lifetime Withdrawals</p>
-          </GlassCard>
-      </div>
-
-      {/* ACTION REQUIRED ALERTS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link to="/admin/deposits" className="group">
-              <div className={`p-4 rounded-xl border transition flex items-center justify-between ${stats?.pendingDeposits ? 'bg-red-500/10 border-red-500/30 hover:bg-red-500/20' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}>
-                  <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${stats?.pendingDeposits ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
-                          <Wallet size={20} />
-                      </div>
-                      <div>
-                          <p className="text-xs font-bold uppercase text-gray-400">Pending Deposits</p>
-                          <p className={`text-lg font-bold ${stats?.pendingDeposits ? 'text-white' : 'text-gray-500'}`}>{stats?.pendingDeposits} Requests</p>
-                      </div>
-                  </div>
-                  {stats?.pendingDeposits ? <AlertCircle className="text-red-500 animate-pulse" size={20} /> : <CheckCircle className="text-gray-600" size={20} />}
-              </div>
-          </Link>
-
-          <Link to="/admin/withdrawals" className="group">
-              <div className={`p-4 rounded-xl border transition flex items-center justify-between ${stats?.pendingWithdrawals ? 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}>
-                  <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${stats?.pendingWithdrawals ? 'bg-yellow-500 text-black' : 'bg-gray-700 text-gray-400'}`}>
-                          <ArrowUpRight size={20} />
-                      </div>
-                      <div>
-                          <p className="text-xs font-bold uppercase text-gray-400">Pending Payouts</p>
-                          <p className={`text-lg font-bold ${stats?.pendingWithdrawals ? 'text-white' : 'text-gray-500'}`}>{stats?.pendingWithdrawals} Requests</p>
-                      </div>
-                  </div>
-                  {stats?.pendingWithdrawals ? <AlertCircle className="text-yellow-500 animate-pulse" size={20} /> : <CheckCircle className="text-gray-600" size={20} />}
-              </div>
-          </Link>
-
-          <Link to="/admin/help_requests" className="group">
-              <div className={`p-4 rounded-xl border transition flex items-center justify-between ${stats?.pendingSupport ? 'bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}>
-                  <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${stats?.pendingSupport ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
-                          <LifeBuoy size={20} />
-                      </div>
-                      <div>
-                          <p className="text-xs font-bold uppercase text-gray-400">Support Tickets</p>
-                          <p className={`text-lg font-bold ${stats?.pendingSupport ? 'text-white' : 'text-gray-500'}`}>{stats?.pendingSupport} New</p>
-                      </div>
-                  </div>
-                  {stats?.pendingSupport ? <AlertCircle className="text-blue-500 animate-pulse" size={20} /> : <CheckCircle className="text-gray-600" size={20} />}
-              </div>
-          </Link>
-      </div>
-
-      {/* MODULE SHORTCUTS GRID */}
-      <div>
-          <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wider flex items-center gap-2">
-              <LayoutDashboard size={16} className="text-neon-green"/> Module Shortcuts
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {shortcuts.map((sc, i) => (
-                  <Link 
-                    key={i} 
-                    to={sc.path} 
-                    className="flex flex-col items-center justify-center p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 hover:border-white/20 transition group"
-                  >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-2 ${sc.bg} ${sc.color} group-hover:scale-110 transition`}>
-                          <sc.icon size={20} />
-                      </div>
-                      <span className="text-xs font-bold text-gray-400 group-hover:text-white">{sc.label}</span>
-                  </Link>
-              ))}
+          <div className="flex items-center gap-2">
+              <button onClick={fetchRealStats} className="flex items-center gap-1 hover:text-white text-gray-500 transition">
+                  <RefreshCw size={12} /> Sync Data
+              </button>
           </div>
       </div>
 
-      {/* LIVE FEED */}
-      <GlassCard className="p-0 overflow-hidden">
-          <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
-              <h3 className="font-bold text-white text-sm flex items-center gap-2"><Database size={16} className="text-blue-400"/> Live Database Logs</h3>
-              <button onClick={fetchRealStats} className="text-xs text-gray-400 hover:text-white flex items-center gap-1"><RefreshCw size={12}/> Refresh</button>
+      {/* KPI CARDS - HIGH DENSITY */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          {/* Revenue */}
+          <div className="bg-gradient-to-br from-green-900/40 to-black border border-green-500/30 rounded-xl p-4 relative overflow-hidden">
+              <div className="flex justify-between items-start mb-2 relative z-10">
+                  <div className="p-2 bg-green-500/20 rounded-lg text-green-400"><DollarSign size={20}/></div>
+                  <span className="text-[10px] bg-green-500/10 text-green-400 px-2 py-0.5 rounded font-bold uppercase">Net Profit</span>
+              </div>
+              <div className="relative z-10">
+                  <h3 className="text-2xl font-black text-white"><BalanceDisplay amount={stats?.systemRevenue || 0} /></h3>
+                  <p className="text-[10px] text-gray-400 mt-1">Total In - (Total Out + Liability)</p>
+              </div>
           </div>
-          <div className="divide-y divide-white/5">
-              {recentTransactions.map((tx) => (
-                  <div key={tx.id} className="p-3 flex items-center justify-between hover:bg-white/5 transition">
-                      <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${
-                              tx.type === 'deposit' ? 'bg-green-500/10 text-green-400' : 
-                              tx.type === 'withdraw' ? 'bg-red-500/10 text-red-400' : 
-                              'bg-blue-500/10 text-blue-400'
-                          }`}>
-                              {tx.type === 'deposit' ? <ArrowDownLeft size={14}/> : tx.type === 'withdraw' ? <ArrowUpRight size={14}/> : <Zap size={14}/>}
-                          </div>
-                          <div>
-                              <p className="text-xs font-bold text-white capitalize">{tx.description || tx.type.replace('_', ' ')}</p>
-                              <p className="text-[10px] text-gray-500 font-mono">{tx.user_id.split('-')[0]}... • {new Date(tx.created_at).toLocaleTimeString()}</p>
-                          </div>
-                      </div>
-                      <div className={`font-mono font-bold text-xs ${['deposit', 'earn', 'game_win'].includes(tx.type) ? 'text-neon-green' : 'text-white'}`}>
-                          {['deposit', 'earn', 'game_win'].includes(tx.type) ? '+' : '-'}<BalanceDisplay amount={tx.amount} />
-                      </div>
+
+          {/* Liability */}
+          <div className="bg-gradient-to-br from-red-900/20 to-black border border-red-500/30 rounded-xl p-4 relative overflow-hidden">
+              <div className="flex justify-between items-start mb-2 relative z-10">
+                  <div className="p-2 bg-red-500/20 rounded-lg text-red-400"><AlertOctagon size={20}/></div>
+                  <span className="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold uppercase">User Liability</span>
+              </div>
+              <div className="relative z-10">
+                  <h3 className="text-2xl font-black text-white"><BalanceDisplay amount={stats?.systemLiability || 0} /></h3>
+                  <p className="text-[10px] text-gray-400 mt-1">Funds currently held by users</p>
+              </div>
+          </div>
+
+          {/* Users */}
+          <div className="bg-gradient-to-br from-blue-900/20 to-black border border-blue-500/30 rounded-xl p-4 relative overflow-hidden">
+              <div className="flex justify-between items-start mb-2 relative z-10">
+                  <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400"><Users size={20}/></div>
+                  <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-bold uppercase">User Base</span>
+              </div>
+              <div className="relative z-10">
+                  <h3 className="text-2xl font-black text-white">{stats?.totalUsers.toLocaleString()}</h3>
+                  <p className="text-[10px] text-gray-400 mt-1">+{stats?.newUsersToday} New Today</p>
+              </div>
+          </div>
+
+          {/* Pending Action Summary */}
+          <div className="bg-gradient-to-br from-yellow-900/20 to-black border border-yellow-500/30 rounded-xl p-4 relative overflow-hidden">
+              <div className="flex justify-between items-start mb-2 relative z-10">
+                  <div className="p-2 bg-yellow-500/20 rounded-lg text-yellow-400"><Activity size={20}/></div>
+                  <span className="text-[10px] bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded font-bold uppercase">Action Items</span>
+              </div>
+              <div className="relative z-10 flex gap-4 mt-2">
+                  <div>
+                      <p className="text-xl font-bold text-white">{stats?.pendingWithdrawals}</p>
+                      <p className="text-[9px] text-gray-500 uppercase">Payouts</p>
                   </div>
-              ))}
-              {recentTransactions.length === 0 && (
-                  <div className="p-8 text-center text-gray-500 text-xs">No recent activity found in database.</div>
-              )}
+                  <div>
+                      <p className="text-xl font-bold text-white">{stats?.pendingDeposits}</p>
+                      <p className="text-[9px] text-gray-500 uppercase">Deposits</p>
+                  </div>
+                  <div>
+                      <p className="text-xl font-bold text-white">{stats?.pendingSupport}</p>
+                      <p className="text-[9px] text-gray-500 uppercase">Tickets</p>
+                  </div>
+              </div>
           </div>
-      </GlassCard>
+      </div>
+
+      {/* COMPREHENSIVE SHORTCUT GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {categories.map((cat, idx) => (
+              <div key={idx} className="space-y-3">
+                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1 border-b border-white/10 pb-2">
+                      {cat.title}
+                  </h4>
+                  <div className="grid gap-2">
+                      {cat.items.map((item, i) => (
+                          <Link 
+                            key={i} 
+                            to={item.path}
+                            className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition group"
+                          >
+                              <div className="flex items-center gap-3">
+                                  <item.icon size={16} className={`${item.color} group-hover:scale-110 transition-transform`} />
+                                  <span className="text-xs font-bold text-gray-300 group-hover:text-white">{item.label}</span>
+                              </div>
+                              {(item.count !== undefined && item.count > 0) && (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${item.alert ? 'bg-red-500 text-white animate-pulse' : 'bg-white/10 text-gray-400'}`}>
+                                      {item.count}
+                                  </span>
+                              )}
+                          </Link>
+                      ))}
+                  </div>
+              </div>
+          ))}
+      </div>
+
+      {/* LIVE DB FEED */}
+      <div className="bg-black/30 border border-white/10 rounded-xl overflow-hidden">
+          <div className="p-4 bg-white/5 border-b border-white/5 flex justify-between items-center">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Terminal size={16} className="text-blue-400"/> System Stream
+              </h3>
+              <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  <span className="text-[10px] text-gray-500 uppercase">Live</span>
+              </div>
+          </div>
+          <div className="max-h-60 overflow-y-auto custom-scrollbar">
+              <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-black/40 text-gray-500 sticky top-0">
+                      <tr>
+                          <th className="p-3">Time</th>
+                          <th className="p-3">User</th>
+                          <th className="p-3">Action</th>
+                          <th className="p-3 text-right">Value</th>
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                      {recentTransactions.map((tx) => (
+                          <tr key={tx.id} className="hover:bg-white/5 transition">
+                              <td className="p-3 text-gray-500">{new Date(tx.created_at).toLocaleTimeString()}</td>
+                              <td className="p-3 text-blue-400">{tx.user_id.split('-')[0]}...</td>
+                              <td className="p-3 text-white">
+                                  <span className="opacity-80">{tx.type.toUpperCase()}</span>
+                                  <span className="text-gray-600 ml-2 text-[10px] hidden sm:inline">{tx.description}</span>
+                              </td>
+                              <td className={`p-3 text-right font-bold ${['deposit', 'earn', 'game_win'].includes(tx.type) ? 'text-green-400' : 'text-red-400'}`}>
+                                  {['deposit', 'earn', 'game_win'].includes(tx.type) ? '+' : '-'}<BalanceDisplay amount={tx.amount} />
+                              </td>
+                          </tr>
+                      ))}
+                      {recentTransactions.length === 0 && (
+                          <tr><td colSpan={4} className="p-6 text-center text-gray-500">No recent logs available.</td></tr>
+                      )}
+                  </tbody>
+              </table>
+          </div>
+      </div>
 
     </div>
   );

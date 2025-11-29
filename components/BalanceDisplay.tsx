@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { useCurrency } from '../context/CurrencyContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,9 +8,10 @@ interface BalanceDisplayProps {
     className?: string;
     isHeader?: boolean;
     isNative?: boolean; // If true, amount is already in user's currency (Wallet balance)
+    decimals?: number;
 }
 
-const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ amount, className = '', isHeader = false, isNative = false }) => {
+const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ amount, className = '', isHeader = false, isNative = false, decimals = 2 }) => {
     const { format } = useCurrency();
     const [showFull, setShowFull] = useState(false);
 
@@ -20,7 +20,7 @@ const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ amount, className = '',
     // Compact if value > 10,000 AND user hasn't toggled to full view.
     const useCompact = !showFull && value > 10000;
 
-    const formatted = format(value, { compact: useCompact, isNative });
+    const formatted = format(value, { compact: useCompact, isNative, decimals });
 
     return (
         <div 

@@ -1,7 +1,8 @@
+
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
-import { DepositRequest } from '../../types';
+import { DepositRequest, SystemConfig } from '../../types';
 import { Eye, CheckCircle, XCircle, Loader2, RefreshCw, Search, DollarSign, AlertTriangle, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../../context/UIContext';
@@ -16,6 +17,7 @@ const DepositApprove: React.FC = () => {
   const [viewImage, setViewImage] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [config, setConfig] = useState<SystemConfig | null>(null);
   
   // Stats
   const [totalPending, setTotalPending] = useState(0);
@@ -27,6 +29,7 @@ const DepositApprove: React.FC = () => {
 
   useEffect(() => {
     fetchRequests();
+    fetchConfig();
   }, []);
 
   useEffect(() => {
@@ -37,6 +40,11 @@ const DepositApprove: React.FC = () => {
       );
       setFilteredRequests(filtered);
   }, [searchTerm, requests]);
+
+  const fetchConfig = async () => {
+      const { data } = await supabase.from('system_config').select('*').limit(1).maybeSingle();
+      if(data) setConfig(data as SystemConfig);
+  };
 
   const fetchRequests = async () => {
     setIsLoading(true);
@@ -74,14 +82,25 @@ const DepositApprove: React.FC = () => {
           if (data && data.success === false) throw new Error(data.message);
 
           // Success UI Feedback
-          setRequests(prev => prev.filter(r => r.id !== id));
-          setRejectId(null);
+          
+          // --- ACTIVATION CHECK LOGIC ---
+          if (status === 'approved' && config?.is_activation_enabled) {
+              const req = requests.find(r => r.id === id);
+              if (req && req.amount >= (config.activation_amount || 0)) {
+                  // Activate Account
+                  await supabase.from('profiles').update({ is_account_active: true }).eq('id', req.user_id);
+                  toast.success("Account marked as Active!");
+              }
+          }
           
           if (status === 'approved') {
               toast.success("Deposit Approved! Commission Sent.");
           } else {
               toast.info("Deposit Rejected.");
           }
+
+          setRequests(prev => prev.filter(r => r.id !== id));
+          setRejectId(null);
           
           // Update Stats
           const req = requests.find(r => r.id === id);
@@ -106,6 +125,11 @@ const DepositApprove: React.FC = () => {
             <div className="md:col-span-2">
                 <h2 className="text-2xl font-display font-bold text-white mb-2">Deposit Control</h2>
                 <p className="text-gray-400 text-sm">Manage incoming fund requests and verifications.</p>
+                {config?.is_activation_enabled && (
+                    <div className="mt-2 text-xs bg-purple-500/20 text-purple-300 px-3 py-1 rounded inline-block border border-purple-500/30">
+                        Auto-Activate threshold: ${config.activation_amount}
+                    </div>
+                )}
             </div>
             <GlassCard className="bg-gradient-to-r from-blue-900/40 to-royal-900/40 border-royal-500/30 flex items-center justify-between">
                 <div>
@@ -202,7 +226,9 @@ const DepositApprove: React.FC = () => {
                                         <div className="h-1 flex-1 bg-white/5 rounded-full ml-2 overflow-hidden">
                                             <div className="h-full bg-neon-green/30 w-2/3 animate-pulse"></div>
                                         </div>
-                                        <span className="text-[10px] text-neon-green font-bold">System Check: OK</span>
+                                        {config?.is_activation_enabled && req.amount >= (config.activation_amount || 0) && (
+                                            <span className="text-[10px] text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded">ACTIVATION</span>
+                                        )}
                                     </div>
                                 </div>
 

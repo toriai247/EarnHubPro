@@ -11,10 +11,10 @@ import { useCurrency } from '../context/CurrencyContext';
 
 const Deposit: React.FC = () => {
   const { toast } = useUI();
-  const { rate, symbol, currency } = useCurrency();
+  const { rate, symbol, currency, amountToUSD } = useCurrency();
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(''); // This is now LOCAL currency input
   const [senderNumber, setSenderNumber] = useState('');
   const [transactionId, setTransactionId] = useState('');
   const [screenshot, setScreenshot] = useState<File | null>(null);
@@ -36,6 +36,9 @@ const Deposit: React.FC = () => {
       if (!selectedMethod) return;
       if (!amount || parseFloat(amount) <= 0) { toast.error("Invalid amount"); return; }
       if (!transactionId) { toast.error("Transaction ID is required"); return; }
+
+      // Convert Local Input (e.g. 120 BDT) to USD (e.g. 1.00 USD) for storage
+      const usdAmount = amountToUSD(parseFloat(amount));
 
       setLoading(true);
       setUploadState('Initiating...');
@@ -59,7 +62,7 @@ const Deposit: React.FC = () => {
           const { error: insertError } = await supabase.from('deposit_requests').insert({
               user_id: session.user.id,
               method_name: selectedMethod.name,
-              amount: parseFloat(amount), // Sends USD Amount
+              amount: usdAmount, // Sends USD Amount to DB
               transaction_id: transactionId,
               sender_number: senderNumber,
               screenshot_url: screenshotUrl,
@@ -78,7 +81,8 @@ const Deposit: React.FC = () => {
       }
   };
 
-  const payAmount = (parseFloat(amount) || 0) * rate;
+  // Display USD equivalent for user reference
+  const usdPreview = amountToUSD(parseFloat(amount) || 0);
 
   if (status === 'success') {
       return (
@@ -133,24 +137,24 @@ const Deposit: React.FC = () => {
                    
                    <div className="grid grid-cols-2 gap-4 items-end">
                        <div>
-                           <label className="text-xs text-gray-400 font-bold mb-1 block">Deposit (USD)</label>
+                           <label className="text-xs text-gray-400 font-bold mb-1 block">Deposit ({currency})</label>
                            <input 
                              type="number" 
                              value={amount}
                              onChange={e => setAmount(e.target.value)}
                              className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-mono font-bold text-xl focus:border-neon-green outline-none"
-                             placeholder="10"
+                             placeholder="500"
                            />
                        </div>
                        <div>
-                           <label className="text-xs text-neon-green font-bold mb-1 block">You Pay ({currency})</label>
+                           <label className="text-xs text-neon-green font-bold mb-1 block">Credit Value (USD)</label>
                            <div className="w-full bg-neon-green/10 border border-neon-green/30 rounded-xl p-3 text-neon-green font-mono font-bold text-xl flex items-center gap-1">
-                               {symbol} {payAmount.toLocaleString()}
+                               $ {usdPreview.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                            </div>
                        </div>
                    </div>
                    <p className="text-[10px] text-gray-500 mt-2 italic">
-                       * Send exactly <span className="text-white font-bold">{symbol}{payAmount.toLocaleString()}</span> to the number below.
+                       * Send exactly <span className="text-white font-bold">{symbol}{parseFloat(amount || '0').toLocaleString()}</span> to the number below.
                    </p>
                </GlassCard>
 

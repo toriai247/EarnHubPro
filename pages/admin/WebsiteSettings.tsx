@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { SystemConfig } from '../../types';
-import { Save, Loader2, RefreshCw } from 'lucide-react';
+import { Save, Loader2, RefreshCw, Lock } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 
 const WebsiteSettings: React.FC = () => {
@@ -29,7 +29,9 @@ const WebsiteSettings: React.FC = () => {
           maintenance_mode: config.maintenance_mode,
           global_alert: config.global_alert,
           p2p_transfer_fee_percent: config.p2p_transfer_fee_percent,
-          p2p_min_transfer: config.p2p_min_transfer
+          p2p_min_transfer: config.p2p_min_transfer,
+          is_activation_enabled: config.is_activation_enabled,
+          activation_amount: config.activation_amount
       }).eq('id', config.id);
 
       if(error) toast.error(error.message);
@@ -56,6 +58,49 @@ const WebsiteSettings: React.FC = () => {
                 </label>
             </div>
             
+            <div className="h-px bg-white/10"></div>
+
+            {/* Account Activation Settings */}
+            <div className="bg-purple-900/10 border border-purple-500/30 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400"><Lock size={18}/></div>
+                        <div>
+                            <h4 className="font-bold text-white text-sm">Account Activation Requirement</h4>
+                            <p className="text-xs text-gray-400">Users must deposit to withdraw/verify.</p>
+                        </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            checked={config.is_activation_enabled || false} 
+                            onChange={e => setConfig({...config, is_activation_enabled: e.target.checked})} 
+                            className="sr-only peer" 
+                        />
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                </div>
+                
+                {config.is_activation_enabled && (
+                    <div className="bg-black/30 p-3 rounded-lg border border-white/5">
+                        <label className="text-xs text-purple-300 font-bold block mb-1">Required Deposit Amount (USD)</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                value={config.activation_amount || 0}
+                                onChange={e => setConfig({...config, activation_amount: parseFloat(e.target.value)})}
+                                className="w-full bg-black/40 border border-white/10 rounded-lg pl-8 pr-4 py-2 text-white text-sm focus:border-purple-500 outline-none"
+                            />
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-2">
+                            Approx: {(config.activation_amount || 0) * 120} BDT. Users with total deposits below this cannot withdraw.
+                        </p>
+                    </div>
+                )}
+            </div>
+
             <div className="h-px bg-white/10"></div>
 
             <div className="space-y-2">

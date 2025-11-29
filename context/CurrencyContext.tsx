@@ -9,12 +9,14 @@ type CurrencyCode = keyof typeof CURRENCY_CONFIG;
 interface FormatOptions {
     compact?: boolean;
     isNative?: boolean; 
+    decimals?: number;
 }
 
 interface CurrencyContextType {
     currency: CurrencyCode;
     setCurrency: (code: CurrencyCode, userId: string) => Promise<boolean>;
     format: (amount: number, options?: FormatOptions) => string;
+    amountToUSD: (localAmount: number) => number; // New Helper
     symbol: string;
     rate: number;
     isLoading: boolean;
@@ -93,7 +95,6 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             // 3. Deduct Fee
             if (fee > 0) {
                 await updateWallet(userId, fee, 'decrement', 'balance');
-                // FIX: Use 'penalty' instead of 'fee' to match DB constraints
                 await createTransaction(userId, 'penalty', fee, `Currency Switch Fee (${currency} to ${targetCode})`);
             }
 
@@ -119,15 +120,16 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     const format = (amount: number, options?: FormatOptions) => {
-        const { compact = false } = options || {};
+        const { compact = false, isNative = false, decimals = 2 } = options || {};
         
         let val = amount || 0;
         const config = CURRENCY_CONFIG[currency];
         const symbol = config.symbol;
 
-        // Convert Base USD to Target Currency
-        // Example: 1 USD * 120 Rate = 120 BDT
-        val = val * config.rate;
+        // Convert Base USD to Target Currency (Unless isNative is true, meaning it's already converted)
+        if (!isNative) {
+            val = val * config.rate;
+        }
 
         if (compact) {
             if (val >= 1000000000000) return `${symbol}${(val / 1000000000000).toFixed(2)}T`;
@@ -138,10 +140,17 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: 'USD', // Hack to keep formatting clean, we replace symbol manually
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+            currency: 'USD', // Hack to keep formatting clean
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
         }).format(val).replace('$', symbol).replace('USD', '');
+    };
+
+    // Helper: Converts local currency input (e.g. 120 BDT) back to Base USD (1.00 USD)
+    const amountToUSD = (localAmount: number) => {
+        const config = CURRENCY_CONFIG[currency];
+        if (!config || config.rate === 0) return localAmount;
+        return localAmount / config.rate;
     };
 
     return (
@@ -149,6 +158,7 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             currency, 
             setCurrency, 
             format, 
+            amountToUSD,
             symbol: CURRENCY_CONFIG[currency].symbol, 
             rate: CURRENCY_CONFIG[currency].rate,
             isLoading 

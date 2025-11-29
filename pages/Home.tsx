@@ -1,4 +1,6 @@
 
+
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
@@ -9,6 +11,7 @@ import GlassCard from '../components/GlassCard';
 import Skeleton from '../components/Skeleton';
 import TrendChart from '../components/TrendChart';
 import BalanceDisplay from '../components/BalanceDisplay';
+import DailyBonus from '../components/DailyBonus';
 import { motion } from 'framer-motion';
 import { Activity, WalletData, UserProfile } from '../types';
 import { supabase } from '../integrations/supabase/client';
@@ -261,6 +264,9 @@ const Home: React.FC = () => {
   return (
     <MotionDiv variants={container} initial="hidden" animate="show" className="space-y-8 pb-24 relative">
       
+      {/* Daily Bonus Modal Integration */}
+      {user && <DailyBonus userId={user.id} />}
+
       {/* Header Section */}
       <MotionDiv variants={item} className="flex justify-between items-center pt-2">
         <div className="flex items-center gap-4">
@@ -296,7 +302,7 @@ const Home: React.FC = () => {
               <div>
                 <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Asset Value</p>
                 <h1 className="text-4xl font-display font-black text-white tracking-tight">
-                  <BalanceDisplay amount={wallet?.balance || 0} isNative={true} />
+                  <BalanceDisplay amount={wallet?.balance || 0} />
                 </h1>
               </div>
               <div className="bg-electric-500/10 px-3 py-1.5 rounded border border-electric-500/30 text-xs font-bold text-electric-400 flex items-center gap-1">
@@ -313,15 +319,15 @@ const Home: React.FC = () => {
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-black/40 rounded p-3 border border-white/5">
                 <p className="text-[9px] text-gray-500 uppercase font-bold mb-1">Deposit</p>
-                <p className="font-bold text-white text-sm font-mono"><BalanceDisplay amount={wallet?.deposit || 0} isNative={true} /></p>
+                <p className="font-bold text-white text-sm font-mono"><BalanceDisplay amount={wallet?.deposit || 0} /></p>
               </div>
               <div className="bg-black/40 rounded p-3 border border-white/5">
                 <p className="text-[9px] text-gray-500 uppercase font-bold mb-1">Withdrawable</p>
-                <p className="font-bold text-white text-sm font-mono"><BalanceDisplay amount={wallet?.withdrawable || 0} isNative={true} /></p>
+                <p className="font-bold text-white text-sm font-mono"><BalanceDisplay amount={wallet?.withdrawable || 0} /></p>
               </div>
               <div className="bg-electric-900/20 rounded p-3 border border-electric-500/20">
                 <p className="text-[9px] text-electric-400 uppercase font-bold mb-1">Today</p>
-                <p className="font-bold text-electric-400 text-sm font-mono">+<BalanceDisplay amount={wallet?.today_earning || 0} isNative={true} /></p>
+                <p className="font-bold text-electric-400 text-sm font-mono">+<BalanceDisplay amount={wallet?.today_earning || 0} /></p>
               </div>
             </div>
 
@@ -435,7 +441,7 @@ const Home: React.FC = () => {
                        : 'text-neo-green'
                    }`}>
                      {act.type === 'withdraw' || act.type === 'invest' || act.type === 'game_loss' ? '-' : '+'}
-                     <BalanceDisplay amount={act.amount} isNative={true} />
+                     <BalanceDisplay amount={act.amount} />
                    </span>
                  )}
               </GlassCard>

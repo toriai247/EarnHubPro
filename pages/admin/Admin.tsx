@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -28,6 +28,8 @@ import OffSystems from './OffSystems';
 import HelpRequests from './HelpRequests';
 import DatabaseUltra from './DatabaseUltra';
 import NotiSender from './NotiSender';
+import ReferralControl from './ReferralControl';
+import VerificationRequest from './VerificationRequest'; // Imported
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -46,7 +48,9 @@ const Admin: React.FC = () => {
     { id: 'noti_sender', icon: BellRing, label: 'Noti Sender', color: 'text-yellow-400', path: '/admin/noti_sender' },
     { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400', path: '/admin/off_systems' }, 
     { id: 'help_requests', icon: LifeBuoy, label: 'Support Inbox', color: 'text-blue-400', path: '/admin/help_requests' },
+    { id: 'verification', icon: ShieldCheck, label: 'KYC Requests', color: 'text-emerald-400', path: '/admin/verification' }, // New Item
     { id: 'users', icon: Users, label: 'User Admin', path: '/admin/users' },
+    { id: 'referrals', icon: GitFork, label: 'Referral Tiers', color: 'text-green-400', path: '/admin/referrals' },
     { id: 'tasks', icon: CheckCircle, label: 'Task Coord', path: '/admin/tasks' },
     { id: 'spin', icon: PieChart, label: 'Spin Control', path: '/admin/spin' },
     { id: 'payment', icon: Banknote, label: 'Payment Methods', path: '/admin/payment' },
@@ -134,7 +138,9 @@ const Admin: React.FC = () => {
           case 'noti_sender': return <NotiSender />;
           case 'off_systems': return <OffSystems />;
           case 'help_requests': return <HelpRequests />;
+          case 'verification': return <VerificationRequest />;
           case 'users': return <UserManagement onSelectUser={setSelectedUserId} />;
+          case 'referrals': return <ReferralControl />; 
           case 'tasks': return <TaskManagement />;
           case 'spin': return <SpinSettings />;
           case 'payment': return <PaymentSettings />;

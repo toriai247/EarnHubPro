@@ -1,4 +1,7 @@
 
+
+
+
 import { supabase } from '../integrations/supabase/client';
 import { Task, ActiveInvestment } from '../types';
 import { CURRENCY_CONFIG } from '../constants';
@@ -199,26 +202,40 @@ export const createUserProfile = async (userId: string, email: string, fullName:
 const distributeReferralReward = async (userId: string, earningAmount: number) => {
     if (earningAmount <= 0) return;
 
+    // Get the User who earned money
     const { data: userProfile } = await supabase.from('profiles').select('referred_by, name_1').eq('id', userId).single();
     if (!userProfile || !userProfile.referred_by) return;
 
+    // Get the Referrer
     const { data: referrerProfile } = await supabase.from('profiles').select('id').eq('ref_code_1', userProfile.referred_by).maybeSingle();
     if (!referrerProfile) return;
 
+    // NEW: Fetch Dynamic Commission Rules
+    // We specifically look for Level 1, Type 'earning' (since this function is called on game/task wins)
+    // If you need it for deposit, similar logic applies in deposit processing (though that's usually admin manual)
+    const { data: tierConfig } = await supabase
+        .from('referral_tiers')
+        .select('commission_percent')
+        .eq('level', 1)
+        .eq('type', 'earning')
+        .eq('is_active', true)
+        .maybeSingle();
+
+    // Default to 5% if no config found or config fails
+    const percent = tierConfig ? tierConfig.commission_percent : 5.0;
+    const commission = Number((earningAmount * (percent / 100)).toFixed(4));
+        
+    if (commission < 0.001) return;
+
     const { data: rWallet } = await supabase.from('wallets').select('*').eq('user_id', referrerProfile.id).single();
     if (rWallet) {
-        // Simplified: The system gives 5% of the *earner's absolute value*.
-        const commission = Number((earningAmount * 0.05).toFixed(4));
-        
-        if (commission < 0.001) return;
-
         await supabase.from('wallets').update({
             commission_balance: (rWallet.commission_balance || 0) + commission, 
             total_earning: rWallet.total_earning + commission,
             referral_earnings: (rWallet.referral_earnings || 0) + commission
         }).eq('user_id', referrerProfile.id);
 
-        await createTransaction(referrerProfile.id, 'referral', commission, `5% Commission from ${userProfile.name_1 || 'User'}`);
+        await createTransaction(referrerProfile.id, 'referral', commission, `${percent}% Commission from ${userProfile.name_1 || 'User'}`);
         
         const { data: refRecord } = await supabase.from('referrals').select('*')
             .eq('referrer_id', referrerProfile.id)
@@ -231,8 +248,7 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
             }).eq('id', refRecord.id);
         }
 
-        // Keep this manual trigger as it's specific to an activity, not just a row insert/update
-        await createNotification(referrerProfile.id, 'Commission Earned! 💸', `You earned ${commission.toFixed(2)} (5%) commission.`, 'success');
+        await createNotification(referrerProfile.id, 'Commission Earned! 💸', `You earned ${commission.toFixed(2)} (${percent}%) commission.`, 'success');
     }
 };
 
@@ -273,6 +289,7 @@ export const processGameResult = async (userId: string, gameId: string, gameName
              }
         }
         
+        // Trigger Commission on Profit
         if (finalProfit > 0) {
             await distributeReferralReward(userId, finalProfit);
         }
@@ -438,4 +455,43 @@ export const processMonthlyPayment = async (userId: string, balance: number, met
     });
 
     // Notification is handled by the new database trigger on withdraw_requests table
+};
+
+// --- DAILY BONUS LOGIC ---
+export const checkDailyBonus = async (userId: string) => {
+    const today = new Date().toDateString();
+    
+    // Check if a bonus transaction exists for today
+    const { data: tx } = await supabase.from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('type', 'bonus')
+        .ilike('description', 'Daily Login Bonus%')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+    if (tx && tx.length > 0) {
+        const lastBonusDate = new Date(tx[0].created_at).toDateString();
+        if (lastBonusDate === today) {
+            return { canClaim: false, streak: 0 }; // Already claimed today
+        }
+    }
+    
+    // Check streak (This logic is simplified for frontend demo, ideal would be DB column)
+    return { canClaim: true };
+};
+
+export const claimDailyBonus = async (userId: string, day: number) => {
+    if (!isValidUUID(userId)) throw new Error("Invalid User");
+
+    const rewards = [0.10, 0.20, 0.30, 0.40, 0.50, 0.75, 1.00]; // 7 Days rewards
+    const amount = rewards[day - 1] || 0.10;
+
+    await updateWallet(userId, amount, 'increment', 'bonus_balance');
+    await createTransaction(userId, 'bonus', amount, `Daily Login Bonus (Day ${day})`);
+    
+    // Trigger update
+    window.dispatchEvent(new Event('wallet_updated'));
+    
+    return amount;
 };

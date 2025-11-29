@@ -58,7 +58,6 @@ export interface Task {
 export interface Transaction {
   id: string;
   user_id: string;
-  // REMOVED 'fee', 'task_create', 'task_payout' to match DB constraint
   type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer';
   amount: number;
   status: 'success' | 'pending' | 'failed';
@@ -119,6 +118,7 @@ export interface UserProfile {
   is_kyc_1: boolean;
   is_withdraw_blocked?: boolean;
   is_suspended?: boolean; // NEW: Banned status
+  is_account_active?: boolean; // NEW: Activation Status
   admin_notes?: string;   // NEW: Private notes
   risk_score?: number;    // NEW: Risk Analysis (0-100)
   rank_1?: string;
@@ -312,6 +312,8 @@ export interface SystemConfig {
     global_alert: string | null;
     p2p_transfer_fee_percent?: number;
     p2p_min_transfer?: number;
+    is_activation_enabled?: boolean; // NEW
+    activation_amount?: number; // NEW
 }
 
 export interface HelpRequest {
@@ -323,6 +325,20 @@ export interface HelpRequest {
     admin_response?: string;
     resolved_at?: string;
     created_at: string;
+}
+
+export interface KycRequest {
+    id: string;
+    user_id: string;
+    full_name: string;
+    id_type: string;
+    id_number: string;
+    front_image_url: string;
+    back_image_url: string;
+    status: 'pending' | 'approved' | 'rejected';
+    admin_note?: string;
+    created_at: string;
+    profile?: UserProfile; // Joined data
 }
 
 // REALTIME CRASH GAME TYPES
@@ -345,4 +361,14 @@ export interface CrashBet {
     profit: number;
     avatar_url?: string;
     user_name?: string;
+    wallet_type?: string;
+}
+
+export interface ReferralTier {
+    id: string;
+    level: number;
+    commission_percent: number;
+    type: 'deposit' | 'earning';
+    is_active: boolean;
+    created_at?: string;
 }

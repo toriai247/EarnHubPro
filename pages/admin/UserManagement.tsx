@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Search, RefreshCw, AlertCircle, ArrowRight, Copy, 
-  ShieldCheck, Lock, Users, Filter, UserX, CheckCircle2, MoreVertical, Ban, ShieldAlert, BadgeAlert 
+  ShieldCheck, Lock, Users, Filter, UserX, CheckCircle2, MoreVertical, Ban, ShieldAlert, BadgeAlert, StickyNote 
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
@@ -200,6 +200,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
                             <th className="px-6 py-4">User Identity</th>
                             <th className="px-6 py-4">Risk & Status</th>
                             <th className="px-6 py-4">Contact</th>
+                            <th className="px-6 py-4">Admin Notes</th>
                             <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                     </thead>
@@ -277,6 +278,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
                                 <td className="px-6 py-4">
                                     <p className="text-white text-xs select-all hover:text-blue-400 cursor-pointer">{u.email_1}</p>
                                     <p className="text-[10px] mt-1 text-gray-500">Joined: {new Date(u.created_at).toLocaleDateString()}</p>
+                                </td>
+                                <td className="px-6 py-4">
+                                    {u.admin_notes ? (
+                                        <div className="text-xs text-yellow-200/70 italic bg-yellow-500/5 p-2 rounded border border-yellow-500/10 max-w-[150px] truncate" title={u.admin_notes}>
+                                            <StickyNote size={10} className="inline mr-1 opacity-70"/> {u.admin_notes}
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-gray-600 italic">No notes</span>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                     <button 

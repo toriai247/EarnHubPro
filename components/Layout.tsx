@@ -11,6 +11,7 @@ import BalanceDisplay from './BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSystem } from '../context/SystemContext';
 import MaintenanceScreen from './MaintenanceScreen';
+import SuspendedView from './SuspendedView';
 import { useUI } from '../context/UIContext';
 
 const MotionDiv = motion.div as any;
@@ -206,18 +207,10 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       }
   };
 
+  // --- BLOCKED STATES ---
+
   if (isSuspended) {
-      return (
-          <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
-              <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center border-2 border-red-500 mb-6 animate-pulse">
-                  <Ban size={48} className="text-red-500" />
-              </div>
-              <h1 className="text-3xl font-black text-white uppercase mb-2">Account Suspended</h1>
-              <button onClick={handleLogout} className="px-8 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition flex items-center gap-2">
-                  <LogOut size={18} /> Sign Out
-              </button>
-          </div>
-      );
+      return <SuspendedView session={session} />;
   }
 
   if (config?.maintenance_mode && !isAdmin) {
@@ -279,7 +272,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                             <Crown size={14} className="fill-current" /> LVL {level}
                         </div>
                         <div className="px-3 py-1.5 rounded bg-surface border border-border-neo text-xs font-bold text-white flex items-center gap-1 shadow-neo-sm font-mono">
-                            <BalanceDisplay amount={balance} isHeader={true} isNative={true} />
+                            <BalanceDisplay amount={balance} isHeader={true} isNative={false} />
                         </div>
                       </>
                     )}

@@ -24,7 +24,7 @@ const Advertise: React.FC = () => {
   const [description, setDescription] = useState('');
   const [url, setUrl] = useState('');
   const [quantity, setQuantity] = useState<number>(100);
-  const [pricePerAction, setPricePerAction] = useState<number>(0.05); // Default $0.05
+  const [pricePerAction, setPricePerAction] = useState<number>(0.05);
   const [proofType, setProofType] = useState<'screenshot' | 'text' | 'auto'>('screenshot');
   const [timerSeconds, setTimerSeconds] = useState<number>(30); // Default 30s
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,7 +35,7 @@ const Advertise: React.FC = () => {
   const [manageSort, setManageSort] = useState('newest');
 
   // Constants
-  const MIN_PRICE = 0.02; // Minimum $0.02 per action
+  const MIN_PRICE = 0.0000001; // Updated to high precision
   const ADMIN_FEE_PERCENT = 30; // 30% retained by system
 
   useEffect(() => {
@@ -101,11 +101,11 @@ const Advertise: React.FC = () => {
       const totalCost = quantity * pricePerAction;
       
       if (totalCost > wallet.deposit_balance) {
-          toast.error(`Insufficient Deposit Balance. Need $${totalCost.toFixed(2)}`);
+          toast.error(`Insufficient Deposit Balance. Need $${totalCost.toFixed(7)}`);
           return;
       }
 
-      if (!await confirm(`Create Campaign "${title}" for $${totalCost.toFixed(2)}?`, "Confirm Payment")) return;
+      if (!await confirm(`Create Campaign "${title}" for $${totalCost.toFixed(4)}?`, "Confirm Payment")) return;
 
       setIsSubmitting(true);
       try {
@@ -387,7 +387,7 @@ const Advertise: React.FC = () => {
                             <div>
                                 <label className="text-xs font-bold text-gray-400 uppercase mb-1 block flex items-center gap-1"><DollarSign size={12}/> Price Per User</label>
                                 <input 
-                                    required type="number" step="0.01" min={MIN_PRICE} value={pricePerAction} onChange={e => setPricePerAction(parseFloat(e.target.value))} 
+                                    required type="number" step="0.0000001" min={MIN_PRICE} value={pricePerAction} onChange={e => setPricePerAction(parseFloat(e.target.value))} 
                                     className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
                                 />
                             </div>
@@ -398,11 +398,11 @@ const Advertise: React.FC = () => {
                             <h4 className="text-xs font-bold text-white uppercase flex items-center gap-2"><Calculator size={14}/> Cost Breakdown</h4>
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-400">Total Budget</span>
-                                <span className="text-white font-bold">${totalCost.toFixed(2)}</span>
+                                <span className="text-white font-bold"><BalanceDisplay amount={totalCost} decimals={7} /></span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-400">Worker Earns</span>
-                                <span className="text-green-400 font-bold">${userEarns.toFixed(3)}</span>
+                                <span className="text-green-400 font-bold"><BalanceDisplay amount={userEarns} decimals={7} /></span>
                             </div>
                             <div className="h-px bg-white/10 my-1"></div>
                             <p className="text-[10px] text-gray-500 italic">
@@ -560,7 +560,7 @@ const Advertise: React.FC = () => {
                                         </div>
                                         <div className="bg-white/5 p-2 rounded text-center">
                                             <p className="text-[9px] text-gray-500 uppercase">Cost/Act</p>
-                                            <p className="text-sm font-bold text-white">${task.price_per_action}</p>
+                                            <p className="text-sm font-bold text-white"><BalanceDisplay amount={task.price_per_action} decimals={7} /></p>
                                         </div>
                                         <div className="bg-white/5 p-2 rounded text-center">
                                             <p className="text-[9px] text-gray-500 uppercase">Timer</p>
