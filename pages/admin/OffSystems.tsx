@@ -5,7 +5,7 @@ import { supabase } from '../../integrations/supabase/client';
 import { SystemConfig } from '../../types';
 import { 
   Power, Save, AlertTriangle, Lock, MonitorOff, 
-  Gamepad2, Zap, Users, Video, Wallet, ArrowUpRight, ShieldAlert, Activity, Eye, RefreshCw, X, CheckCircle2, Server, RotateCcw
+  Gamepad2, Zap, Users, Video, Wallet, ArrowUpRight, ShieldAlert, Activity, Eye, RefreshCw, X, CheckCircle2, Server, RotateCcw, AlertOctagon
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import Loader from '../../components/Loader';
@@ -18,6 +18,7 @@ const OffSystems: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isTempConfig, setIsTempConfig] = useState(false);
 
   useEffect(() => {
     fetchConfig();
@@ -29,6 +30,7 @@ const OffSystems: React.FC = () => {
             const newConfig = payload.new as SystemConfig;
             setConfig(newConfig);
             setOriginalConfig(newConfig);
+            setIsTempConfig(false);
         })
         .subscribe();
 
@@ -50,6 +52,7 @@ const OffSystems: React.FC = () => {
     if (data) {
         setConfig(data as SystemConfig);
         setOriginalConfig(data as SystemConfig);
+        setIsTempConfig(false);
     } else {
         // If no config exists, create a default one in local state so UI works
         const defaultConfig: SystemConfig = {
@@ -60,7 +63,8 @@ const OffSystems: React.FC = () => {
         };
         setConfig(defaultConfig);
         setOriginalConfig(defaultConfig);
-        if(!error) toast.warning("Database config missing. Please run SQL script.");
+        setIsTempConfig(true);
+        if(!error) toast.warning("System Config not found in Database. Running in Temp Mode.");
     }
     setLoading(false);
   };
@@ -115,16 +119,23 @@ const OffSystems: React.FC = () => {
       setSaving(true);
       
       // Check if ID exists, if not insert
-      if (config.id === 'temp') {
-           const { error } = await supabase.from('system_config').insert({
-              ...config, id: undefined // let DB generate ID
-           });
-           if (error) toast.error("Failed to create config: " + error.message);
-           else {
-               toast.success("System initialized!");
+      if (config.id === 'temp' || isTempConfig) {
+           // Insert new config row
+           const { id, ...insertData } = config; // Remove temp id
+           const { error } = await supabase.from('system_config').insert(insertData);
+           
+           if (error) {
+               toast.error("Failed to initialize config: " + error.message);
+               // Add suggestion for permissions error
+               if(error.message.includes("permission denied")) {
+                   toast.warning("Check DatabaseUltra > Danger Zone to fix permissions.");
+               }
+           } else {
+               toast.success("System initialized & saved!");
                fetchConfig();
            }
       } else {
+          // Update existing
           const { error } = await supabase.from('system_config').update({
               is_tasks_enabled: config.is_tasks_enabled,
               is_games_enabled: config.is_games_enabled,
@@ -242,6 +253,29 @@ const OffSystems: React.FC = () => {
                 </GlassCard>
             </div>
         </div>
+
+        {/* TEMP CONFIG WARNING */}
+        {isTempConfig && (
+            <motion.div 
+                initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-orange-500/10 border border-orange-500/50 rounded-xl p-4 flex items-center justify-between gap-4"
+            >
+                <div className="flex items-center gap-3 text-orange-400">
+                    <AlertOctagon size={24} />
+                    <div>
+                        <h4 className="font-bold text-sm uppercase">Configuration Not Persistent</h4>
+                        <p className="text-xs text-gray-300">The database table is empty. Click SAVE below to initialize the system config permanently.</p>
+                    </div>
+                </div>
+                <button 
+                    onClick={handleSave} 
+                    disabled={saving}
+                    className="px-4 py-2 bg-orange-600 text-white font-bold text-xs rounded-lg hover:bg-orange-500 transition shadow-lg"
+                >
+                    {saving ? <Loader size={14}/> : 'INITIALIZE NOW'}
+                </button>
+            </motion.div>
+        )}
 
         {/* DANGER ZONE - MAINTENANCE */}
         <motion.div 
@@ -421,7 +455,7 @@ const OffSystems: React.FC = () => {
 
         {/* FLOATING ACTION DOCK - ONLY SHOWS WHEN CHANGES EXIST */}
         <AnimatePresence>
-            {hasChanges && (
+            {(hasChanges || isTempConfig) && (
                 <motion.div 
                     initial={{ y: 100, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}

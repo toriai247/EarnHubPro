@@ -2,29 +2,32 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
-import { Task } from '../../types';
-import { Edit, Trash2, Plus, Save, X, Loader2 } from 'lucide-react';
+import { MarketTask } from '../../types';
+import { 
+  Trash2, Pause, Play, Search, AlertCircle, DollarSign, 
+  Users, TrendingUp, Briefcase, Eye, ExternalLink, CheckCircle 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import BalanceDisplay from '../../components/BalanceDisplay';
+import Loader from '../../components/Loader';
+import { useUI } from '../../context/UIContext';
+
+interface ExtendedTask extends MarketTask {
+    creator_name?: string;
+    creator_email?: string;
+}
 
 const TaskManagement: React.FC = () => {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { toast, confirm } = useUI();
+  const [tasks, setTasks] = useState<ExtendedTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  
-  const initialFormState = {
-      title: '',
-      description: '',
-      reward: '0.50',
-      sponsor_rate: '1.00', // New field
-      url: '',
-      type: 'website',
-      difficulty: 'Easy',
-      frequency: 'once',
-      icon: 'star'
-  };
-  
-  const [formData, setFormData] = useState<any>(initialFormState);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [filter, setFilter] = useState('all');
+  const [stats, setStats] = useState({
+      totalTasks: 0,
+      activeBudget: 0,
+      potentialProfit: 0,
+      totalActions: 0
+  });
 
   useEffect(() => {
     fetchTasks();
@@ -32,221 +35,243 @@ const TaskManagement: React.FC = () => {
 
   const fetchTasks = async () => {
     setLoading(true);
-    const { data } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
-    if (data) setTasks(data as any);
-    setLoading(false);
+    try {
+        // 1. Fetch all marketplace tasks
+        const { data: tasksData, error } = await supabase
+            .from('marketplace_tasks')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (tasksData) {
+            // 2. Extract unique creator IDs to fetch profiles manually
+            // (Avoids foreign key join errors if relationship isn't explicitly defined)
+            const creatorIds = Array.from(new Set(tasksData.map((t: any) => t.creator_id)));
+            
+            let profileMap = new Map();
+            if (creatorIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id, name_1, email_1')
+                    .in('id', creatorIds);
+                
+                if (profiles) {
+                    profileMap = new Map(profiles.map((p: any) => [p.id, p]));
+                }
+            }
+
+            const formattedTasks = tasksData.map((t: any) => {
+                // Safe access with optional chaining and fallback
+                const profile: any = profileMap.get(t.creator_id) || {};
+                return {
+                    ...t,
+                    creator_name: profile.name_1 || 'Unknown User',
+                    creator_email: profile.email_1 || 'No Email'
+                };
+            });
+
+            setTasks(formattedTasks);
+            calculateStats(formattedTasks);
+        }
+    } catch (e: any) {
+        console.error("Fetch error details:", e);
+        toast.error("Failed to load tasks: " + (e.message || "Unknown error"));
+    } finally {
+        setLoading(false);
+    }
   };
 
-  const handleEdit = (task: Task) => {
-      setFormData({
-          title: task.title,
-          description: task.description || '',
-          reward: task.reward.toString(),
-          sponsor_rate: (task.sponsor_rate || (task.reward + 0.5)).toString(),
-          url: task.url || '',
-          type: task.type,
-          difficulty: task.difficulty,
-          frequency: task.frequency,
-          icon: task.icon || 'star'
+  const calculateStats = (data: ExtendedTask[]) => {
+      const active = data.filter(t => t.status === 'active');
+      const budget = active.reduce((sum, t) => sum + (t.remaining_quantity * t.price_per_action), 0);
+      
+      // Profit = (Price - Reward) * Remaining Qty
+      const profit = active.reduce((sum, t) => sum + (t.remaining_quantity * (t.price_per_action - t.worker_reward)), 0);
+      
+      setStats({
+          totalTasks: data.length,
+          activeBudget: budget,
+          potentialProfit: profit,
+          totalActions: active.reduce((sum, t) => sum + t.remaining_quantity, 0)
       });
-      setEditingId(task.id);
-      setIsEditing(true);
+  };
+
+  const handleToggleStatus = async (task: ExtendedTask) => {
+      const newStatus = task.status === 'active' ? 'paused' : 'active';
+      const action = newStatus === 'active' ? 'Resume' : 'Pause';
+      
+      if (!await confirm(`${action} campaign "${task.title}"?`)) return;
+
+      const { error } = await supabase
+          .from('marketplace_tasks')
+          .update({ status: newStatus })
+          .eq('id', task.id);
+
+      if (error) {
+          toast.error("Update failed");
+      } else {
+          toast.success(`Task ${newStatus}`);
+          setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus as any } : t));
+          // Recalculate stats
+          calculateStats(tasks.map(t => t.id === task.id ? { ...t, status: newStatus as any } : t));
+      }
   };
 
   const handleDelete = async (id: string) => {
-      if(!confirm("Are you sure you want to delete this task?")) return;
+      if(!await confirm("Delete this campaign permanently? This cannot be undone.", "Delete Campaign")) return;
       
-      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      const { error } = await supabase.from('marketplace_tasks').delete().eq('id', id);
       if(error) {
-          alert("Error deleting task: " + error.message);
+          toast.error("Error deleting task: " + error.message);
       } else {
+          toast.success("Task deleted");
           setTasks(prev => prev.filter(t => t.id !== id));
       }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-      e.preventDefault();
-      
-      const payload = {
-          ...formData,
-          reward: parseFloat(formData.reward),
-          sponsor_rate: parseFloat(formData.sponsor_rate),
-          is_active: true
-      };
+  const filteredTasks = tasks.filter(t => filter === 'all' || t.status === filter);
 
-      if (editingId) {
-          const { error } = await supabase.from('tasks').update(payload).eq('id', editingId);
-          if (error) alert(error.message);
-      } else {
-          const { error } = await supabase.from('tasks').insert(payload);
-          if (error) alert(error.message);
-      }
-
-      setIsEditing(false);
-      setEditingId(null);
-      setFormData(initialFormState);
-      fetchTasks();
-  };
+  if (loading) return <div className="p-10"><Loader /></div>;
 
   return (
-    <div className="space-y-6 animate-fade-in relative">
-        <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-white">Task Management</h2>
-            <button 
-                onClick={() => { setIsEditing(true); setEditingId(null); setFormData(initialFormState); }}
-                className="bg-neon-green text-black px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-400 transition"
-            >
-                <Plus size={18} /> Add Task
-            </button>
+    <div className="space-y-6 animate-fade-in relative pb-20">
+        
+        {/* HEADER STATS */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <GlassCard className="p-4 bg-blue-900/20 border-blue-500/30">
+                <p className="text-blue-300 text-xs font-bold uppercase mb-1">Active Budget</p>
+                <h3 className="text-2xl font-black text-white"><BalanceDisplay amount={stats.activeBudget} /></h3>
+                <p className="text-[10px] text-gray-400">Total Advertiser Funds</p>
+            </GlassCard>
+            <GlassCard className="p-4 bg-green-900/20 border-green-500/30">
+                <p className="text-green-300 text-xs font-bold uppercase mb-1">Projected Profit</p>
+                <h3 className="text-2xl font-black text-white"><BalanceDisplay amount={stats.potentialProfit} /></h3>
+                <p className="text-[10px] text-gray-400">Admin Commission (30%)</p>
+            </GlassCard>
+            <GlassCard className="p-4 bg-purple-900/20 border-purple-500/30">
+                <p className="text-purple-300 text-xs font-bold uppercase mb-1">Total Campaigns</p>
+                <h3 className="text-2xl font-black text-white">{stats.totalTasks}</h3>
+                <p className="text-[10px] text-gray-400">All Time</p>
+            </GlassCard>
+            <GlassCard className="p-4 bg-yellow-900/20 border-yellow-500/30">
+                <p className="text-yellow-300 text-xs font-bold uppercase mb-1">Pending Actions</p>
+                <h3 className="text-2xl font-black text-white">{stats.totalActions}</h3>
+                <p className="text-[10px] text-gray-400">Remaining User Tasks</p>
+            </GlassCard>
         </div>
 
-        {loading ? (
-            <div className="flex justify-center py-10"><Loader2 className="animate-spin text-neon-green" size={32} /></div>
-        ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {tasks.map(task => {
-                    // Calculate Profit
-                    const profit = (task.sponsor_rate || 0) - task.reward;
-                    const margin = task.sponsor_rate ? ((profit / task.sponsor_rate) * 100).toFixed(0) : '0';
+        {/* CONTROLS */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <Briefcase className="text-neon-green" /> Master Control
+            </h2>
+            
+            <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+                {['all', 'active', 'paused', 'completed'].map(f => (
+                    <button 
+                        key={f}
+                        onClick={() => setFilter(f)}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition ${filter === f ? 'bg-white text-black' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        {f}
+                    </button>
+                ))}
+            </div>
+        </div>
+
+        {/* TASKS LIST */}
+        <div className="space-y-4">
+            {filteredTasks.length === 0 ? (
+                <div className="text-center py-20 bg-white/5 rounded-xl border border-white/5">
+                    <AlertCircle className="mx-auto text-gray-600 mb-4" size={48} />
+                    <p className="text-gray-500">No campaigns found.</p>
+                </div>
+            ) : (
+                filteredTasks.map(task => {
+                    const profitPerAction = task.price_per_action - task.worker_reward;
+                    const totalProfit = profitPerAction * task.total_quantity;
+                    const progress = ((task.total_quantity - task.remaining_quantity) / task.total_quantity) * 100;
 
                     return (
-                    <GlassCard key={task.id} className="flex flex-col justify-between group border border-white/5 hover:border-royal-500/30 transition">
-                        <div className="flex justify-between items-start mb-2">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                                task.type === 'social' ? 'bg-blue-500/20 text-blue-400' : 
-                                task.type === 'video' ? 'bg-red-500/20 text-red-400' : 
-                                'bg-purple-500/20 text-purple-400'
-                            }`}>
-                                <span className="text-xl font-bold capitalize">{task.icon === 'star' ? '★' : task.icon.charAt(0)}</span>
-                            </div>
-                            <div className="flex gap-2 opacity-50 group-hover:opacity-100 transition">
-                                <button onClick={() => handleEdit(task)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400"><Edit size={16}/></button>
-                                <button onClick={() => handleDelete(task.id)} className="p-2 bg-white/5 hover:bg-red-500/20 rounded-lg text-red-400"><Trash2 size={16}/></button>
-                            </div>
-                        </div>
-                        <div>
-                            <h4 className="font-bold text-white text-lg mb-1">{task.title}</h4>
-                            <div className="flex flex-wrap gap-2 text-xs mb-3">
-                                <span className="bg-white/5 px-2 py-1 rounded text-gray-300">{task.type}</span>
-                                <span className={`px-2 py-1 rounded ${task.difficulty === 'Easy' ? 'text-green-400 bg-green-400/10' : 'text-yellow-400 bg-yellow-400/10'}`}>{task.difficulty}</span>
-                                <span className="bg-white/5 px-2 py-1 rounded text-gray-300">{task.frequency}</span>
-                            </div>
+                    <GlassCard key={task.id} className="relative overflow-hidden group border-l-4 border-l-purple-500">
+                        <div className="flex flex-col lg:flex-row gap-6">
                             
-                            <div className="flex items-end justify-between bg-black/20 p-2 rounded-lg">
-                                <div>
-                                    <p className="text-[10px] text-gray-500 uppercase">User Reward</p>
-                                    <p className="text-neon-green font-bold text-lg">+${task.reward.toFixed(2)}</p>
+                            {/* LEFT: INFO */}
+                            <div className="flex-1">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                        <h3 className="font-bold text-white text-lg flex items-center gap-2">
+                                            {task.title}
+                                            <a href={task.target_url} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-white"><ExternalLink size={14}/></a>
+                                        </h3>
+                                        <p className="text-xs text-gray-400">Created by <span className="text-white font-bold">{task.creator_name}</span> ({task.creator_email})</p>
+                                    </div>
+                                    <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${task.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                        {task.status}
+                                    </span>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] text-gray-500 uppercase">Profit/Task</p>
-                                    <p className={`font-bold text-sm ${profit >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                                        ${profit.toFixed(2)} ({margin}%)
-                                    </p>
+
+                                <div className="flex gap-4 text-xs text-gray-500 mb-4">
+                                    <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded"><Users size={12}/> {task.total_quantity} Spots</span>
+                                    <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded"><Eye size={12}/> {task.proof_type}</span>
+                                    <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded capitalize">{task.category}</span>
+                                </div>
+
+                                {/* PROGRESS BAR */}
+                                <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-1">
+                                    <div className="h-full bg-purple-500 transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+                                </div>
+                                <div className="flex justify-between text-[10px] text-gray-500">
+                                    <span>Completed: {task.total_quantity - task.remaining_quantity}</span>
+                                    <span>Remaining: {task.remaining_quantity}</span>
                                 </div>
                             </div>
-                            {task.url && <p className="text-xs text-gray-500 truncate mt-2 border-t border-white/5 pt-2">{task.url}</p>}
+
+                            {/* MIDDLE: FINANCIAL BREAKDOWN */}
+                            <div className="lg:w-1/3 bg-black/20 rounded-xl p-4 border border-white/5 flex flex-col justify-center">
+                                <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                                    <div className="border-r border-white/10">
+                                        <p className="text-[9px] text-gray-500 uppercase">Advertiser</p>
+                                        <p className="text-sm font-bold text-white">${task.price_per_action}</p>
+                                    </div>
+                                    <div className="border-r border-white/10">
+                                        <p className="text-[9px] text-gray-500 uppercase">User Earn</p>
+                                        <p className="text-sm font-bold text-green-400">${task.worker_reward}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] text-gray-500 uppercase">Admin Cut</p>
+                                        <p className="text-sm font-bold text-yellow-400">+${profitPerAction.toFixed(3)}</p>
+                                    </div>
+                                </div>
+                                <div className="text-center border-t border-white/10 pt-2">
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold">Total Campaign Value</p>
+                                    <p className="text-xl font-black text-white"><BalanceDisplay amount={task.total_quantity * task.price_per_action} /></p>
+                                    <p className="text-[10px] text-yellow-500 mt-1">Admin Total Profit: <BalanceDisplay amount={totalProfit} /></p>
+                                </div>
+                            </div>
+
+                            {/* RIGHT: ACTIONS */}
+                            <div className="flex flex-col gap-2 justify-center min-w-[120px]">
+                                <button 
+                                    onClick={() => handleToggleStatus(task)}
+                                    className={`flex-1 py-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-2 ${task.status === 'active' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/20' : 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20'}`}
+                                >
+                                    {task.status === 'active' ? <><Pause size={14}/> Pause</> : <><Play size={14}/> Resume</>}
+                                </button>
+                                <button 
+                                    onClick={() => handleDelete(task.id)}
+                                    className="flex-1 py-3 bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={14}/> Delete
+                                </button>
+                            </div>
+
                         </div>
                     </GlassCard>
-                )})}
-                {tasks.length === 0 && (
-                    <div className="col-span-full text-center py-10 text-gray-500">No tasks found. Create one to get started.</div>
-                )}
-            </div>
-        )}
-
-        <AnimatePresence>
-            {isEditing && (
-                <motion.div 
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-                >
-                    <motion.div 
-                        initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-                        className="bg-dark-900 w-full max-w-lg rounded-2xl border border-white/10 p-6 max-h-[90vh] overflow-y-auto custom-scrollbar"
-                    >
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-white">{editingId ? 'Edit Task' : 'Create New Task'}</h3>
-                            <button onClick={() => setIsEditing(false)} className="text-gray-500 hover:text-white"><X size={24}/></button>
-                        </div>
-                        
-                        <form onSubmit={handleSave} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-400 mb-1">Title</label>
-                                <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" placeholder="e.g. Join Telegram" />
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1">User Reward ($)</label>
-                                    <input required type="number" step="0.01" value={formData.reward} onChange={e => setFormData({...formData, reward: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-neon-green mb-1">Sponsor Rate ($)</label>
-                                    <input required type="number" step="0.01" value={formData.sponsor_rate} onChange={e => setFormData({...formData, sponsor_rate: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" placeholder="Admin gets paid" />
-                                    <p className="text-[10px] text-gray-500 mt-1">Your Margin: ${(parseFloat(formData.sponsor_rate) - parseFloat(formData.reward)).toFixed(2)}</p>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1">Icon Key</label>
-                                    <select value={formData.icon} onChange={e => setFormData({...formData, icon: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none">
-                                        <option value="star">Star</option>
-                                        <option value="send">Send (Telegram)</option>
-                                        <option value="play">Play (Video)</option>
-                                        <option value="download">Download</option>
-                                        <option value="users">Users</option>
-                                        <option value="globe">Globe</option>
-                                        <option value="smartphone">Phone</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1">Frequency</label>
-                                    <select value={formData.frequency} onChange={e => setFormData({...formData, frequency: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none">
-                                        <option value="once">One Time</option>
-                                        <option value="daily">Daily</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1">Type</label>
-                                    <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none">
-                                        <option value="social">Social</option>
-                                        <option value="website">Website</option>
-                                        <option value="video">Video</option>
-                                        <option value="app">App</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1">Difficulty</label>
-                                    <select value={formData.difficulty} onChange={e => setFormData({...formData, difficulty: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none">
-                                        <option value="Easy">Easy</option>
-                                        <option value="Medium">Medium</option>
-                                        <option value="Hard">Hard</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-400 mb-1">Target URL</label>
-                                <input required type="url" value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" placeholder="https://..." />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-400 mb-1">Description (Optional)</label>
-                                <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none h-20 resize-none" placeholder="Brief instructions for the user..." />
-                            </div>
-
-                            <button type="submit" className="w-full py-3 bg-royal-600 text-white font-bold rounded-xl hover:bg-royal-700 transition flex items-center justify-center gap-2 mt-4">
-                                <Save size={18} /> Save Task
-                            </button>
-                        </form>
-                    </motion.div>
-                </motion.div>
+                )})
             )}
-        </AnimatePresence>
+        </div>
     </div>
   );
 };

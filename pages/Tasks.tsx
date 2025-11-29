@@ -1,60 +1,38 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { CheckCircle2, ChevronRight, ExternalLink, Sparkles, Clock, RefreshCw } from 'lucide-react';
+import { CheckCircle2, ChevronRight, ExternalLink, Sparkles, Clock, RefreshCw, UploadCloud, Smartphone, PlayCircle, Share2, Globe, Search, Loader2, Star, PenTool, Lock } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Task } from '../types';
-import { claimTask } from '../lib/actions';
-import Loader from '../components/Loader';
+import { MarketTask } from '../types';
+import { createTransaction, updateWallet } from '../lib/actions';
 import Skeleton from '../components/Skeleton';
+import { useUI } from '../context/UIContext';
+import BalanceDisplay from '../components/BalanceDisplay';
 
 const MotionDiv = motion.div as any;
 
-// Helper Component for Countdown (Resets at UTC Midnight)
-const TaskTimer = () => {
-  const [timeLeft, setTimeLeft] = useState('');
-
-  useEffect(() => {
-    const calculateTimeLeft = () => {
-      const now = new Date();
-      // Create a date object for the next UTC midnight
-      const nextMidnightUTC = new Date(now);
-      nextMidnightUTC.setUTCHours(24, 0, 0, 0); 
-      
-      const diff = nextMidnightUTC.getTime() - now.getTime();
-      
-      if (diff <= 0) return "00h 00m 00s";
-
-      const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((diff % (1000 * 60)) / 1000);
-
-      return `${h}h ${m}m ${s}s`;
-    };
-
-    // Initial set
-    setTimeLeft(calculateTimeLeft());
-
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  return <span className="font-mono font-bold text-xs tracking-wide">{timeLeft}</span>;
-};
-
 const Tasks: React.FC = () => {
+  const { toast } = useUI();
   const [loading, setLoading] = useState(true);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [claimStatus, setClaimStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
-  const [taskStarted, setTaskStarted] = useState(false);
-  const [recentlyCompleted, setRecentlyCompleted] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<MarketTask[]>([]);
+  const [selectedTask, setSelectedTask] = useState<MarketTask | null>(null);
+  const [filter, setFilter] = useState('all');
+  
+  // Submission State
+  const [proofText, setProofText] = useState('');
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
+  const [linkOpened, setLinkOpened] = useState(false);
+  
+  // Security Timer
+  const [countDown, setCountDown] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
      fetchTasks();
+     return () => {
+         if (timerRef.current) clearInterval(timerRef.current);
+     };
   }, []);
 
   const fetchTasks = async () => {
@@ -62,109 +40,150 @@ const Tasks: React.FC = () => {
      const { data: { session } } = await supabase.auth.getSession();
      if(!session) return;
 
-     // 1. Fetch All Active Tasks
-     const { data: allTasks } = await supabase.from('tasks').select('*').eq('is_active', true).order('reward', {ascending: true});
+     // 1. Fetch Active Marketplace Tasks with remaining qty
+     const { data: allTasks } = await supabase
+        .from('marketplace_tasks')
+        .select('*')
+        .eq('status', 'active')
+        .gt('remaining_quantity', 0)
+        .order('price_per_action', {ascending: false});
      
-     // 2. Fetch User Completion History
-     const { data: userHistory } = await supabase.from('user_tasks').select('*').eq('user_id', session.user.id);
+     // 2. Fetch User Submissions to filter out done tasks
+     const { data: mySubs } = await supabase
+        .from('marketplace_submissions')
+        .select('task_id')
+        .eq('worker_id', session.user.id);
+     
+     const completedIds = new Set(mySubs?.map(s => s.task_id) || []);
 
      if (allTasks) {
-         const processedTasks = allTasks.map((t: any) => {
-             const history = userHistory?.filter(h => h.task_id === t.id) || [];
-             let status: 'available' | 'completed' | 'cooldown' = 'available';
-
-             if (history.length > 0) {
-                 if (t.frequency === 'once') {
-                     // One-time tasks are permanently completed
-                     status = 'completed';
-                 } else if (t.frequency === 'daily') {
-                     // Check if completed today (UTC)
-                     const lastCompletion = new Date(history[history.length - 1].completed_at);
-                     const today = new Date();
-                     
-                     const isSameDayUTC = 
-                        lastCompletion.getUTCFullYear() === today.getUTCFullYear() &&
-                        lastCompletion.getUTCMonth() === today.getUTCMonth() &&
-                        lastCompletion.getUTCDate() === today.getUTCDate();
-
-                     if (isSameDayUTC) {
-                         status = 'completed'; // Completed today (UTC)
-                     }
-                 }
-             }
-             return { ...t, status };
-         });
-         setTasks(processedTasks);
+         // Filter out completed tasks
+         const available = allTasks.filter((t: MarketTask) => !completedIds.has(t.id));
+         setTasks(available as MarketTask[]);
      }
      setLoading(false);
   };
 
-  const handleStartTask = () => {
-      if (!selectedTask?.url) return;
-      window.open(selectedTask.url, '_blank');
-      setTaskStarted(true);
+  const handleOpenLink = () => {
+      if (!selectedTask) return;
+      
+      // Start Smart Timer
+      const duration = selectedTask.timer_seconds || 30; // Default 30s
+      setCountDown(duration);
+      setLinkOpened(true);
+      
+      window.open(selectedTask.target_url, '_blank');
+
+      if (timerRef.current) clearInterval(timerRef.current);
+      
+      timerRef.current = setInterval(() => {
+          setCountDown((prev) => {
+              if (prev <= 1) {
+                  if (timerRef.current) clearInterval(timerRef.current);
+                  return 0;
+              }
+              return prev - 1;
+          });
+      }, 1000);
   };
 
-  const handleVerifyAndClaim = async () => {
-      if (!selectedTask || !taskStarted) return;
-      setClaimStatus('verifying');
+  const handleSubmitProof = async () => {
+      if (!selectedTask || !linkOpened) return;
+      if (countDown > 0) {
+          toast.warning(`Please wait ${countDown} seconds to verify task completion.`);
+          return;
+      }
       
-      // Simulate check delay
-      setTimeout(async () => {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-              try {
-                  await claimTask(session.user.id, selectedTask);
-                  setClaimStatus('success');
-                  
-                  // Dispatch global event to update balance header
-                  window.dispatchEvent(new Event('wallet_updated'));
+      // Simple validation
+      if (selectedTask.proof_type !== 'auto' && proofText.length < 3) {
+          toast.error("Please provide valid proof details");
+          return;
+      }
 
-                  // Update local list
-                  setTasks(prev => prev.map(t => t.id === selectedTask.id ? { ...t, status: 'completed' } : t));
-                  
-                  // Trigger animation on list item
-                  setRecentlyCompleted(selectedTask.id);
-                  
-                  setTimeout(() => {
-                      setClaimStatus('idle');
-                      setSelectedTask(null);
-                      setTaskStarted(false);
-                      // Clear animation after delay
-                      setTimeout(() => setRecentlyCompleted(null), 2500);
-                  }, 2000);
-              } catch (e) {
-                  console.error(e);
-                  setClaimStatus('error');
-                  setTimeout(() => setClaimStatus('idle'), 2000);
-              }
+      setSubmitStatus('submitting');
+      
+      try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) throw new Error("No session");
+
+          // 1. Create Submission
+          const isAuto = selectedTask.proof_type === 'auto';
+          const initialStatus = isAuto ? 'approved' : 'pending';
+
+          const { error: subError } = await supabase.from('marketplace_submissions').insert({
+              task_id: selectedTask.id,
+              worker_id: session.user.id,
+              proof_data: proofText || 'Auto Verified',
+              status: initialStatus
+          });
+
+          if (subError) throw subError;
+
+          // 2. Decrement Quantity
+          await supabase.rpc('decrement_task_quantity', { task_id: selectedTask.id });
+
+          // 3. If Auto-Approve, Pay User Immediately
+          if (isAuto) {
+              await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'earning_balance');
+              await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'total_earning');
+              await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'today_earning');
+              
+              await createTransaction(session.user.id, 'earn', selectedTask.worker_reward, `Task: ${selectedTask.title}`);
+              toast.success(`Reward Paid: $${selectedTask.worker_reward.toFixed(3)}`);
+              
+              // Trigger Global Refresh
+              window.dispatchEvent(new Event('wallet_updated'));
+          } else {
+              toast.success("Proof Submitted! Waiting for approval.");
           }
-      }, 1500);
+
+          setSubmitStatus('success');
+          
+          setTimeout(() => {
+              setSubmitStatus('idle');
+              setSelectedTask(null);
+              setProofText('');
+              setLinkOpened(false);
+              setCountDown(0);
+              fetchTasks(); // Refresh list
+          }, 1500);
+
+      } catch (e: any) {
+          console.error(e);
+          toast.error("Error submitting: " + e.message);
+          setSubmitStatus('idle');
+      }
+  };
+
+  const filteredTasks = tasks.filter(t => filter === 'all' || t.category === filter);
+
+  const getIcon = (cat: string) => {
+      switch(cat) {
+          case 'social': return <Share2 size={20} className="text-blue-400"/>;
+          case 'video': return <PlayCircle size={20} className="text-red-400"/>;
+          case 'app': return <Smartphone size={20} className="text-purple-400"/>;
+          case 'seo': return <Search size={20} className="text-orange-400"/>;
+          case 'review': return <Star size={20} className="text-yellow-400"/>;
+          case 'content': return <PenTool size={20} className="text-pink-400"/>;
+          default: return <Globe size={20} className="text-green-400"/>;
+      }
+  };
+
+  const closeModal = () => {
+      if (submitStatus !== 'submitting') {
+          setSelectedTask(null);
+          setLinkOpened(false);
+          setCountDown(0);
+          if(timerRef.current) clearInterval(timerRef.current);
+      }
   };
 
   if (loading) {
       return (
         <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6">
-           <div className="flex justify-between items-end px-4 sm:px-0">
-               <div className="space-y-2">
-                   <Skeleton variant="text" className="w-32 h-8" />
-                   <Skeleton variant="text" className="w-48" />
-               </div>
-               <Skeleton variant="text" className="w-24" />
-           </div>
+           <Skeleton className="w-48 h-8 mb-4 mx-4 sm:mx-0" />
            <div className="space-y-3 px-4 sm:px-0">
-               {[1, 2, 3, 4, 5].map(i => (
-                   <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
-                       <div className="flex items-center gap-4">
-                           <Skeleton variant="rectangular" className="w-12 h-12 rounded-xl" />
-                           <div className="space-y-2">
-                               <Skeleton variant="text" className="w-40 h-4" />
-                               <Skeleton variant="text" className="w-24 h-3" />
-                           </div>
-                       </div>
-                       <Skeleton variant="text" className="w-16 h-6" />
-                   </div>
-               ))}
+               {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20 rounded-2xl" />)}
            </div>
         </div>
       );
@@ -172,182 +191,170 @@ const Tasks: React.FC = () => {
 
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6">
-      <header className="flex justify-between items-end px-4 sm:px-0">
-         <div>
-            <h1 className="text-2xl font-display font-bold text-white mb-1">Task Hall</h1>
-            <p className="text-gray-400 text-sm">Complete tasks to earn real rewards.</p>
-         </div>
-         <div className="bg-white/5 px-3 py-1 rounded-lg text-xs text-gray-400 flex items-center gap-1">
-             <RefreshCw size={12} /> Refreshes Daily (UTC)
-         </div>
-      </header>
+      
+      {/* Header */}
+      <div className="flex flex-col gap-4 px-4 sm:px-0">
+          <div className="flex justify-between items-end">
+             <div>
+                <h1 className="text-2xl font-display font-bold text-white mb-1">Earning Market</h1>
+                <p className="text-gray-400 text-sm">Complete tasks to earn cash.</p>
+             </div>
+             <button onClick={fetchTasks} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white"><RefreshCw size={18}/></button>
+          </div>
+
+          {/* Filters */}
+          <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
+              {['all', 'social', 'video', 'seo', 'review', 'content'].map(f => (
+                  <button 
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase whitespace-nowrap transition ${filter === f ? 'bg-white text-black' : 'bg-white/5 text-gray-400 border border-white/5'}`}
+                  >
+                      {f}
+                  </button>
+              ))}
+          </div>
+      </div>
 
       <div className="space-y-3 px-4 sm:px-0">
-          {tasks.map((task) => {
-             const isCompleted = task.status === 'completed';
-             const isDaily = task.frequency === 'daily';
-             const isRecent = recentlyCompleted === task.id;
-             
-             return (
+          {filteredTasks.length === 0 ? (
+              <div className="text-center py-16 bg-white/5 rounded-2xl border border-white/5 text-gray-500">
+                  No tasks available in this category.
+              </div>
+          ) : (
+              filteredTasks.map((task) => (
                 <MotionDiv
                    key={task.id}
                    layout
                    initial={{ opacity: 0, y: 10 }}
-                   animate={{ 
-                       opacity: 1, 
-                       y: 0, 
-                       scale: isRecent ? 1.02 : 1,
-                   }}
-                   className="rounded-2xl"
+                   animate={{ opacity: 1, y: 0 }}
+                   whileHover={{ scale: 1.01 }}
+                   className="cursor-pointer"
+                   onClick={() => setSelectedTask(task)}
                 >
-                     <GlassCard 
-                       className={`flex items-center justify-between p-4 transition-all duration-500 group ${
-                           isRecent 
-                             ? 'border-neon-green bg-neon-green/10 shadow-[0_0_20px_rgba(16,185,129,0.2)]' 
-                             : isCompleted 
-                               ? isDaily ? 'cursor-default border-yellow-500/30 bg-yellow-500/5' : 'cursor-default border-neon-green/30 bg-neon-green/5' 
-                               : 'cursor-pointer hover:bg-white/5'
-                       }`}
-                       onClick={() => !isCompleted && setSelectedTask(task)}
-                     >
+                     <GlassCard className={`flex items-center justify-between p-4 group hover:bg-white/5 transition border border-white/5 ${task.worker_reward > 0.20 ? 'border-l-4 border-l-yellow-400' : 'hover:border-purple-500/30'}`}>
                         <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors duration-500 ${
-                                isCompleted 
-                                  ? isDaily ? 'bg-yellow-500 text-black' : 'bg-neon-green text-black shadow-[0_0_15px_rgba(16,185,129,0.4)]' 
-                                  : task.type === 'social' ? 'bg-blue-500/20 text-blue-400' 
-                                  : task.type === 'video' ? 'bg-red-500/20 text-red-400' : 'bg-purple-500/20 text-purple-400'
-                            }`}>
-                                 {isCompleted ? (
-                                     isDaily ? <Clock size={24} /> : <CheckCircle2 size={24} />
-                                 ) : (
-                                     <span className="text-xl font-bold capitalize">{task.icon?.charAt(0) || 'T'}</span>
-                                 )}
+                            <div className="w-12 h-12 rounded-xl bg-black/30 flex items-center justify-center border border-white/10">
+                                {getIcon(task.category)}
                             </div>
                             <div>
-                                <h3 className={`font-bold text-sm transition-all ${isCompleted ? 'text-gray-400 line-through' : 'text-white'}`}>{task.title}</h3>
-                                <div className="flex items-center gap-2 text-xs mt-1">
-                                     {!isCompleted && (
-                                        <>
-                                            <span className={`px-2 py-0.5 rounded-md bg-white/5 ${task.difficulty === 'Easy' ? 'text-green-400' : task.difficulty === 'Medium' ? 'text-yellow-400' : 'text-red-400'}`}>
-                                                {task.difficulty}
-                                            </span>
-                                            <span className="text-gray-500 border-l border-gray-700 pl-2 flex items-center gap-1">
-                                                {task.frequency === 'daily' ? <Clock size={10}/> : null} 
-                                                {task.frequency === 'daily' ? 'Daily' : 'One-time'}
-                                            </span>
-                                        </>
-                                     )}
-                                     {isCompleted && !isDaily && <span className="text-neon-green font-bold">Done</span>}
-                                     {isCompleted && isDaily && (
-                                         <div className="flex items-center gap-1.5 text-yellow-500 font-bold">
-                                             <span>Resets in:</span>
-                                             <TaskTimer />
-                                         </div>
-                                     )}
+                                <div className="flex items-center gap-2">
+                                    <h3 className="font-bold text-white text-sm line-clamp-1">{task.title}</h3>
+                                    {task.worker_reward > 0.20 && <span className="bg-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded">HOT</span>}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                    <span className="capitalize">{task.category}</span>
+                                    <span>•</span>
+                                    <span className="text-purple-400">{task.remaining_quantity} left</span>
                                 </div>
                             </div>
                         </div>
                         <div className="text-right">
-                           {isCompleted ? (
-                               <div className="text-gray-500 text-xs font-mono bg-white/5 px-2 py-1 rounded-lg">
-                                   +${task.reward.toFixed(2)}
-                               </div>
-                           ) : (
-                               <div className="group-hover:translate-x-1 transition duration-300 flex flex-col items-end">
-                                    <div className="bg-neon-green/10 border border-neon-green/50 px-3 py-1.5 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.25)] backdrop-blur-md">
-                                        <p className="text-neon-green font-black text-base tracking-wide drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]">
-                                            +${task.reward.toFixed(2)}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-1 mt-1.5 text-[10px] text-gray-400 font-bold uppercase tracking-wider group-hover:text-white transition-colors">
-                                        Claim <ChevronRight size={12} />
-                                    </div>
-                               </div>
-                           )}
+                           <div className="bg-neon-green/10 border border-neon-green/30 px-3 py-1.5 rounded-lg">
+                                <p className="text-neon-green font-black text-sm">
+                                    <BalanceDisplay amount={task.worker_reward} />
+                                </p>
+                           </div>
                         </div>
                      </GlassCard>
                 </MotionDiv>
-             );
-          })}
+             ))
+          )}
       </div>
 
+      {/* Task Details Modal */}
       <AnimatePresence>
           {selectedTask && (
              <MotionDiv 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4"
-                onClick={() => claimStatus !== 'verifying' && setSelectedTask(null)}
+                className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-end sm:items-center justify-center p-4"
+                onClick={closeModal}
              >
                  <MotionDiv 
                     initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-                    className="bg-dark-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 pb-10 sm:pb-6 min-h-[450px] flex flex-col justify-center relative overflow-hidden"
+                    className="bg-dark-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 pb-10 sm:pb-6 relative overflow-hidden"
                     onClick={(e: MouseEvent) => e.stopPropagation()}
                  >
-                     {claimStatus === 'success' ? (
-                        <div className="flex flex-col items-center justify-center py-4 text-center relative z-10">
-                             <MotionDiv 
-                               initial={{ scale: 0 }} animate={{ scale: 1 }} 
-                               transition={{ type: 'spring', damping: 12, stiffness: 200 }}
-                               className="w-24 h-24 bg-gradient-to-tr from-neon-green to-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(16,185,129,0.5)]"
-                             >
-                                 <CheckCircle2 size={48} className="text-white" />
-                             </MotionDiv>
-                             <h2 className="text-2xl font-bold text-white mb-2">Reward Claimed!</h2>
-                             <div className="flex items-center gap-2 text-4xl font-bold text-neon-glow">
-                                 <Sparkles size={28} className="text-yellow-400" />
-                                 <span>+${selectedTask.reward.toFixed(2)}</span>
+                     {submitStatus === 'success' ? (
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                             <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-4 text-green-500 border border-green-500/50">
+                                 <CheckCircle2 size={40} />
                              </div>
+                             <h2 className="text-2xl font-bold text-white mb-2">Submitted!</h2>
+                             <p className="text-gray-400">Your proof is under review.</p>
                         </div>
                      ) : (
                         <>
-                            <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 sm:hidden absolute top-4 left-1/2 -translate-x-1/2"></div>
+                            <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 sm:hidden"></div>
                             
-                            <div className="text-center mb-6 mt-4">
-                                <div className="w-16 h-16 mx-auto bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-neon-green mb-4 shadow-lg">
-                                    <span className="text-3xl font-bold capitalize">{selectedTask.icon?.charAt(0)}</span>
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center text-3xl">
+                                    {getIcon(selectedTask.category)}
                                 </div>
-                                <h2 className="text-2xl font-bold text-white mb-2">{selectedTask.title}</h2>
-                                <p className="text-3xl font-bold text-neon-glow">+${selectedTask.reward.toFixed(2)}</p>
-                                <p className="text-sm text-gray-400 mt-2 px-4">{selectedTask.description || "Complete the steps below to earn your reward."}</p>
-                            </div>
-
-                            <div className="space-y-4 mb-8">
-                                <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                                    <div className="flex items-center gap-4 mb-3">
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${taskStarted ? 'bg-neon-green text-black' : 'bg-white/10 text-white'}`}>1</div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-bold text-white">Visit Link</p>
-                                            <p className="text-xs text-gray-500">Open the task URL</p>
-                                        </div>
-                                        {taskStarted && <CheckCircle2 size={16} className="text-neon-green" />}
-                                    </div>
-                                    <div className="w-0.5 h-4 bg-white/10 ml-4 mb-3 -mt-3"></div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-8 h-8 rounded-full bg-white/10 text-gray-400 flex items-center justify-center text-xs font-bold">2</div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-bold text-gray-300">Verify & Claim</p>
-                                            <p className="text-xs text-gray-500">Confirm completion</p>
-                                        </div>
-                                    </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-white leading-tight">{selectedTask.title}</h2>
+                                    <p className="text-gray-400 text-xs mt-1 capitalize">{selectedTask.category} Task</p>
+                                    <p className="text-neon-green font-bold text-lg mt-1"><BalanceDisplay amount={selectedTask.worker_reward}/></p>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3 mt-auto">
-                                <button 
-                                    onClick={handleStartTask}
-                                    className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition ${taskStarted ? 'bg-white/5 text-gray-400' : 'bg-white text-black hover:bg-gray-200'}`}
-                                >
-                                    <ExternalLink size={18} /> {taskStarted ? 'Link Opened' : 'Start Task'}
-                                </button>
-                                <button 
-                                    onClick={handleVerifyAndClaim}
-                                    disabled={!taskStarted || claimStatus === 'verifying'}
-                                    className={`py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 ${!taskStarted ? 'bg-white/5 text-gray-500 cursor-not-allowed' : 'bg-neon-green text-black hover:bg-emerald-400'}`}
-                                >
-                                    {claimStatus === 'verifying' ? <Loader className="w-5 h-5 border-black" /> : 'Claim Reward'}
-                                </button>
+                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 mb-6 space-y-4">
+                                <div className="p-3 bg-blue-500/10 rounded-lg text-blue-300 text-xs leading-relaxed border border-blue-500/20">
+                                    <strong>Instruction:</strong> {selectedTask.description || "Follow the link and complete the action."}
+                                    <br/>
+                                    {selectedTask.proof_type === 'text' && <span className="text-yellow-400 block mt-1">⚠️ Requirement: Submit the Secret Code found in the content.</span>}
+                                </div>
+
+                                {/* Step 1 */}
+                                <div className="flex gap-4">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${linkOpened ? 'bg-green-500 text-black' : 'bg-white/10 text-white'}`}>1</div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold text-white mb-1">Open Link & Perform Action</p>
+                                        <button 
+                                            onClick={handleOpenLink}
+                                            className="text-xs flex items-center gap-2 text-blue-400 hover:text-blue-300 transition break-all"
+                                        >
+                                            {selectedTask.target_url} <ExternalLink size={12}/>
+                                        </button>
+                                    </div>
+                                </div>
+                                {/* Step 2 */}
+                                <div className="flex gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold shrink-0 text-white">2</div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold text-white mb-2">Submit Proof</p>
+                                        {selectedTask.proof_type === 'auto' ? (
+                                            <p className="text-xs text-gray-500 italic">No proof needed. Wait for timer.</p>
+                                        ) : (
+                                            <textarea 
+                                                value={proofText}
+                                                onChange={e => setProofText(e.target.value)}
+                                                className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-xs focus:border-purple-500 outline-none h-24 resize-none"
+                                                placeholder={selectedTask.proof_type === 'screenshot' ? "Paste screenshot URL here..." : "Type required Secret Code/Username..."}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                            {claimStatus === 'error' && <p className="text-red-500 text-xs text-center mt-2 font-bold">Verification failed. Try again.</p>}
+
+                            <button 
+                                onClick={handleSubmitProof}
+                                disabled={!linkOpened || submitStatus === 'submitting' || countDown > 0}
+                                className="w-full py-4 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {submitStatus === 'submitting' ? <Loader2 className="animate-spin"/> : (
+                                    countDown > 0 ? (
+                                        <span className="flex items-center gap-2">
+                                            <Clock size={16} /> Verifying... {countDown}s
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-center gap-2">
+                                            <Lock size={16} className={linkOpened ? 'hidden' : ''} />
+                                            Verify & Claim Reward
+                                        </span>
+                                    )
+                                )}
+                            </button>
                         </>
                      )}
                  </MotionDiv>

@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../integrations/supabase/client';
+import { updateWallet, createTransaction } from '../lib/actions';
 import { CURRENCY_CONFIG } from '../constants';
 
 type CurrencyCode = keyof typeof CURRENCY_CONFIG;
@@ -67,15 +68,50 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
     }, []);
 
-    // Just updates the preference, DOES NOT change database values (Database is always USD)
     const setCurrency = async (targetCode: CurrencyCode, userId: string): Promise<boolean> => {
+        if (targetCode === currency) return true;
+
         setIsLoading(true);
         try {
-            await supabase.from('wallets').update({ currency: targetCode }).eq('user_id', userId);
+            // 1. Fetch Fresh Balance (Security Check)
+            const { data: wallet, error: fetchError } = await supabase
+                .from('wallets')
+                .select('balance')
+                .eq('user_id', userId)
+                .single();
+
+            if (fetchError || !wallet) throw new Error("Failed to retrieve wallet balance.");
+
+            const currentBalance = wallet.balance;
+            const fee = currentBalance * 0.05; // 5% Fee
+
+            // 2. Check Funds
+            if (currentBalance < fee) {
+                throw new Error(`Insufficient balance to pay the 5% exchange fee ($${fee.toFixed(2)}).`);
+            }
+
+            // 3. Deduct Fee
+            if (fee > 0) {
+                await updateWallet(userId, fee, 'decrement', 'balance');
+                // FIX: Use 'penalty' instead of 'fee' to match DB constraints
+                await createTransaction(userId, 'penalty', fee, `Currency Switch Fee (${currency} to ${targetCode})`);
+            }
+
+            // 4. Update Database Preference
+            const { error } = await supabase.from('wallets').update({ currency: targetCode }).eq('user_id', userId);
+            if (error) throw error;
+
+            // 5. Update State & Local Storage
             setCurrencyState(targetCode);
+            localStorage.setItem('eh_currency', targetCode);
+            
+            // 6. Trigger Global Refresh
+            window.dispatchEvent(new Event('wallet_updated'));
+            
             return true;
         } catch (e: any) {
             console.error("Currency Switch Error:", e);
+            alert(e.message || "Failed to switch currency.");
             return false;
         } finally {
             setIsLoading(false);

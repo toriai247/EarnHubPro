@@ -11,12 +11,40 @@ export interface InvestmentPlan {
   is_active?: boolean;
 }
 
+// NEW: Marketplace Task Interface
+export interface MarketTask {
+  id: string;
+  creator_id: string;
+  title: string;
+  description?: string;
+  category: 'social' | 'video' | 'app' | 'website' | 'survey' | 'review' | 'seo' | 'content';
+  target_url: string;
+  total_quantity: number;
+  remaining_quantity: number;
+  price_per_action: number;
+  worker_reward: number; // The 70% share
+  proof_type: 'screenshot' | 'text' | 'auto';
+  timer_seconds?: number; // Minimum time user must wait
+  status: 'active' | 'paused' | 'completed' | 'banned';
+  created_at: string;
+}
+
+export interface MarketSubmission {
+  id: string;
+  task_id: string;
+  worker_id: string;
+  proof_data?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+}
+
+// Legacy Task (Kept for compatibility if needed, but UI will use MarketTask)
 export interface Task {
   id: string;
   title: string;
   description?: string;
   reward: number;
-  sponsor_rate?: number; // Amount the admin gets paid by advertiser
+  sponsor_rate?: number; 
   icon: string;
   url?: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
@@ -30,7 +58,8 @@ export interface Task {
 export interface Transaction {
   id: string;
   user_id: string;
-  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'fee' | 'transfer';
+  // REMOVED 'fee', 'task_create', 'task_payout' to match DB constraint
+  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer';
   amount: number;
   status: 'success' | 'pending' | 'failed';
   description?: string;

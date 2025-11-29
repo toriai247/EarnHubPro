@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Crown, Trophy, Globe, Menu, X, 
-  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send, Search, BellRing, LogIn
+  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send, Search, BellRing, LogIn, Megaphone
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useTheme } from '../context/ThemeContext';
@@ -40,15 +40,18 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   // Dynamic Navigation Items
   const navItems = [
     { path: '/', icon: Home, label: 'HUB', enabled: true },
-    { path: '/invest', icon: PieChart, label: 'INVEST', enabled: isFeatureEnabled('is_invest_enabled'), protected: true },
+    { path: '/tasks', icon: Globe, label: 'EARN', enabled: isFeatureEnabled('is_tasks_enabled'), protected: true },
     { path: '/leaderboard', icon: Trophy, label: 'TOP', enabled: true },
-    { path: '/games', icon: Gamepad2, label: 'PLAY', enabled: isFeatureEnabled('is_games_enabled'), protected: true },
+    { path: '/advertise', icon: Megaphone, label: 'ADS', enabled: true, protected: true }, // New ADVERTISE Tab
     { path: '/profile', icon: User, label: 'ME', enabled: true, protected: true },
   ].filter(i => i.enabled);
 
   const menuItems = [
       // Add Admin Panel if Admin (Dynamic)
       ...(isAdmin ? [{ path: '/admin', icon: LayoutDashboard, label: 'Admin Panel', color: 'text-red-400', bg: 'bg-red-500/10', enabled: true }] : []),
+      { path: '/advertise', icon: Megaphone, label: 'Create Ads', color: 'text-purple-400', bg: 'bg-purple-500/10', enabled: true, protected: true },
+      { path: '/invest', icon: PieChart, label: 'Invest', color: 'text-green-400', bg: 'bg-green-500/10', enabled: isFeatureEnabled('is_invest_enabled'), protected: true },
+      { path: '/games', icon: Gamepad2, label: 'Games', color: 'text-orange-400', bg: 'bg-orange-500/10', enabled: isFeatureEnabled('is_games_enabled'), protected: true },
       { path: '/search', icon: Search, label: 'Find User', color: 'text-blue-400', bg: 'bg-blue-500/10', enabled: true },
       { path: '/send-money', icon: Send, label: 'Send Money', color: 'text-cyan-400', bg: 'bg-cyan-500/10', enabled: true, protected: true },
       { path: '/transfer', icon: ArrowRightLeft, label: 'Transfer Funds', color: 'text-electric-400', bg: 'bg-electric-500/10', enabled: true, protected: true },
@@ -407,7 +410,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                               </button>
                           )}
                           <div className="mt-4 text-center text-[10px] text-gray-600 font-black font-mono">
-                              EARNHUB PRO v4.6.0
+                              EARNHUB PRO v5.0.0
                           </div>
                       </div>
                   </MotionDiv>
