@@ -117,7 +117,7 @@ const ReferralControl: React.FC = () => {
                 <Users size={24} className="text-yellow-500" />
                 <div>
                     <h4 className="text-yellow-500 font-bold text-sm">No Config Found</h4>
-                    <p className="text-gray-400 text-xs">Run the SQL in 'Database Ultra > Danger Zone' to initialize the referral table if you haven't already.</p>
+                    <p className="text-gray-400 text-xs">Run the SQL in 'Database Ultra &gt; Danger Zone' to initialize the referral table if you haven't already.</p>
                 </div>
             </div>
         )}
