@@ -106,7 +106,9 @@ const AIAssistant: React.FC = () => {
 
         try {
             // Use Gemini API if available
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'mock_key' });
+            // Initialize inside function
+            const apiKey = process.env.API_KEY || 'mock_key';
+            const ai = new GoogleGenAI({ apiKey });
             
             // Context Prompt
             const context = `
@@ -131,7 +133,8 @@ const AIAssistant: React.FC = () => {
                 });
                 responseText = result.response.text;
             } catch (err) {
-                // Fallback
+                // Fallback logic if API key is invalid in dev or connection fails
+                console.warn("AI Chat Error:", err);
                 await new Promise(r => setTimeout(r, 1500));
                 if (userMsg.toLowerCase().includes('status')) responseText = "All systems operational. The Risk Engine is ready to scan.";
                 else if (userMsg.toLowerCase().includes('risk')) responseText = "I can scan user activity logs to detect fraud. Click 'Run Risk Scan' on the Risk Engine module.";

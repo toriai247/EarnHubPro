@@ -1,8 +1,15 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize Gemini
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize Gemini Helper Function (Lazy Init to prevent crash on load)
+const getAI = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.error("API_KEY is missing");
+    throw new Error("API Key not configured");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 // --- 1. Analyze Deposit Screenshot (With Time Guard) ---
 export const analyzeDepositScreenshot = async (
@@ -13,6 +20,8 @@ export const analyzeDepositScreenshot = async (
   sessionStartTime?: string // ISO String of when "Start Payment" was clicked
 ) => {
   try {
+    const ai = getAI();
+    
     // Fetch image and convert to base64
     const response = await fetch(imageUrl);
     const blob = await response.blob();
@@ -92,7 +101,7 @@ export const analyzeDepositScreenshot = async (
 
   } catch (error) {
     console.error("AI Analysis Error:", error);
-    return { status: "error", reason: "Failed to analyze image." };
+    return { status: "error", reason: "Failed to analyze image. Please try again." };
   }
 };
 
@@ -103,6 +112,8 @@ export const analyzeKYCDocuments = async (
   userName: string
 ) => {
   try {
+    const ai = getAI();
+
     const getBase64 = async (url: string) => {
         const res = await fetch(url);
         const blob = await res.blob();
@@ -170,6 +181,7 @@ export const analyzeTaskProof = async (
     proofType: 'text' | 'screenshot' | 'auto'
 ) => {
     try {
+        const ai = getAI();
         const model = "gemini-2.5-flash";
         let parts: any[] = [];
 
@@ -239,6 +251,7 @@ export const analyzeUserRisk = async (
   gameHistory: any[]
 ) => {
   try {
+    const ai = getAI();
     const model = "gemini-2.5-flash";
 
     // Summarize data for prompt
