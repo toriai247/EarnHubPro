@@ -6,6 +6,7 @@ import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, Ticket, CheckCircle
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
 import { CURRENCY_CONFIG } from '../constants';
+import Logo from '../components/Logo';
 
 const MotionDiv = motion.div as any;
 
@@ -97,10 +98,11 @@ const Signup: React.FC = () => {
           <div className="bg-gradient-to-r from-purple-500 to-electric-500 h-1.5"></div>
 
           <div className="p-8">
-            <motion.div variants={itemVariants} className="mb-8">
-              <h2 className="text-3xl font-display font-black text-white mb-2 uppercase tracking-tight flex items-center gap-2">
-                Join <span className="text-electric-500">EarnHub</span>
-              </h2>
+            <motion.div variants={itemVariants} className="mb-8 flex flex-col items-start">
+              <div className="flex items-center gap-3 mb-2">
+                  <h2 className="text-3xl font-display font-black text-white uppercase tracking-tight">Join</h2>
+                  <Logo size="md" />
+              </div>
               <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Start your earning journey today.</p>
             </motion.div>
 

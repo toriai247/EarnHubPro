@@ -36,7 +36,7 @@ const Terms: React.FC = () => {
             Legal Center
          </h1>
          <p className="text-gray-400 text-sm max-w-xl">
-             Transparency is our core value. Please read these terms carefully before using EarnHub Pro.
+             Transparency is our core value. Please read these terms carefully before using Naxxivo.
              <br />
              <span className="text-xs text-gray-500 mt-2 block">Last Updated: March 15, 2024</span>
          </p>
@@ -69,7 +69,7 @@ const Terms: React.FC = () => {
               
               <Section id="intro" title="1. Introduction" icon={FileText}>
                   <p>
-                      Welcome to EarnHub Pro ("we," "our," or "us"). By accessing or using our website, mobile application, and services (collectively, the "Service"), you agree to be bound by these Terms of Service ("Terms") and our Privacy Policy.
+                      Welcome to Naxxivo ("we," "our," or "us"). By accessing or using our website, mobile application, and services (collectively, the "Service"), you agree to be bound by these Terms of Service ("Terms") and our Privacy Policy.
                   </p>
                   <p>
                       If you do not agree to these Terms, you may not access or use the Service. We reserve the right to modify these Terms at any time. Continued use of the Service constitutes acceptance of updated Terms.
@@ -103,7 +103,7 @@ const Terms: React.FC = () => {
 
               <Section id="security" title="4. Account Security" icon={Lock}>
                   <p>
-                      You are responsible for maintaining the security of your account and password. EarnHub Pro cannot and will not be liable for any loss or damage from your failure to comply with this security obligation.
+                      You are responsible for maintaining the security of your account and password. Naxxivo cannot and will not be liable for any loss or damage from your failure to comply with this security obligation.
                   </p>
                   <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex items-start gap-3">
                       <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" size={18} />
@@ -144,8 +144,8 @@ const Terms: React.FC = () => {
 
               <div className="pt-8 border-t border-white/10 text-center">
                   <p className="text-gray-500 text-xs">
-                      © 2024 EarnHub Pro. All rights reserved. <br/>
-                      For legal inquiries, contact legal@earnhub.pro
+                      © 2024 Naxxivo. All rights reserved. <br/>
+                      For legal inquiries, contact legal@naxxivo.com
                   </p>
               </div>
 

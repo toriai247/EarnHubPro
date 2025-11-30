@@ -13,6 +13,8 @@ import { useSystem } from '../context/SystemContext';
 import MaintenanceScreen from './MaintenanceScreen';
 import SuspendedView from './SuspendedView';
 import { useUI } from '../context/UIContext';
+import Logo from './Logo';
+import InstallPWA from './InstallPWA';
 
 const MotionDiv = motion.div as any;
 
@@ -165,7 +167,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                                   badge: '/icon-96x96.png',
                                   // @ts-ignore
                                   vibrate: [200, 100, 200],
-                                  tag: 'earnhub-alert',
+                                  tag: 'naxxivo-alert',
                                   renotify: true
                               });
                               return;
@@ -237,13 +239,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
             >
                 <Menu size={20} />
             </button>
-            <Link to="/" className="flex items-center gap-2 group">
-                <div className="w-8 h-8 rounded bg-electric-500 flex items-center justify-center font-black font-display text-lg text-white border border-electric-600 shadow-[2px_2px_0px_0px_#004499]">
-                  E
-                </div>
-                <span className="font-display font-black text-lg tracking-tight hidden sm:inline text-white uppercase">
-                  Earn<span className="text-electric-500">Hub</span>
-                </span>
+            <Link to="/" className="group">
+                <Logo size="md" />
             </Link>
           </div>
 
@@ -291,6 +288,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         {children}
       </main>
 
+      {/* PWA INSTALL PROMPT */}
+      <InstallPWA />
+
       {/* MOBILE BOTTOM NAV */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 sm:hidden bg-surface border-t border-border-neo px-4 pb-safe pt-2 shadow-[0_-4px_0px_0px_rgba(0,0,0,0.5)]">
         <div className="flex justify-between items-center h-16">
@@ -319,7 +319,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
 
       {/* DESKTOP SIDEBAR */}
       <nav className="hidden sm:flex fixed left-0 top-0 bottom-0 w-20 bg-surface border-r border-border-neo flex-col items-center py-6 z-30">
-        <div className="mb-10 w-10 h-10 rounded bg-electric-500 flex items-center justify-center font-black font-display text-xl text-white shadow-[3px_3px_0px_0px_#004499] border border-electric-600">E</div>
+        <div className="mb-10">
+            <Logo size="md" showText={false} />
+        </div>
         <div className="flex flex-col gap-8 w-full px-3">
           {navItems.map((item) => {
              const isActive = location.pathname === item.path;
@@ -355,9 +357,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                       className="fixed top-0 left-0 bottom-0 w-[85%] max-w-[320px] bg-surface border-r border-border-neo z-50 flex flex-col shadow-[10px_0_0_0_rgba(0,0,0,0.5)]"
                   >
                       <div className="p-6 border-b border-border-neo flex justify-between items-center bg-void">
-                          <div>
-                              <h2 className="font-display font-black text-2xl text-white uppercase tracking-tight">Menu</h2>
-                          </div>
+                          <Logo size="lg" />
                           <button onClick={() => setIsMenuOpen(false)} className="p-2 bg-white/5 rounded text-gray-400 hover:text-white border border-white/10">
                               <X size={20} />
                           </button>
@@ -403,7 +403,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                               </button>
                           )}
                           <div className="mt-4 text-center text-[10px] text-gray-600 font-black font-mono">
-                              EARNHUB PRO v5.0.0
+                              NAXXIVO v1.0.0
                           </div>
                       </div>
                   </MotionDiv>

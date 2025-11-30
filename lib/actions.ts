@@ -1,13 +1,10 @@
 
-
-
-
 import { supabase } from '../integrations/supabase/client';
 import { Task, ActiveInvestment } from '../types';
 import { CURRENCY_CONFIG } from '../constants';
 
 // Helper to create a random referral code
-const generateReferralCode = () => 'EH' + Math.random().toString(36).substring(2, 8).toUpperCase();
+const generateReferralCode = () => 'NX' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
 // Helper to validate UUID format (basic check)
 const isValidUUID = (uuid: string) => {

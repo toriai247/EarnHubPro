@@ -310,7 +310,7 @@ const NotiSender: React.FC = () => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-baseline mb-0.5">
-                                        <span className="text-[10px] font-bold text-gray-400 uppercase">EarnHub Pro • Now</span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase">Naxxivo • Now</span>
                                     </div>
                                     <h4 className="text-sm font-bold text-white leading-tight mb-1">{title || 'Notification Title'}</h4>
                                     <p className="text-xs text-gray-300 leading-snug line-clamp-3">{message || 'Message content will appear here.'}</p>

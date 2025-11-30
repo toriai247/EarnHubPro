@@ -19,6 +19,7 @@ import Withdraw from './pages/Withdraw';
 import Transfer from './pages/Transfer';
 import SendMoney from './pages/SendMoney'; 
 import Exchange from './pages/Exchange'; 
+import Advertise from './pages/Advertise'; // Imported
 import Profile from './pages/Profile';
 import PublicProfile from './pages/PublicProfile';
 import SearchUsers from './pages/SearchUsers'; 
@@ -100,7 +101,7 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-neon-green p-4">
         <div className="w-12 h-12 border-4 border-royal-600 border-t-neon-green rounded-full animate-spin mb-4"></div>
-        <div className="font-display font-bold tracking-wider text-lg">EARNHUB PRO</div>
+        <div className="font-display font-bold tracking-wider text-lg">NAXXIVO</div>
       </div>
     );
   }
@@ -126,6 +127,7 @@ const AppContent: React.FC = () => {
         {/* Protected Routes */}
         <Route path="/invest" element={<RequireAuth session={session}><FeatureGuard feature="invest"><Invest /></FeatureGuard></RequireAuth>} />
         <Route path="/tasks" element={<RequireAuth session={session}><FeatureGuard feature="tasks"><Tasks /></FeatureGuard></RequireAuth>} />
+        <Route path="/advertise" element={<RequireAuth session={session}><Advertise /></RequireAuth>} /> 
         <Route path="/invite" element={<RequireAuth session={session}><FeatureGuard feature="invite"><Invite /></FeatureGuard></RequireAuth>} />
         <Route path="/video" element={<RequireAuth session={session}><FeatureGuard feature="video"><Video /></FeatureGuard></RequireAuth>} />
         <Route path="/games" element={<RequireAuth session={session}><FeatureGuard feature="games"><Games /></FeatureGuard></RequireAuth>} />

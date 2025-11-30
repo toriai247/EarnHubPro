@@ -164,7 +164,7 @@ const MaintenanceScreen: React.FC = () => {
                             <div className="bg-black border border-white/10 rounded-lg p-4 font-mono text-[10px] h-48 overflow-hidden relative flex flex-col shadow-inner">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5 text-gray-500">
                                     <Terminal size={12} />
-                                    <span>root@earnhub-server:~# tail -f sys.log</span>
+                                    <span>root@naxxivo-server:~# tail -f sys.log</span>
                                 </div>
                                 <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar opacity-80">
                                     {logs.map((log, i) => (
@@ -292,7 +292,7 @@ const MaintenanceScreen: React.FC = () => {
                 {/* Footer Info */}
                 <div className="mt-6 flex justify-between items-center text-[9px] text-gray-600 font-mono uppercase">
                     <div className="flex items-center gap-1">
-                        <Power size={10} /> Powered by EarnHub Pro
+                        <Power size={10} /> Powered by Naxxivo
                     </div>
                     <div>
                         Server ID: US-EAST-1A • <span className="text-red-500">OFFLINE</span>

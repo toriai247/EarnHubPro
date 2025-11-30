@@ -1,7 +1,6 @@
-
 {
-  "name": "EarnHub Pro",
-  "short_name": "EarnHub",
+  "name": "Naxxivo",
+  "short_name": "Naxxivo",
   "description": "Premium Earning Dashboard",
   "start_url": "/",
   "display": "standalone",

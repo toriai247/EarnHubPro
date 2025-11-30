@@ -54,7 +54,7 @@ const BiometricSetup: React.FC = () => {
               publicKey: {
                   challenge: crypto.getRandomValues(new Uint8Array(32)),
                   rp: { 
-                      name: "EarnHub Pro",
+                      name: "Naxxivo",
                       id: window.location.hostname 
                   },
                   user: {

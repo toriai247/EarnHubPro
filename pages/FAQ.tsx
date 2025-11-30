@@ -65,7 +65,7 @@ const FAQs = [
         id: 5, 
         category: 'general', 
         q: "Can I earn without depositing?", 
-        a: "Absolutely! You can earn by completing daily tasks, watching videos, playing free games (if available), and inviting friends to join EarnHub Pro." 
+        a: "Absolutely! You can earn by completing daily tasks, watching videos, playing free games (if available), and inviting friends to join Naxxivo." 
     },
     { 
         id: 6, 

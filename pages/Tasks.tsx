@@ -1,7 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { CheckCircle2, ChevronRight, ExternalLink, Sparkles, Clock, RefreshCw, UploadCloud, Smartphone, PlayCircle, Share2, Globe, Search, Loader2, Star, PenTool, Lock } from 'lucide-react';
+import { 
+  CheckCircle2, ChevronRight, ExternalLink, Sparkles, Clock, 
+  RefreshCw, UploadCloud, Smartphone, PlayCircle, Share2, 
+  Globe, Search, Loader2, Star, PenTool, Lock, Youtube, 
+  Facebook, Instagram, Twitter, Send, MonitorPlay, X
+} from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MarketTask } from '../types';
@@ -46,7 +51,7 @@ const Tasks: React.FC = () => {
         .select('*')
         .eq('status', 'active')
         .gt('remaining_quantity', 0)
-        .order('price_per_action', {ascending: false});
+        .order('worker_reward', {ascending: false}); // Show highest paying first
      
      // 2. Fetch User Submissions to filter out done tasks
      const { data: mySubs } = await supabase
@@ -157,8 +162,19 @@ const Tasks: React.FC = () => {
 
   const filteredTasks = tasks.filter(t => filter === 'all' || t.category === filter);
 
-  const getIcon = (cat: string) => {
-      switch(cat) {
+  const getTaskIcon = (task: MarketTask) => {
+      const url = task.target_url.toLowerCase();
+      
+      // Platform Specific Icons based on URL
+      if (url.includes('youtube') || url.includes('youtu.be')) return <Youtube size={20} className="text-red-500" />;
+      if (url.includes('facebook') || url.includes('fb.watch')) return <Facebook size={20} className="text-blue-600" />;
+      if (url.includes('instagram')) return <Instagram size={20} className="text-pink-500" />;
+      if (url.includes('twitter') || url.includes('x.com')) return <Twitter size={20} className="text-sky-500" />;
+      if (url.includes('t.me') || url.includes('telegram')) return <Send size={20} className="text-blue-400" />;
+      if (url.includes('tiktok')) return <MonitorPlay size={20} className="text-black dark:text-white" />;
+
+      // Fallback to Category
+      switch(task.category) {
           case 'social': return <Share2 size={20} className="text-blue-400"/>;
           case 'video': return <PlayCircle size={20} className="text-red-400"/>;
           case 'app': return <Smartphone size={20} className="text-purple-400"/>;
@@ -196,15 +212,15 @@ const Tasks: React.FC = () => {
       <div className="flex flex-col gap-4 px-4 sm:px-0">
           <div className="flex justify-between items-end">
              <div>
-                <h1 className="text-2xl font-display font-bold text-white mb-1">Earning Market</h1>
-                <p className="text-gray-400 text-sm">Complete tasks to earn cash.</p>
+                <h1 className="text-2xl font-display font-bold text-white mb-1">Micro Jobs</h1>
+                <p className="text-gray-400 text-sm">Complete simple tasks to earn real cash.</p>
              </div>
              <button onClick={fetchTasks} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white"><RefreshCw size={18}/></button>
           </div>
 
           {/* Filters */}
           <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
-              {['all', 'social', 'video', 'seo', 'review', 'content'].map(f => (
+              {['all', 'social', 'video', 'seo', 'review', 'app'].map(f => (
                   <button 
                     key={f}
                     onClick={() => setFilter(f)}
@@ -218,8 +234,10 @@ const Tasks: React.FC = () => {
 
       <div className="space-y-3 px-4 sm:px-0">
           {filteredTasks.length === 0 ? (
-              <div className="text-center py-16 bg-white/5 rounded-2xl border border-white/5 text-gray-500">
-                  No tasks available in this category.
+              <div className="text-center py-16 bg-white/5 rounded-2xl border border-white/5 text-gray-500 flex flex-col items-center">
+                  <Globe size={40} className="mb-4 opacity-50" />
+                  <p>No tasks available in this category.</p>
+                  <p className="text-xs mt-1">Check back later or try another filter.</p>
               </div>
           ) : (
               filteredTasks.map((task) => (
@@ -232,27 +250,27 @@ const Tasks: React.FC = () => {
                    className="cursor-pointer"
                    onClick={() => setSelectedTask(task)}
                 >
-                     <GlassCard className={`flex items-center justify-between p-4 group hover:bg-white/5 transition border border-white/5 ${task.worker_reward > 0.20 ? 'border-l-4 border-l-yellow-400' : 'hover:border-purple-500/30'}`}>
+                     <GlassCard className={`flex items-center justify-between p-4 group hover:bg-white/5 transition border border-white/5 ${task.worker_reward > 0.10 ? 'border-l-4 border-l-yellow-400' : 'hover:border-purple-500/30'}`}>
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-black/30 flex items-center justify-center border border-white/10">
-                                {getIcon(task.category)}
+                            <div className="w-12 h-12 rounded-xl bg-black/30 flex items-center justify-center border border-white/10 shrink-0">
+                                {getTaskIcon(task)}
                             </div>
-                            <div>
+                            <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <h3 className="font-bold text-white text-sm line-clamp-1">{task.title}</h3>
-                                    {task.worker_reward > 0.20 && <span className="bg-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded">HOT</span>}
+                                    <h3 className="font-bold text-white text-sm truncate">{task.title}</h3>
+                                    {task.worker_reward > 0.10 && <span className="bg-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0">HIGH PAY</span>}
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                                     <span className="capitalize">{task.category}</span>
                                     <span>•</span>
-                                    <span className="text-purple-400">{task.remaining_quantity} left</span>
+                                    <span className={`${task.remaining_quantity < 10 ? 'text-red-400' : 'text-purple-400'}`}>{task.remaining_quantity} left</span>
                                 </div>
                             </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right pl-2 shrink-0">
                            <div className="bg-neon-green/10 border border-neon-green/30 px-3 py-1.5 rounded-lg">
                                 <p className="text-neon-green font-black text-sm">
-                                    <BalanceDisplay amount={task.worker_reward} />
+                                    <BalanceDisplay amount={task.worker_reward} decimals={3} />
                                 </p>
                            </div>
                         </div>
@@ -272,65 +290,92 @@ const Tasks: React.FC = () => {
              >
                  <MotionDiv 
                     initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-                    className="bg-dark-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 pb-10 sm:pb-6 relative overflow-hidden"
+                    className="bg-dark-900 w-full max-w-md rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 pb-10 sm:pb-6 relative overflow-hidden shadow-2xl"
                     onClick={(e: MouseEvent) => e.stopPropagation()}
                  >
+                     {/* Close Button */}
+                     <button 
+                        onClick={closeModal}
+                        className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition z-20"
+                     >
+                        <X size={20} />
+                     </button>
+
+                     {/* Background Glow */}
+                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/20 rounded-full mt-2 sm:hidden"></div>
+                     <div className="absolute top-[-50%] left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-purple-500/10 blur-[80px] rounded-full pointer-events-none"></div>
+
                      {submitStatus === 'success' ? (
-                        <div className="flex flex-col items-center justify-center py-10 text-center">
-                             <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-4 text-green-500 border border-green-500/50">
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                             <motion.div 
+                                initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6 text-green-500 border border-green-500/50"
+                             >
                                  <CheckCircle2 size={40} />
-                             </div>
+                             </motion.div>
                              <h2 className="text-2xl font-bold text-white mb-2">Submitted!</h2>
-                             <p className="text-gray-400">Your proof is under review.</p>
+                             <p className="text-gray-400">
+                                 {selectedTask.proof_type === 'auto' ? 'Reward has been credited.' : 'Your proof is under review.'}
+                             </p>
                         </div>
                      ) : (
                         <>
-                            <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 sm:hidden"></div>
-                            
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center text-3xl">
-                                    {getIcon(selectedTask.category)}
+                            <div className="flex items-center gap-4 mb-6 relative z-10 pr-8">
+                                <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center text-3xl border border-white/10 shrink-0">
+                                    {getTaskIcon(selectedTask)}
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-white leading-tight">{selectedTask.title}</h2>
-                                    <p className="text-gray-400 text-xs mt-1 capitalize">{selectedTask.category} Task</p>
-                                    <p className="text-neon-green font-bold text-lg mt-1"><BalanceDisplay amount={selectedTask.worker_reward}/></p>
+                                <div className="flex-1 min-w-0">
+                                    <h2 className="text-xl font-bold text-white leading-tight line-clamp-2">{selectedTask.title}</h2>
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        <span className="text-gray-400 text-xs capitalize">{selectedTask.category} Task</span>
+                                        <span className="text-gray-600 text-[10px]">•</span>
+                                        <span className="text-purple-400 text-xs font-bold bg-purple-500/10 px-2 py-0.5 rounded uppercase">{selectedTask.proof_type} VERIFICATION</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 mb-6 space-y-4">
-                                <div className="p-3 bg-blue-500/10 rounded-lg text-blue-300 text-xs leading-relaxed border border-blue-500/20">
-                                    <strong>Instruction:</strong> {selectedTask.description || "Follow the link and complete the action."}
-                                    <br/>
-                                    {selectedTask.proof_type === 'text' && <span className="text-yellow-400 block mt-1">⚠️ Requirement: Submit the Secret Code found in the content.</span>}
+                            <div className="flex justify-between items-center mb-6 bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className="text-xs text-gray-400 font-bold uppercase">Reward</div>
+                                <div className="text-neon-green font-bold text-xl font-mono">
+                                    <BalanceDisplay amount={selectedTask.worker_reward} />
+                                </div>
+                            </div>
+
+                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 mb-6 space-y-4 relative z-10">
+                                <div className="p-3 bg-blue-500/10 rounded-lg text-blue-200 text-xs leading-relaxed border border-blue-500/20">
+                                    <span className="font-bold text-blue-400 uppercase text-[10px] block mb-1">Instructions</span>
+                                    <span className="whitespace-pre-wrap">{selectedTask.description || "Follow the link and complete the action to earn reward."}</span>
                                 </div>
 
                                 {/* Step 1 */}
                                 <div className="flex gap-4">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${linkOpened ? 'bg-green-500 text-black' : 'bg-white/10 text-white'}`}>1</div>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${linkOpened ? 'bg-green-500 text-black' : 'bg-white/10 text-white border border-white/10'}`}>1</div>
                                     <div className="flex-1">
                                         <p className="text-sm font-bold text-white mb-1">Open Link & Perform Action</p>
                                         <button 
                                             onClick={handleOpenLink}
-                                            className="text-xs flex items-center gap-2 text-blue-400 hover:text-blue-300 transition break-all"
+                                            className="text-xs flex items-center gap-2 text-blue-400 hover:text-blue-300 transition break-all bg-blue-500/10 px-3 py-2 rounded-lg w-full justify-between group"
                                         >
-                                            {selectedTask.target_url} <ExternalLink size={12}/>
+                                            <span className="truncate">{selectedTask.target_url}</span> 
+                                            <ExternalLink size={12} className="group-hover:translate-x-1 transition-transform"/>
                                         </button>
                                     </div>
                                 </div>
                                 {/* Step 2 */}
                                 <div className="flex gap-4">
-                                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold shrink-0 text-white">2</div>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${proofText || (selectedTask.proof_type === 'auto' && linkOpened) ? 'bg-green-500 text-black' : 'bg-white/10 text-white border border-white/10'}`}>2</div>
                                     <div className="flex-1">
-                                        <p className="text-sm font-bold text-white mb-2">Submit Proof</p>
+                                        <p className="text-sm font-bold text-white mb-2">Proof of Work</p>
                                         {selectedTask.proof_type === 'auto' ? (
-                                            <p className="text-xs text-gray-500 italic">No proof needed. Wait for timer.</p>
+                                            <div className="text-xs text-gray-500 italic bg-white/5 p-2 rounded">
+                                                Automatic Verification. Please wait for the timer.
+                                            </div>
                                         ) : (
                                             <textarea 
                                                 value={proofText}
                                                 onChange={e => setProofText(e.target.value)}
-                                                className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-xs focus:border-purple-500 outline-none h-24 resize-none"
-                                                placeholder={selectedTask.proof_type === 'screenshot' ? "Paste screenshot URL here..." : "Type required Secret Code/Username..."}
+                                                className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-xs focus:border-purple-500 outline-none h-20 resize-none placeholder-gray-600"
+                                                placeholder={selectedTask.proof_type === 'screenshot' ? "Paste screenshot URL (e.g. imgur, lightshot)..." : "Type required Username / Code / Text..."}
                                             />
                                         )}
                                     </div>
@@ -340,17 +385,20 @@ const Tasks: React.FC = () => {
                             <button 
                                 onClick={handleSubmitProof}
                                 disabled={!linkOpened || submitStatus === 'submitting' || countDown > 0}
-                                className="w-full py-4 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`w-full py-4 font-black rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wide relative overflow-hidden ${
+                                    countDown > 0 ? 'bg-gray-700 text-gray-400' : 'bg-white text-black hover:bg-gray-200'
+                                }`}
                             >
                                 {submitStatus === 'submitting' ? <Loader2 className="animate-spin"/> : (
                                     countDown > 0 ? (
-                                        <span className="flex items-center gap-2">
-                                            <Clock size={16} /> Verifying... {countDown}s
-                                        </span>
+                                        <>
+                                            <span className="absolute left-0 top-0 bottom-0 bg-white/10 transition-all duration-1000 ease-linear" style={{ width: `${(countDown / (selectedTask.timer_seconds || 30)) * 100}%` }}></span>
+                                            <span className="relative flex items-center gap-2 z-10"><Clock size={16} /> Wait {countDown}s to Verify</span>
+                                        </>
                                     ) : (
                                         <span className="flex items-center gap-2">
                                             <Lock size={16} className={linkOpened ? 'hidden' : ''} />
-                                            Verify & Claim Reward
+                                            {linkOpened ? 'Submit & Claim' : 'Open Link First'}
                                         </span>
                                     )
                                 )}

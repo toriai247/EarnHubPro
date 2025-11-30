@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Mail, LogIn, AlertCircle, Loader2, ChevronRight, Zap, ScanFace, ArrowRight } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { deriveKeyFromId, decryptData } from '../lib/crypto';
+import Logo from '../components/Logo';
 
 const MotionDiv = motion.div as any;
 
@@ -125,14 +126,9 @@ const Login: React.FC = () => {
           <div className="bg-gradient-to-r from-electric-600 to-electric-400 p-1"></div>
           
           <div className="p-8">
-            <motion.div variants={itemVariants} className="text-center mb-8">
-              <div className="w-16 h-16 mx-auto bg-surface border border-white/10 rounded-2xl flex items-center justify-center mb-4 shadow-lg group">
-                <Zap className="text-electric-500 group-hover:scale-110 transition-transform duration-300" size={32} fill="currentColor" />
-              </div>
-              <h1 className="text-3xl font-display font-black text-white mb-1 tracking-tight">
-                EARNHUB
-              </h1>
-              <p className="text-gray-400 text-xs font-bold tracking-[0.2em] uppercase">Secure Gateway</p>
+            <motion.div variants={itemVariants} className="text-center mb-8 flex flex-col items-center">
+              <Logo size="xl" className="mb-4" />
+              <p className="text-gray-400 text-xs font-bold tracking-[0.2em] uppercase mt-2">Secure Gateway</p>
             </motion.div>
 
             <form onSubmit={handleLogin} className="space-y-5">
@@ -220,7 +216,7 @@ const Login: React.FC = () => {
 
             <motion.div variants={itemVariants} className="mt-8 text-center">
               <p className="text-gray-500 text-sm font-bold">
-                New to EarnHub?{' '}
+                New to Naxxivo?{' '}
                 <Link to="/signup" className="text-white hover:text-electric-400 underline decoration-2 underline-offset-4 transition inline-flex items-center gap-1 group">
                   Create ID <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
                 </Link>
