@@ -56,8 +56,15 @@ const SQL_TOOLS = {
     p2p_transfer_fee_percent NUMERIC DEFAULT 2.0,
     p2p_min_transfer NUMERIC DEFAULT 10.0,
     is_activation_enabled BOOLEAN DEFAULT false,
-    activation_amount NUMERIC DEFAULT 1.00
+    activation_amount NUMERIC DEFAULT 1.00,
+    is_pwa_enabled BOOLEAN DEFAULT true
 );`
+        },
+        {
+            title: 'PWA Control',
+            desc: 'Adds column to system_config to control PWA install prompt.',
+            sql: `ALTER TABLE public.system_config 
+ADD COLUMN IF NOT EXISTS is_pwa_enabled BOOLEAN DEFAULT true;`
         },
         {
             title: 'Account Activation Columns',

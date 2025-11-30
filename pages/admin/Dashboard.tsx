@@ -9,7 +9,7 @@ import {
   LayoutDashboard, CreditCard, Gamepad2, Gift, Settings, 
   MonitorOff, LifeBuoy, Sliders, CalendarClock, Briefcase,
   HardDrive, BellRing, GitFork, CheckSquare, PieChart, FileText,
-  Cpu, Wifi, Layers, AlertOctagon, Info, Terminal
+  Cpu, Wifi, Layers, AlertOctagon, Info, Terminal, Globe
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import BalanceDisplay from '../../components/BalanceDisplay';
@@ -78,11 +78,10 @@ const Dashboard: React.FC = () => {
         const totalWds = (withdrawTx || []).reduce((sum, t) => sum + t.amount, 0);
 
         // Calculate Liability (Sum of all user balances) - approximated by main_balance sum
-        // Note: In production with millions of rows, use a dedicated stats table or RPC function
         const { data: walletBalances } = await supabase.from('wallets').select('main_balance, deposit_balance, earning_balance');
         const liability = (walletBalances || []).reduce((sum, w) => sum + w.main_balance + w.deposit_balance + w.earning_balance, 0);
 
-        // 4. Logs
+        // 5. Logs
         const { data: logs } = await supabase.from('transactions')
             .select('*')
             .order('created_at', { ascending: false })
@@ -211,18 +210,6 @@ const Dashboard: React.FC = () => {
               <div className="relative z-10">
                   <h3 className="text-2xl font-black text-white"><BalanceDisplay amount={stats?.systemRevenue || 0} /></h3>
                   <p className="text-[10px] text-gray-400 mt-1">Total In - (Total Out + Liability)</p>
-              </div>
-          </div>
-
-          {/* Liability */}
-          <div className="bg-gradient-to-br from-red-900/20 to-black border border-red-500/30 rounded-xl p-4 relative overflow-hidden">
-              <div className="flex justify-between items-start mb-2 relative z-10">
-                  <div className="p-2 bg-red-500/20 rounded-lg text-red-400"><AlertOctagon size={20}/></div>
-                  <span className="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded font-bold uppercase">User Liability</span>
-              </div>
-              <div className="relative z-10">
-                  <h3 className="text-2xl font-black text-white"><BalanceDisplay amount={stats?.systemLiability || 0} /></h3>
-                  <p className="text-[10px] text-gray-400 mt-1">Funds currently held by users</p>
               </div>
           </div>
 

@@ -38,6 +38,7 @@ import { CurrencyProvider } from './context/CurrencyContext';
 import { UIProvider } from './context/UIContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SystemProvider, useSystem } from './context/SystemContext';
+import InstallPWA from './components/InstallPWA'; // Added
 
 // --- ROUTE GUARD COMPONENT ---
 const FeatureGuard = ({ feature, children }: { feature: string, children?: React.ReactNode }) => {
@@ -101,56 +102,59 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-neon-green p-4">
         <div className="w-12 h-12 border-4 border-royal-600 border-t-neon-green rounded-full animate-spin mb-4"></div>
-        <div className="font-display font-bold tracking-wider text-lg">EARNHUB PRO</div>
+        <div className="font-display font-bold tracking-wider text-lg">NAXXIVO</div>
       </div>
     );
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
-      <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
-      <Route path="/admin/*" element={session ? <Admin /> : <Navigate to="/login" />} />
+    <>
+      <InstallPWA /> {/* GLOBAL PWA PROMPT */}
+      <Routes>
+        <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+        <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
+        <Route path="/admin/*" element={session ? <Admin /> : <Navigate to="/login" />} />
 
-      {/* Main Layout Wrap */}
-      <Route element={<Layout session={session}><Outlet /></Layout>}>
-        
-        {/* Public Routes */}
-        <Route path="/" element={<Home />} />
-        <Route path="/leaderboard" element={<Leaderboard />} />
-        <Route path="/search" element={<SearchUsers />} />
-        <Route path="/u/:uid" element={<PublicProfile />} />
-        <Route path="/faq" element={<FAQ />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/support" element={<Support />} />
+        {/* Main Layout Wrap */}
+        <Route element={<Layout session={session}><Outlet /></Layout>}>
+          
+          {/* Public Routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/search" element={<SearchUsers />} />
+          <Route path="/u/:uid" element={<PublicProfile />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/support" element={<Support />} />
 
-        {/* Protected Routes */}
-        <Route path="/invest" element={<RequireAuth session={session}><FeatureGuard feature="invest"><Invest /></FeatureGuard></RequireAuth>} />
-        <Route path="/tasks" element={<RequireAuth session={session}><FeatureGuard feature="tasks"><Tasks /></FeatureGuard></RequireAuth>} />
-        <Route path="/advertise" element={<RequireAuth session={session}><Advertise /></RequireAuth>} /> 
-        <Route path="/invite" element={<RequireAuth session={session}><FeatureGuard feature="invite"><Invite /></FeatureGuard></RequireAuth>} />
-        <Route path="/video" element={<RequireAuth session={session}><FeatureGuard feature="video"><Video /></FeatureGuard></RequireAuth>} />
-        <Route path="/games" element={<RequireAuth session={session}><FeatureGuard feature="games"><Games /></FeatureGuard></RequireAuth>} />
-        
-        <Route path="/games/spin" element={<RequireAuth session={session}><FeatureGuard feature="games"><Spin /></FeatureGuard></RequireAuth>} />
-        <Route path="/games/crash" element={<RequireAuth session={session}><FeatureGuard feature="games"><Crash /></FeatureGuard></RequireAuth>} />
-        <Route path="/games/dice" element={<RequireAuth session={session}><FeatureGuard feature="games"><Dice /></FeatureGuard></RequireAuth>} />
-        <Route path="/games/ludo" element={<RequireAuth session={session}><FeatureGuard feature="games"><LudoLobby /></FeatureGuard></RequireAuth>} />
-        <Route path="/games/ludo/play/:stake" element={<RequireAuth session={session}><FeatureGuard feature="games"><LudoKing /></FeatureGuard></RequireAuth>} />
-        
-        <Route path="/wallet" element={<RequireAuth session={session}><Wallet /></RequireAuth>} />
-        <Route path="/deposit" element={<RequireAuth session={session}><FeatureGuard feature="deposit"><Deposit /></FeatureGuard></RequireAuth>} />
-        <Route path="/withdraw" element={<RequireAuth session={session}><FeatureGuard feature="withdraw"><Withdraw /></FeatureGuard></RequireAuth>} />
-        <Route path="/transfer" element={<RequireAuth session={session}><Transfer /></RequireAuth>} />
-        <Route path="/send-money" element={<RequireAuth session={session}><SendMoney /></RequireAuth>} />
-        <Route path="/exchange" element={<RequireAuth session={session}><Exchange /></RequireAuth>} />
-        
-        <Route path="/profile" element={<RequireAuth session={session}><Profile /></RequireAuth>} />
-        <Route path="/notifications" element={<RequireAuth session={session}><Notifications /></RequireAuth>} />
-        <Route path="/biometric-setup" element={<RequireAuth session={session}><BiometricSetup /></RequireAuth>} />
-        
-      </Route>
-    </Routes>
+          {/* Protected Routes */}
+          <Route path="/invest" element={<RequireAuth session={session}><FeatureGuard feature="invest"><Invest /></FeatureGuard></RequireAuth>} />
+          <Route path="/tasks" element={<RequireAuth session={session}><FeatureGuard feature="tasks"><Tasks /></FeatureGuard></RequireAuth>} />
+          <Route path="/advertise" element={<RequireAuth session={session}><Advertise /></RequireAuth>} /> 
+          <Route path="/invite" element={<RequireAuth session={session}><FeatureGuard feature="invite"><Invite /></FeatureGuard></RequireAuth>} />
+          <Route path="/video" element={<RequireAuth session={session}><FeatureGuard feature="video"><Video /></FeatureGuard></RequireAuth>} />
+          <Route path="/games" element={<RequireAuth session={session}><FeatureGuard feature="games"><Games /></FeatureGuard></RequireAuth>} />
+          
+          <Route path="/games/spin" element={<RequireAuth session={session}><FeatureGuard feature="games"><Spin /></FeatureGuard></RequireAuth>} />
+          <Route path="/games/crash" element={<RequireAuth session={session}><FeatureGuard feature="games"><Crash /></FeatureGuard></RequireAuth>} />
+          <Route path="/games/dice" element={<RequireAuth session={session}><FeatureGuard feature="games"><Dice /></FeatureGuard></RequireAuth>} />
+          <Route path="/games/ludo" element={<RequireAuth session={session}><FeatureGuard feature="games"><LudoLobby /></FeatureGuard></RequireAuth>} />
+          <Route path="/games/ludo/play/:stake" element={<RequireAuth session={session}><FeatureGuard feature="games"><LudoKing /></FeatureGuard></RequireAuth>} />
+          
+          <Route path="/wallet" element={<RequireAuth session={session}><Wallet /></RequireAuth>} />
+          <Route path="/deposit" element={<RequireAuth session={session}><FeatureGuard feature="deposit"><Deposit /></FeatureGuard></RequireAuth>} />
+          <Route path="/withdraw" element={<RequireAuth session={session}><FeatureGuard feature="withdraw"><Withdraw /></FeatureGuard></RequireAuth>} />
+          <Route path="/transfer" element={<RequireAuth session={session}><Transfer /></RequireAuth>} />
+          <Route path="/send-money" element={<RequireAuth session={session}><SendMoney /></RequireAuth>} />
+          <Route path="/exchange" element={<RequireAuth session={session}><Exchange /></RequireAuth>} />
+          
+          <Route path="/profile" element={<RequireAuth session={session}><Profile /></RequireAuth>} />
+          <Route path="/notifications" element={<RequireAuth session={session}><Notifications /></RequireAuth>} />
+          <Route path="/biometric-setup" element={<RequireAuth session={session}><BiometricSetup /></RequireAuth>} />
+          
+        </Route>
+      </Routes>
+    </>
   );
 }
 

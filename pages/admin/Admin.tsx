@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Bot, Sparkles
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -29,7 +29,8 @@ import HelpRequests from './HelpRequests';
 import DatabaseUltra from './DatabaseUltra';
 import NotiSender from './NotiSender';
 import ReferralControl from './ReferralControl';
-import VerificationRequest from './VerificationRequest'; // Imported
+import VerificationRequest from './VerificationRequest';
+import AIAssistant from './AIAssistant'; // Imported
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -44,11 +45,12 @@ const Admin: React.FC = () => {
   const items = [
     { id: 'home', icon: Home, label: 'Back to App', path: '/' },
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
+    { id: 'ai_assistant', icon: Bot, label: 'AI Architect', color: 'text-purple-400', path: '/admin/ai_assistant' }, // New Item
     { id: 'database_ultra', icon: HardDrive, label: 'Database Ultra', color: 'text-cyan-400', path: '/admin/database_ultra' },
     { id: 'noti_sender', icon: BellRing, label: 'Noti Sender', color: 'text-yellow-400', path: '/admin/noti_sender' },
     { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400', path: '/admin/off_systems' }, 
     { id: 'help_requests', icon: LifeBuoy, label: 'Support Inbox', color: 'text-blue-400', path: '/admin/help_requests' },
-    { id: 'verification', icon: ShieldCheck, label: 'KYC Requests', color: 'text-emerald-400', path: '/admin/verification' }, // New Item
+    { id: 'verification', icon: ShieldCheck, label: 'KYC Requests', color: 'text-emerald-400', path: '/admin/verification' },
     { id: 'users', icon: Users, label: 'User Admin', path: '/admin/users' },
     { id: 'referrals', icon: GitFork, label: 'Referral Tiers', color: 'text-green-400', path: '/admin/referrals' },
     { id: 'tasks', icon: CheckCircle, label: 'Task Coord', path: '/admin/tasks' },
@@ -134,6 +136,7 @@ const Admin: React.FC = () => {
 
       switch(activeSection) {
           case 'dashboard': return <Dashboard />;
+          case 'ai_assistant': return <AIAssistant />;
           case 'database_ultra': return <DatabaseUltra />;
           case 'noti_sender': return <NotiSender />;
           case 'off_systems': return <OffSystems />;

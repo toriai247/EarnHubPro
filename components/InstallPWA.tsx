@@ -1,19 +1,34 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, X, Smartphone, CheckCircle2 } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import GlassCard from './GlassCard';
+import { useSystem } from '../context/SystemContext';
+import Logo from './Logo';
 
 const InstallPWA: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+  const { config, loading } = useSystem();
 
   useEffect(() => {
+    // Check system config - if PWA prompt disabled, do nothing
+    if (!loading && config && config.is_pwa_enabled === false) {
+      return;
+    }
+
     // Check if already in standalone mode
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     if (isStandalone) {
       return; 
+    }
+
+    // Check if user dismissed recently (e.g. within 24h) to avoid spam
+    const lastDismiss = localStorage.getItem('pwa_dismiss_timestamp');
+    if (lastDismiss) {
+      const hoursSince = (Date.now() - parseInt(lastDismiss)) / (1000 * 60 * 60);
+      if (hoursSince < 24) return;
     }
 
     const handler = (e: any) => {
@@ -38,7 +53,7 @@ const InstallPWA: React.FC = () => {
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
     };
-  }, []);
+  }, [config, loading]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
@@ -63,45 +78,54 @@ const InstallPWA: React.FC = () => {
 
   const handleDismiss = () => {
     setShowPrompt(false);
+    // Save dismiss timestamp
+    localStorage.setItem('pwa_dismiss_timestamp', Date.now().toString());
   };
+
+  // Only show if config allows
+  if (!loading && config && config.is_pwa_enabled === false) return null;
 
   return (
     <AnimatePresence>
       {showPrompt && !isInstalled && (
         <motion.div 
-          initial={{ y: 100, opacity: 0 }}
+          initial={{ y: 150, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed bottom-20 sm:bottom-6 left-4 right-4 z-50 flex justify-center"
+          exit={{ y: 150, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+          className="fixed bottom-0 left-0 right-0 z-[999] p-4 pb-safe flex justify-center"
         >
-          <GlassCard className="w-full max-w-md p-4 bg-dark-900/95 backdrop-blur-xl border-electric-500/50 shadow-[0_0_30px_rgba(0,102,255,0.2)] flex items-center gap-4 relative overflow-hidden">
-            {/* Gloss Effect */}
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-electric-600 via-electric-400 to-electric-600 opacity-50 animate-pulse"></div>
-
-            <div className="w-12 h-12 bg-electric-500/20 rounded-xl flex items-center justify-center text-electric-400 border border-electric-500/30 shadow-lg shrink-0">
-                <Smartphone size={24} />
+          <GlassCard className="w-full max-w-md p-5 bg-dark-900/95 backdrop-blur-2xl border-electric-500/50 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex items-center gap-5 relative overflow-hidden group">
+            
+            {/* Animated Gloss Effect on Card */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg] animate-shine pointer-events-none"></div>
+            
+            {/* App Icon / Logo */}
+            <div className="w-14 h-14 bg-gradient-to-br from-electric-600 to-electric-800 rounded-2xl flex items-center justify-center text-white border border-electric-400/30 shadow-lg shrink-0 relative z-10">
+                <Logo size="md" showText={false} />
             </div>
 
-            <div className="flex-1">
-                <h3 className="font-display font-bold text-white text-sm">Install App</h3>
-                <p className="text-[10px] text-gray-400 leading-tight mt-0.5">
-                    Add Naxxivo to your home screen for a better experience.
+            <div className="flex-1 relative z-10">
+                <h3 className="font-display font-black text-white text-lg tracking-tight leading-none mb-1">
+                    Install App
+                </h3>
+                <p className="text-xs text-gray-400 leading-tight">
+                    Add to Home Screen for the best fullscreen experience.
                 </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 relative z-10 shrink-0">
                 <button 
                     onClick={handleInstallClick}
-                    className="px-4 py-2 bg-electric-600 hover:bg-electric-500 text-white text-xs font-bold rounded-lg shadow-neo-sm transition active:scale-95 flex items-center gap-1"
+                    className="px-5 py-2.5 bg-white text-black text-xs font-black uppercase tracking-wider rounded-xl shadow-lg hover:bg-gray-200 transition active:scale-95 flex items-center justify-center gap-2"
                 >
-                    <Download size={14} /> Install
+                    <Download size={14} strokeWidth={3} /> Install
                 </button>
                 <button 
                     onClick={handleDismiss}
-                    className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition"
+                    className="text-[10px] text-gray-500 font-bold uppercase hover:text-white transition text-center"
                 >
-                    <X size={16} />
+                    Maybe Later
                 </button>
             </div>
           </GlassCard>

@@ -3,9 +3,10 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { DepositRequest, SystemConfig } from '../../types';
-import { Eye, CheckCircle, XCircle, Loader2, RefreshCw, Search, DollarSign, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, Loader2, RefreshCw, Search, DollarSign, AlertTriangle, ArrowRight, Bot, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../../context/UIContext';
+import { analyzeDepositScreenshot } from '../../lib/aiHelper';
 
 const MotionDiv = motion.div as any;
 
@@ -16,8 +17,12 @@ const DepositApprove: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [viewImage, setViewImage] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null); // For AI state
   const [searchTerm, setSearchTerm] = useState('');
   const [config, setConfig] = useState<SystemConfig | null>(null);
+  
+  // AI Result State
+  const [aiResult, setAiResult] = useState<any>(null);
   
   // Stats
   const [totalPending, setTotalPending] = useState(0);
@@ -66,6 +71,42 @@ const DepositApprove: React.FC = () => {
     setIsLoading(false);
   };
 
+  // --- AI ANALYSIS HANDLER ---
+  const handleAICheck = async (req: DepositRequest) => {
+      if (!req.screenshot_url) {
+          toast.error("No screenshot to analyze");
+          return;
+      }
+      
+      setAnalyzingId(req.id);
+      setAiResult(null); // Reset previous result
+
+      try {
+          toast.info("AI is analyzing the screenshot...");
+          const result = await analyzeDepositScreenshot(
+              req.screenshot_url, 
+              req.amount, 
+              req.transaction_id, 
+              req.method_name
+          );
+          
+          setAiResult({ id: req.id, ...result });
+          
+          if (result.status === 'match') {
+              toast.success(`AI Match: ${result.confidence}% Confidence`);
+          } else if (result.status === 'mismatch') {
+              toast.error(`AI Mismatch: ${result.reason}`);
+          } else {
+              toast.warning(`AI Suspicious: ${result.reason}`);
+          }
+
+      } catch (e) {
+          toast.error("AI Analysis Failed");
+      } finally {
+          setAnalyzingId(null);
+      }
+  };
+
   const handleProcess = async (id: string, status: 'approved' | 'rejected', note?: string) => {
       if (processingId) return;
       setProcessingId(id);
@@ -81,8 +122,6 @@ const DepositApprove: React.FC = () => {
           if (error) throw error;
           if (data && data.success === false) throw new Error(data.message);
 
-          // Success UI Feedback
-          
           // --- ACTIVATION CHECK LOGIC ---
           if (status === 'approved' && config?.is_activation_enabled) {
               const req = requests.find(r => r.id === id);
@@ -101,6 +140,7 @@ const DepositApprove: React.FC = () => {
 
           setRequests(prev => prev.filter(r => r.id !== id));
           setRejectId(null);
+          setAiResult(null);
           
           // Update Stats
           const req = requests.find(r => r.id === id);
@@ -123,8 +163,10 @@ const DepositApprove: React.FC = () => {
         {/* HEADER & STATS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-                <h2 className="text-2xl font-display font-bold text-white mb-2">Deposit Control</h2>
-                <p className="text-gray-400 text-sm">Manage incoming fund requests and verifications.</p>
+                <h2 className="text-2xl font-display font-bold text-white mb-2 flex items-center gap-2">
+                    <Bot className="text-neon-green" /> Auto-Deposit Manager
+                </h2>
+                <p className="text-gray-400 text-sm">AI-Assisted Payment Verification.</p>
                 {config?.is_activation_enabled && (
                     <div className="mt-2 text-xs bg-purple-500/20 text-purple-300 px-3 py-1 rounded inline-block border border-purple-500/30">
                         Auto-Activate threshold: ${config.activation_amount}
@@ -212,24 +254,59 @@ const DepositApprove: React.FC = () => {
                                             <p className="text-white font-mono text-sm select-all">{req.sender_number || 'N/A'}</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    
+                                    <div className="flex flex-wrap items-center gap-2">
                                         {req.screenshot_url ? (
-                                            <button 
-                                                onClick={() => setViewImage(req.screenshot_url || null)}
-                                                className="text-xs flex items-center gap-1 text-blue-400 hover:text-blue-300 font-bold bg-blue-500/10 px-3 py-1.5 rounded-lg transition"
-                                            >
-                                                <Eye size={14} /> View Proof
-                                            </button>
+                                            <>
+                                                <button 
+                                                    onClick={() => setViewImage(req.screenshot_url || null)}
+                                                    className="text-xs flex items-center gap-1 text-blue-400 hover:text-blue-300 font-bold bg-blue-500/10 px-3 py-1.5 rounded-lg transition"
+                                                >
+                                                    <Eye size={14} /> View Proof
+                                                </button>
+                                                
+                                                {/* AI BUTTON */}
+                                                <button 
+                                                    onClick={() => handleAICheck(req)}
+                                                    disabled={analyzingId === req.id}
+                                                    className="text-xs flex items-center gap-1 text-purple-400 hover:text-purple-300 font-bold bg-purple-500/10 px-3 py-1.5 rounded-lg transition border border-purple-500/20"
+                                                >
+                                                    {analyzingId === req.id ? <Loader2 size={14} className="animate-spin"/> : <Sparkles size={14} />} 
+                                                    AI Analyze
+                                                </button>
+                                            </>
                                         ) : (
                                             <span className="text-xs text-gray-500 flex items-center gap-1 bg-white/5 px-3 py-1.5 rounded-lg"><AlertTriangle size={12}/> No Screenshot</span>
                                         )}
-                                        <div className="h-1 flex-1 bg-white/5 rounded-full ml-2 overflow-hidden">
-                                            <div className="h-full bg-neon-green/30 w-2/3 animate-pulse"></div>
-                                        </div>
+                                        
                                         {config?.is_activation_enabled && req.amount >= (config.activation_amount || 0) && (
                                             <span className="text-[10px] text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded">ACTIVATION</span>
                                         )}
                                     </div>
+
+                                    {/* AI RESULT DISPLAY */}
+                                    <AnimatePresence>
+                                        {aiResult && aiResult.id === req.id && (
+                                            <motion.div 
+                                                initial={{ opacity: 0, height: 0 }} 
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                className={`text-xs p-3 rounded-lg border flex items-start gap-2 ${
+                                                    aiResult.status === 'match' 
+                                                    ? 'bg-green-500/10 border-green-500/30 text-green-300' 
+                                                    : 'bg-red-500/10 border-red-500/30 text-red-300'
+                                                }`}
+                                            >
+                                                <Bot size={16} className="shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="font-bold uppercase mb-1">{aiResult.status === 'match' ? 'VERIFIED BY AI' : 'POSSIBLE FRAUD'}</p>
+                                                    <p>{aiResult.reason}</p>
+                                                    <p className="mt-1 opacity-70">
+                                                        Read Trx: {aiResult.found_trx || 'N/A'} | Read Amount: {aiResult.found_amount || 'N/A'}
+                                                    </p>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
 
                                 {/* Right: Actions */}

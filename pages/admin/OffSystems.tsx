@@ -5,7 +5,8 @@ import { supabase } from '../../integrations/supabase/client';
 import { SystemConfig } from '../../types';
 import { 
   Power, Save, AlertTriangle, Lock, MonitorOff, 
-  Gamepad2, Zap, Users, Video, Wallet, ArrowUpRight, ShieldAlert, Activity, Eye, RefreshCw, X, CheckCircle2, Server, RotateCcw, AlertOctagon
+  Gamepad2, Zap, Users, Video, Wallet, ArrowUpRight, ShieldAlert, Activity, Eye, RefreshCw, X, CheckCircle2, Server, RotateCcw, AlertOctagon,
+  Info, Megaphone
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import Loader from '../../components/Loader';
@@ -159,6 +160,21 @@ const OffSystems: React.FC = () => {
       setSaving(false);
   };
 
+  const setAlertType = (type: 'URGENT' | 'INFO' | 'SUCCESS' | 'WARNING') => {
+      if (!config) return;
+      const current = config.global_alert || '';
+      // Remove existing tags
+      let clean = current.replace(/\[(URGENT|INFO|SUCCESS|WARNING)\]/g, '').trim();
+      if (!clean) clean = "System Announcement";
+      
+      let newAlert = clean;
+      if (type !== 'WARNING') {
+          newAlert = `[${type}] ${clean}`;
+      }
+      
+      setConfig({ ...config, global_alert: newAlert });
+  };
+
   const ToggleSwitch = ({ isOn, onClick, danger = false }: { isOn: boolean, onClick: () => void, danger?: boolean }) => (
       <button 
           onClick={onClick}
@@ -211,6 +227,49 @@ const OffSystems: React.FC = () => {
           </div>
       </div>
   );
+
+  // Updated Alert Preview to match improved banner
+  const renderAlertPreview = () => {
+      const msg = config?.global_alert;
+      if (!msg) return (
+          <div className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-600 italic">
+              No alert active
+          </div>
+      );
+
+      let style = { 
+          bg: 'bg-yellow-600/20', border: 'border-yellow-500/30', text: 'text-yellow-200', icon: AlertTriangle, iconColor: 'text-yellow-500' 
+      };
+      let text = msg;
+      let Icon = AlertTriangle;
+
+      if (msg.startsWith('[URGENT]')) {
+          style = { bg: 'bg-red-600/20', border: 'border-red-500/30', text: 'text-red-200', icon: ShieldAlert, iconColor: 'text-red-500' };
+          text = msg.replace('[URGENT]', '').trim();
+          Icon = ShieldAlert;
+      } else if (msg.startsWith('[INFO]')) {
+          style = { bg: 'bg-blue-600/20', border: 'border-blue-500/30', text: 'text-blue-200', icon: Info, iconColor: 'text-blue-500' };
+          text = msg.replace('[INFO]', '').trim();
+          Icon = Info;
+      } else if (msg.startsWith('[SUCCESS]')) {
+          style = { bg: 'bg-green-600/20', border: 'border-green-500/30', text: 'text-green-200', icon: CheckCircle2, iconColor: 'text-green-500' };
+          text = msg.replace('[SUCCESS]', '').trim();
+          Icon = CheckCircle2;
+      }
+
+      return (
+          <div className={`relative z-50 backdrop-blur-xl border-b ${style.bg} ${style.border} shadow-lg px-3 py-2 flex items-center gap-2`}>
+              <div className={`p-1 rounded-lg bg-black/20 ${style.iconColor} shrink-0`}>
+                  <Icon size={12} className="animate-pulse" />
+              </div>
+              <div className="overflow-hidden relative h-4 w-full">
+                  <div className={`text-[10px] font-bold font-mono uppercase tracking-wide ${style.text} whitespace-nowrap`}>
+                      {text}
+                  </div>
+              </div>
+          </div>
+      );
+  };
 
   if (loading) return <div className="p-10"><Loader /></div>;
   if (!config) return <div className="p-10 text-center text-red-500">Config not found. Please refresh.</div>;
@@ -400,12 +459,28 @@ const OffSystems: React.FC = () => {
             <div className="flex flex-col md:flex-row gap-8 relative z-10">
                 <div className="flex-1">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-2">
-                        <AlertTriangle className="text-yellow-400" size={20} /> Global Announcement
+                        <Megaphone className="text-yellow-400" size={20} /> Global Announcement
                     </h3>
                     <p className="text-sm text-gray-400 mb-4">
                         This message appears at the top of every user's dashboard. Use it for urgent notices.
                     </p>
                     
+                    {/* Visual Type Selectors */}
+                    <div className="grid grid-cols-4 gap-2 mb-4">
+                        <button onClick={() => setAlertType('URGENT')} className="flex flex-col items-center p-2 rounded bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition">
+                            <ShieldAlert size={16} /> <span className="text-[9px] font-bold uppercase mt-1">Urgent</span>
+                        </button>
+                        <button onClick={() => setAlertType('INFO')} className="flex flex-col items-center p-2 rounded bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition">
+                            <Info size={16} /> <span className="text-[9px] font-bold uppercase mt-1">Info</span>
+                        </button>
+                        <button onClick={() => setAlertType('SUCCESS')} className="flex flex-col items-center p-2 rounded bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition">
+                            <CheckCircle2 size={16} /> <span className="text-[9px] font-bold uppercase mt-1">Success</span>
+                        </button>
+                        <button onClick={() => setAlertType('WARNING')} className="flex flex-col items-center p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 transition">
+                            <AlertTriangle size={16} /> <span className="text-[9px] font-bold uppercase mt-1">Plain</span>
+                        </button>
+                    </div>
+
                     <label className="text-xs text-gray-500 font-bold uppercase mb-2 block">Message Content</label>
                     <textarea 
                         value={config.global_alert || ''}
@@ -424,15 +499,7 @@ const OffSystems: React.FC = () => {
                         <div className="h-1 w-12 bg-gray-800 rounded-full mx-auto mb-2"></div>
                         <div className="bg-gray-900 flex-1 rounded-xl overflow-hidden relative border border-white/5">
                             {/* The Simulated Alert */}
-                            {config.global_alert ? (
-                                <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-3 py-2 text-center">
-                                    <p className="text-[10px] font-bold text-yellow-400 animate-pulse line-clamp-2 leading-tight">{config.global_alert}</p>
-                                </div>
-                            ) : (
-                                <div className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-600 italic">
-                                    No alert active
-                                </div>
-                            )}
+                            {renderAlertPreview()}
                             
                             {/* Dummy App Content */}
                             <div className="p-3 opacity-30 blur-[1px]">

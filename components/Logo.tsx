@@ -34,7 +34,7 @@ const Logo: React.FC<LogoProps> = ({ className = '', showText = true, size = 'md
       </div>
       {showText && (
         <span className={`font-display font-black tracking-tight text-white uppercase ${textSize}`}>
-          Naxx<span className="text-electric-500">ivo</span>
+          Naxxivo
         </span>
       )}
     </div>

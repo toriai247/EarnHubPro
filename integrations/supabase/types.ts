@@ -50,6 +50,9 @@ export interface Database {
           global_alert: string | null
           p2p_transfer_fee_percent: number
           p2p_min_transfer: number
+          is_activation_enabled: boolean
+          activation_amount: number
+          is_pwa_enabled: boolean
         }
         Insert: {
           id?: string
@@ -64,6 +67,9 @@ export interface Database {
           global_alert?: string | null
           p2p_transfer_fee_percent?: number
           p2p_min_transfer?: number
+          is_activation_enabled?: boolean
+          activation_amount?: number
+          is_pwa_enabled?: boolean
         }
         Update: {
           id?: string
@@ -78,6 +84,9 @@ export interface Database {
           global_alert?: string | null
           p2p_transfer_fee_percent?: number
           p2p_min_transfer?: number
+          is_activation_enabled?: boolean
+          activation_amount?: number
+          is_pwa_enabled?: boolean
         }
       }
       withdrawal_settings: {

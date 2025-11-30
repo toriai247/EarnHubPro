@@ -5,7 +5,7 @@ import {
   CheckCircle2, ChevronRight, ExternalLink, Sparkles, Clock, 
   RefreshCw, UploadCloud, Smartphone, PlayCircle, Share2, 
   Globe, Search, Loader2, Star, PenTool, Lock, Youtube, 
-  Facebook, Instagram, Twitter, Send, MonitorPlay, X
+  Facebook, Instagram, Twitter, Send, MonitorPlay, X, Bot, ShieldAlert
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,6 +14,7 @@ import { createTransaction, updateWallet } from '../lib/actions';
 import Skeleton from '../components/Skeleton';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
+import { analyzeTaskProof } from '../lib/aiHelper';
 
 const MotionDiv = motion.div as any;
 
@@ -26,12 +27,28 @@ const Tasks: React.FC = () => {
   
   // Submission State
   const [proofText, setProofText] = useState('');
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'analyzing' | 'submitting' | 'success' | 'rejected'>('idle');
   const [linkOpened, setLinkOpened] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
   
-  // Security Timer
+  // Security Timer & Activity Tracking
   const [countDown, setCountDown] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [startTime, setStartTime] = useState<number>(0);
+  const timerRef = useRef<any>(null);
+  
+  // Anti-Cheat: Track if user leaves tab
+  useEffect(() => {
+      const handleVisibilityChange = () => {
+          if (document.hidden && selectedTask && linkOpened && countDown > 0) {
+              // User left tab - pause or reset logic could go here
+              // For now, we allow it but log it mentally. 
+              // A stricter version would be:
+              // toast.warning("Please stay on the page to verify task!");
+          }
+      };
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [selectedTask, linkOpened, countDown]);
 
   useEffect(() => {
      fetchTasks();
@@ -73,9 +90,10 @@ const Tasks: React.FC = () => {
       if (!selectedTask) return;
       
       // Start Smart Timer
-      const duration = selectedTask.timer_seconds || 30; // Default 30s
+      const duration = selectedTask.timer_seconds || 15;
       setCountDown(duration);
       setLinkOpened(true);
+      setStartTime(Date.now());
       
       window.open(selectedTask.target_url, '_blank');
 
@@ -94,52 +112,94 @@ const Tasks: React.FC = () => {
 
   const handleSubmitProof = async () => {
       if (!selectedTask || !linkOpened) return;
+      
+      // 1. SECURITY: Time Check
+      // If user manually manipulated client-side counter, check real time difference
+      const elapsed = (Date.now() - startTime) / 1000;
+      const required = selectedTask.timer_seconds || 15;
+      
+      if (elapsed < required) {
+          toast.error(`Security Alert: Task completed too fast. Please spend at least ${required}s on the target site.`);
+          return;
+      }
+
       if (countDown > 0) {
           toast.warning(`Please wait ${countDown} seconds to verify task completion.`);
           return;
       }
       
-      // Simple validation
+      // 2. Validation
       if (selectedTask.proof_type !== 'auto' && proofText.length < 3) {
           toast.error("Please provide valid proof details");
           return;
       }
 
-      setSubmitStatus('submitting');
+      setSubmitStatus('analyzing');
       
       try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) throw new Error("No session");
 
-          // 1. Create Submission
-          const isAuto = selectedTask.proof_type === 'auto';
-          const initialStatus = isAuto ? 'approved' : 'pending';
+          // 3. AI ANALYSIS (The Guard)
+          let finalStatus: 'approved' | 'pending' | 'rejected' = 'pending';
+          let aiReason = '';
 
+          // Only skip AI if it's a simple 'auto' timer task
+          if (selectedTask.proof_type !== 'auto') {
+              const aiResult = await analyzeTaskProof(
+                  selectedTask.title,
+                  selectedTask.description || '',
+                  proofText,
+                  selectedTask.proof_type
+              );
+
+              console.log("AI Verdict:", aiResult);
+
+              if (aiResult.verdict === 'rejected') {
+                  setSubmitStatus('rejected');
+                  setRejectionReason(aiResult.reason || "Proof does not match requirements.");
+                  toast.error(`Proof Rejected: ${aiResult.reason}`);
+                  return; // Stop submission
+              }
+
+              if (aiResult.verdict === 'approved' && aiResult.confidence > 80) {
+                  finalStatus = 'approved'; // AI High Confidence -> Auto Pay
+              } else {
+                  finalStatus = 'pending'; // Low Confidence -> Manual Review
+              }
+              aiReason = aiResult.reason;
+          } else {
+              // Timer tasks are auto-approved if time check passed
+              finalStatus = 'approved';
+          }
+
+          setSubmitStatus('submitting');
+
+          // 4. Create Submission
           const { error: subError } = await supabase.from('marketplace_submissions').insert({
               task_id: selectedTask.id,
               worker_id: session.user.id,
               proof_data: proofText || 'Auto Verified',
-              status: initialStatus
+              status: finalStatus
           });
 
           if (subError) throw subError;
 
-          // 2. Decrement Quantity
+          // 5. Decrement Quantity
           await supabase.rpc('decrement_task_quantity', { task_id: selectedTask.id });
 
-          // 3. If Auto-Approve, Pay User Immediately
-          if (isAuto) {
+          // 6. Payment Logic
+          if (finalStatus === 'approved') {
               await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'earning_balance');
               await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'total_earning');
               await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'today_earning');
               
               await createTransaction(session.user.id, 'earn', selectedTask.worker_reward, `Task: ${selectedTask.title}`);
-              toast.success(`Reward Paid: $${selectedTask.worker_reward.toFixed(3)}`);
+              toast.success(`Verified! Reward Paid: $${selectedTask.worker_reward.toFixed(3)}`);
               
-              // Trigger Global Refresh
               window.dispatchEvent(new Event('wallet_updated'));
           } else {
-              toast.success("Proof Submitted! Waiting for approval.");
+              toast.info("Proof Submitted for Manual Review.");
           }
 
           setSubmitStatus('success');
@@ -150,8 +210,8 @@ const Tasks: React.FC = () => {
               setProofText('');
               setLinkOpened(false);
               setCountDown(0);
-              fetchTasks(); // Refresh list
-          }, 1500);
+              fetchTasks(); 
+          }, 2000);
 
       } catch (e: any) {
           console.error(e);
@@ -164,16 +224,12 @@ const Tasks: React.FC = () => {
 
   const getTaskIcon = (task: MarketTask) => {
       const url = task.target_url.toLowerCase();
-      
-      // Platform Specific Icons based on URL
       if (url.includes('youtube') || url.includes('youtu.be')) return <Youtube size={20} className="text-red-500" />;
       if (url.includes('facebook') || url.includes('fb.watch')) return <Facebook size={20} className="text-blue-600" />;
       if (url.includes('instagram')) return <Instagram size={20} className="text-pink-500" />;
       if (url.includes('twitter') || url.includes('x.com')) return <Twitter size={20} className="text-sky-500" />;
       if (url.includes('t.me') || url.includes('telegram')) return <Send size={20} className="text-blue-400" />;
-      if (url.includes('tiktok')) return <MonitorPlay size={20} className="text-black dark:text-white" />;
-
-      // Fallback to Category
+      
       switch(task.category) {
           case 'social': return <Share2 size={20} className="text-blue-400"/>;
           case 'video': return <PlayCircle size={20} className="text-red-400"/>;
@@ -186,7 +242,7 @@ const Tasks: React.FC = () => {
   };
 
   const closeModal = () => {
-      if (submitStatus !== 'submitting') {
+      if (submitStatus !== 'submitting' && submitStatus !== 'analyzing') {
           setSelectedTask(null);
           setLinkOpened(false);
           setCountDown(0);
@@ -215,7 +271,12 @@ const Tasks: React.FC = () => {
                 <h1 className="text-2xl font-display font-bold text-white mb-1">Micro Jobs</h1>
                 <p className="text-gray-400 text-sm">Complete simple tasks to earn real cash.</p>
              </div>
-             <button onClick={fetchTasks} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white"><RefreshCw size={18}/></button>
+             <div className="flex items-center gap-2">
+                 <div className="hidden sm:flex items-center gap-1 bg-purple-500/10 px-2 py-1 rounded text-[10px] text-purple-400 border border-purple-500/20">
+                     <Bot size={12}/> AI Verified
+                 </div>
+                 <button onClick={fetchTasks} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white"><RefreshCw size={18}/></button>
+             </div>
           </div>
 
           {/* Filters */}
@@ -313,10 +374,20 @@ const Tasks: React.FC = () => {
                              >
                                  <CheckCircle2 size={40} />
                              </motion.div>
-                             <h2 className="text-2xl font-bold text-white mb-2">Submitted!</h2>
-                             <p className="text-gray-400">
-                                 {selectedTask.proof_type === 'auto' ? 'Reward has been credited.' : 'Your proof is under review.'}
-                             </p>
+                             <h2 className="text-2xl font-bold text-white mb-2">Verified!</h2>
+                             <p className="text-gray-400">Reward has been credited.</p>
+                        </div>
+                     ) : submitStatus === 'rejected' ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                             <motion.div 
+                                initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mb-6 text-red-500 border border-red-500/50"
+                             >
+                                 <ShieldAlert size={40} />
+                             </motion.div>
+                             <h2 className="text-2xl font-bold text-white mb-2">Submission Rejected</h2>
+                             <p className="text-gray-400 text-sm max-w-xs">{rejectionReason}</p>
+                             <button onClick={closeModal} className="mt-6 px-6 py-2 bg-white/10 rounded-lg text-white">Try Another Task</button>
                         </div>
                      ) : (
                         <>
@@ -359,8 +430,12 @@ const Tasks: React.FC = () => {
                                             <span className="truncate">{selectedTask.target_url}</span> 
                                             <ExternalLink size={12} className="group-hover:translate-x-1 transition-transform"/>
                                         </button>
+                                        <p className="text-[10px] text-gray-500 mt-1">
+                                            Must stay on page for <span className="text-white font-bold">{selectedTask.timer_seconds || 15}s</span>. Do not close tab.
+                                        </p>
                                     </div>
                                 </div>
+                                
                                 {/* Step 2 */}
                                 <div className="flex gap-4">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${proofText || (selectedTask.proof_type === 'auto' && linkOpened) ? 'bg-green-500 text-black' : 'bg-white/10 text-white border border-white/10'}`}>2</div>
@@ -368,7 +443,7 @@ const Tasks: React.FC = () => {
                                         <p className="text-sm font-bold text-white mb-2">Proof of Work</p>
                                         {selectedTask.proof_type === 'auto' ? (
                                             <div className="text-xs text-gray-500 italic bg-white/5 p-2 rounded">
-                                                Automatic Verification. Please wait for the timer.
+                                                Timer Logic Active. Wait for countdown.
                                             </div>
                                         ) : (
                                             <textarea 
@@ -384,16 +459,20 @@ const Tasks: React.FC = () => {
 
                             <button 
                                 onClick={handleSubmitProof}
-                                disabled={!linkOpened || submitStatus === 'submitting' || countDown > 0}
+                                disabled={!linkOpened || submitStatus === 'submitting' || submitStatus === 'analyzing' || countDown > 0}
                                 className={`w-full py-4 font-black rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wide relative overflow-hidden ${
                                     countDown > 0 ? 'bg-gray-700 text-gray-400' : 'bg-white text-black hover:bg-gray-200'
                                 }`}
                             >
-                                {submitStatus === 'submitting' ? <Loader2 className="animate-spin"/> : (
+                                {submitStatus === 'analyzing' ? (
+                                    <><Bot size={18} className="animate-pulse"/> AI Analyzing...</>
+                                ) : submitStatus === 'submitting' ? (
+                                    <Loader2 className="animate-spin"/>
+                                ) : (
                                     countDown > 0 ? (
                                         <>
-                                            <span className="absolute left-0 top-0 bottom-0 bg-white/10 transition-all duration-1000 ease-linear" style={{ width: `${(countDown / (selectedTask.timer_seconds || 30)) * 100}%` }}></span>
-                                            <span className="relative flex items-center gap-2 z-10"><Clock size={16} /> Wait {countDown}s to Verify</span>
+                                            <span className="absolute left-0 top-0 bottom-0 bg-white/10 transition-all duration-1000 ease-linear" style={{ width: `${(countDown / (selectedTask.timer_seconds || 15)) * 100}%` }}></span>
+                                            <span className="relative flex items-center gap-2 z-10"><Clock size={16} /> Wait {countDown}s</span>
                                         </>
                                     ) : (
                                         <span className="flex items-center gap-2">

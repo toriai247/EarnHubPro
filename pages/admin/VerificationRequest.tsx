@@ -3,9 +3,10 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { KycRequest } from '../../types';
-import { ShieldCheck, CheckCircle, XCircle, Search, RefreshCw, Loader2, Eye, CreditCard, User, Clock, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, CheckCircle, XCircle, Search, RefreshCw, Loader2, Eye, CreditCard, User, Clock, AlertTriangle, Sparkles, Bot } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { analyzeKYCDocuments } from '../../lib/aiHelper';
 
 const VerificationRequest: React.FC = () => {
   const { toast, confirm } = useUI();
@@ -18,6 +19,10 @@ const VerificationRequest: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<KycRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
+  
+  // AI
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiReport, setAiReport] = useState<any>(null);
 
   useEffect(() => {
     fetchRequests();
@@ -52,6 +57,30 @@ const VerificationRequest: React.FC = () => {
     }
   };
 
+  const runAICheck = async () => {
+      if (!selectedRequest) return;
+      setIsAnalyzing(true);
+      setAiReport(null);
+      
+      try {
+          toast.info("Gemini Vision AI is analyzing documents...");
+          const result = await analyzeKYCDocuments(
+              selectedRequest.front_image_url,
+              selectedRequest.back_image_url,
+              selectedRequest.full_name
+          );
+          setAiReport(result);
+          
+          if (result.name_match) toast.success("Name Matched Successfully");
+          else toast.warning("Possible Name Mismatch detected by AI");
+
+      } catch (e) {
+          toast.error("AI Check Failed");
+      } finally {
+          setIsAnalyzing(false);
+      }
+  };
+
   const handleAction = async (id: string, status: 'approved' | 'rejected', note?: string) => {
       if (status === 'approved') {
           if (!await confirm("Approve this KYC request? User will get verified status.", "Confirm Verification")) return;
@@ -60,7 +89,7 @@ const VerificationRequest: React.FC = () => {
       try {
           const { error } = await supabase.from('kyc_requests').update({
               status,
-              admin_note: note,
+              admin_note: note || (aiReport ? `AI Report: ${aiReport.notes}` : ''),
               updated_at: new Date().toISOString()
           }).eq('id', id);
 
@@ -86,6 +115,7 @@ const VerificationRequest: React.FC = () => {
           setSelectedRequest(null);
           setIsRejecting(false);
           setRejectReason('');
+          setAiReport(null);
 
       } catch (e: any) {
           toast.error("Action failed: " + e.message);
@@ -238,27 +268,69 @@ const VerificationRequest: React.FC = () => {
                 <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-4"
-                    onClick={() => { setSelectedRequest(null); setIsRejecting(false); }}
+                    onClick={() => { setSelectedRequest(null); setIsRejecting(false); setAiReport(null); }}
                 >
                     <motion.div 
                         initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
                         className="bg-dark-900 w-full max-w-4xl rounded-2xl border border-white/10 p-6 max-h-[90vh] overflow-y-auto"
                         onClick={e => e.stopPropagation()}
                     >
-                        {isRejecting ? (
-                            <div className="max-w-md mx-auto text-center">
-                                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-red-500">
-                                    <XCircle size={40} className="text-red-500"/>
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-white">{selectedRequest.full_name} - Documents</h3>
+                            <button onClick={() => setSelectedRequest(null)} className="text-gray-400 hover:text-white"><XCircle size={24}/></button>
+                        </div>
+
+                        {/* AI Report Section */}
+                        {aiReport && (
+                            <div className={`p-4 rounded-xl border mb-6 flex items-start gap-3 ${aiReport.name_match ? 'bg-green-500/10 border-green-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}>
+                                <Bot size={20} className={aiReport.name_match ? "text-green-400" : "text-yellow-400"} />
+                                <div>
+                                    <h4 className={`font-bold text-sm uppercase ${aiReport.name_match ? "text-green-400" : "text-yellow-400"}`}>
+                                        AI Analysis: {aiReport.name_match ? 'PASSED' : 'CAUTION'}
+                                    </h4>
+                                    <p className="text-xs text-gray-300 mt-1">{aiReport.notes}</p>
+                                    <div className="mt-2 text-[10px] bg-black/20 p-2 rounded inline-block font-mono text-gray-400">
+                                        Extracted: {aiReport.extracted_name} | Doc Type: {aiReport.document_type} | Risk: {aiReport.risk_score}/100
+                                    </div>
                                 </div>
-                                <h3 className="text-xl font-bold text-white mb-4">Reject Verification</h3>
-                                <div className="text-left mb-4">
-                                    <label className="text-xs text-gray-400 uppercase font-bold mb-2 block">Reason for Rejection</label>
-                                    <div className="space-y-2">
+                            </div>
+                        )}
+
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <p className="text-center text-sm text-gray-400 mb-2 uppercase font-bold">Front Side</p>
+                                    <img src={selectedRequest.front_image_url} className="w-full rounded-xl border border-white/10" />
+                                </div>
+                                <div>
+                                    <p className="text-center text-sm text-gray-400 mb-2 uppercase font-bold">Back Side</p>
+                                    <img src={selectedRequest.back_image_url} className="w-full rounded-xl border border-white/10" />
+                                </div>
+                            </div>
+
+                            {selectedRequest.status === 'pending' && !isRejecting && (
+                                <div className="flex gap-4 justify-center pt-4">
+                                    <button 
+                                        onClick={runAICheck}
+                                        disabled={isAnalyzing}
+                                        className="px-6 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-500 flex items-center gap-2 shadow-lg shadow-purple-600/30"
+                                    >
+                                        {isAnalyzing ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>} AI Check
+                                    </button>
+                                    <button onClick={() => handleAction(selectedRequest.id, 'approved')} className="px-8 py-3 bg-green-500 text-black font-bold rounded-xl hover:bg-green-400">Approve KYC</button>
+                                    <button onClick={() => setIsRejecting(true)} className="px-8 py-3 bg-red-500/20 text-red-400 font-bold rounded-xl hover:bg-red-500/30">Reject</button>
+                                </div>
+                            )}
+
+                            {isRejecting && (
+                                <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl mt-4">
+                                    <h4 className="text-red-400 font-bold text-sm mb-3 uppercase">Reject Verification</h4>
+                                    <div className="grid grid-cols-2 gap-2 mb-3">
                                         {['Blurred Images', 'Name Mismatch', 'Expired Document', 'Invalid Document Type', 'Suspected Fraud'].map(r => (
                                             <button 
                                                 key={r} 
                                                 onClick={() => setRejectReason(r)}
-                                                className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition border ${rejectReason === r ? 'bg-red-500 text-white border-red-600' : 'bg-white/5 text-gray-300 border-white/5 hover:bg-white/10'}`}
+                                                className={`text-left px-3 py-2 rounded-lg text-xs font-bold transition border ${rejectReason === r ? 'bg-red-500 text-white border-red-600' : 'bg-white/5 text-gray-300 border-white/5 hover:bg-white/10'}`}
                                             >
                                                 {r}
                                             </button>
@@ -268,44 +340,21 @@ const VerificationRequest: React.FC = () => {
                                         placeholder="Other reason..." 
                                         value={rejectReason}
                                         onChange={e => setRejectReason(e.target.value)}
-                                        className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-white text-sm mt-3 focus:border-red-500 outline-none"
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-white text-sm mb-3 focus:border-red-500 outline-none"
                                     />
-                                </div>
-                                <div className="flex gap-3">
-                                    <button onClick={() => setIsRejecting(false)} className="flex-1 py-3 bg-white/10 text-white rounded-xl font-bold">Cancel</button>
-                                    <button 
-                                        onClick={() => handleAction(selectedRequest.id, 'rejected', rejectReason)}
-                                        disabled={!rejectReason}
-                                        className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-500 disabled:opacity-50"
-                                    >
-                                        Confirm Reject
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="text-xl font-bold text-white">{selectedRequest.full_name} - Documents</h3>
-                                    <button onClick={() => setSelectedRequest(null)} className="text-gray-400 hover:text-white"><XCircle size={24}/></button>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <p className="text-center text-sm text-gray-400 mb-2 uppercase font-bold">Front Side</p>
-                                        <img src={selectedRequest.front_image_url} className="w-full rounded-xl border border-white/10" />
-                                    </div>
-                                    <div>
-                                        <p className="text-center text-sm text-gray-400 mb-2 uppercase font-bold">Back Side</p>
-                                        <img src={selectedRequest.back_image_url} className="w-full rounded-xl border border-white/10" />
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setIsRejecting(false)} className="flex-1 py-3 bg-white/10 text-white rounded-xl font-bold">Cancel</button>
+                                        <button 
+                                            onClick={() => handleAction(selectedRequest.id, 'rejected', rejectReason)}
+                                            disabled={!rejectReason}
+                                            className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-500 disabled:opacity-50"
+                                        >
+                                            Confirm Reject
+                                        </button>
                                     </div>
                                 </div>
-                                {selectedRequest.status === 'pending' && (
-                                    <div className="flex gap-4 justify-center pt-4">
-                                        <button onClick={() => handleAction(selectedRequest.id, 'approved')} className="px-8 py-3 bg-green-500 text-black font-bold rounded-xl hover:bg-green-400">Approve KYC</button>
-                                        <button onClick={() => setIsRejecting(true)} className="px-8 py-3 bg-red-500/20 text-red-400 font-bold rounded-xl hover:bg-red-500/30">Reject</button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </motion.div>
                 </motion.div>
             )}

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { SystemConfig } from '../../types';
-import { Save, Loader2, RefreshCw, Lock } from 'lucide-react';
+import { Save, Loader2, Settings, Smartphone, Lock, AlertTriangle, Eye } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 
 const WebsiteSettings: React.FC = () => {
@@ -31,11 +31,14 @@ const WebsiteSettings: React.FC = () => {
           p2p_transfer_fee_percent: config.p2p_transfer_fee_percent,
           p2p_min_transfer: config.p2p_min_transfer,
           is_activation_enabled: config.is_activation_enabled,
-          activation_amount: config.activation_amount
+          activation_amount: config.activation_amount,
+          is_pwa_enabled: config.is_pwa_enabled
       }).eq('id', config.id);
 
       if(error) toast.error(error.message);
-      else toast.success("Config Saved!");
+      else {
+          toast.success("Config Saved!");
+      }
       setSaving(false);
   };
 
@@ -43,10 +46,15 @@ const WebsiteSettings: React.FC = () => {
   if(!config) return <div className="p-10 text-center text-red-500">Config missing</div>;
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-24">
         <h2 className="text-2xl font-bold text-white">Site Configuration</h2>
         
+        {/* SYSTEM CONTROL */}
         <GlassCard className="space-y-6">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Settings size={20} className="text-gray-400"/> System Core
+            </h3>
+
             <div className="flex items-center justify-between">
                 <div>
                     <h4 className="font-bold text-white">Maintenance Mode</h4>
@@ -58,6 +66,30 @@ const WebsiteSettings: React.FC = () => {
                 </label>
             </div>
             
+            <div className="h-px bg-white/10"></div>
+
+            {/* PWA Settings */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
+                        <Smartphone size={20} />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-white text-sm">PWA Install Prompt</h4>
+                        <p className="text-xs text-gray-400">Show "Install App" popup on login/signup pages.</p>
+                    </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={config.is_pwa_enabled || false} 
+                        onChange={e => setConfig({...config, is_pwa_enabled: e.target.checked})} 
+                        className="sr-only peer" 
+                    />
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                </label>
+            </div>
+
             <div className="h-px bg-white/10"></div>
 
             {/* Account Activation Settings */}

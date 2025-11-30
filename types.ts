@@ -194,6 +194,7 @@ export interface DepositRequest {
     admin_note?: string;
     created_at: string;
     processed_at?: string;
+    time_validation?: boolean; // New for AI check
 }
 
 export interface WithdrawRequest {
@@ -312,8 +313,9 @@ export interface SystemConfig {
     global_alert: string | null;
     p2p_transfer_fee_percent?: number;
     p2p_min_transfer?: number;
-    is_activation_enabled?: boolean; // NEW
-    activation_amount?: number; // NEW
+    is_activation_enabled?: boolean;
+    activation_amount?: number;
+    is_pwa_enabled?: boolean;
 }
 
 export interface HelpRequest {

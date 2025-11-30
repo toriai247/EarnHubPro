@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Crown, Trophy, Globe, Menu, X, 
-  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send, Search, BellRing, LogIn, Megaphone
+  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, ChevronRight, Fingerprint, LayoutDashboard, Ban, Send, Search, BellRing, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useTheme } from '../context/ThemeContext';
@@ -14,9 +14,128 @@ import MaintenanceScreen from './MaintenanceScreen';
 import SuspendedView from './SuspendedView';
 import { useUI } from '../context/UIContext';
 import Logo from './Logo';
-import InstallPWA from './InstallPWA';
 
 const MotionDiv = motion.div as any;
+
+// --- GLOBAL ALERT COMPONENT ---
+const GlobalAlertBanner = ({ message }: { message: string }) => {
+    const [isVisible, setIsVisible] = useState(true);
+    
+    // Reset visibility if message content changes (e.g. Admin updates it live)
+    useEffect(() => {
+        if(message) setIsVisible(true);
+    }, [message]);
+
+    if (!isVisible || !message) return null;
+
+    // Parse Type
+    let type = 'warning';
+    let cleanMessage = message;
+    let Icon = AlertTriangle;
+
+    if (message.startsWith('[URGENT]')) {
+        type = 'error';
+        cleanMessage = message.replace('[URGENT]', '').trim();
+        Icon = ShieldAlert;
+    } else if (message.startsWith('[INFO]')) {
+        type = 'info';
+        cleanMessage = message.replace('[INFO]', '').trim();
+        Icon = Info;
+    } else if (message.startsWith('[SUCCESS]')) {
+        type = 'success';
+        cleanMessage = message.replace('[SUCCESS]', '').trim();
+        Icon = Megaphone;
+    }
+
+    // Styles Configuration
+    const styles = {
+        error: { 
+            bg: 'bg-red-600/20', 
+            border: 'border-red-500/30', 
+            text: 'text-red-200', 
+            iconColor: 'text-red-500',
+            glow: 'shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+        },
+        info: { 
+            bg: 'bg-blue-600/20', 
+            border: 'border-blue-500/30', 
+            text: 'text-blue-200', 
+            iconColor: 'text-blue-500',
+            glow: 'shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+        },
+        success: { 
+            bg: 'bg-green-600/20', 
+            border: 'border-green-500/30', 
+            text: 'text-green-200', 
+            iconColor: 'text-green-500',
+            glow: 'shadow-[0_0_15px_rgba(34,197,94,0.2)]'
+        },
+        warning: { 
+            bg: 'bg-yellow-600/20', 
+            border: 'border-yellow-500/30', 
+            text: 'text-yellow-200', 
+            iconColor: 'text-yellow-500',
+            glow: 'shadow-[0_0_15px_rgba(234,179,8,0.2)]'
+        }
+    };
+
+    const activeStyle = styles[type as keyof typeof styles];
+    
+    // Use marquee if text is long (> 50 chars)
+    const isLongText = cleanMessage.length > 50;
+
+    return (
+        <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.4, ease: "easeInOut" }}
+            className={`relative z-50 backdrop-blur-xl border-b ${activeStyle.bg} ${activeStyle.border} shadow-lg ${activeStyle.glow}`}
+        >
+            {/* Glossy Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
+
+            <div className="flex items-center justify-between px-3 py-2 gap-3 relative z-10 min-h-[40px]">
+                {/* Icon */}
+                <div className={`shrink-0 p-1.5 rounded-lg bg-black/20 ${activeStyle.iconColor} border border-white/5`}>
+                    <Icon size={18} className="animate-pulse" />
+                </div>
+                
+                {/* Text Area */}
+                <div className="flex-1 relative overflow-hidden flex items-center h-6">
+                    {isLongText ? (
+                        <div className="w-full h-full relative overflow-hidden">
+                             <motion.div
+                                className={`absolute whitespace-nowrap text-xs font-bold font-mono uppercase tracking-wide ${activeStyle.text} flex items-center h-full`}
+                                initial={{ x: "100%" }}
+                                animate={{ x: "-100%" }}
+                                transition={{ 
+                                    repeat: Infinity, 
+                                    duration: cleanMessage.length * 0.15 + 5, // Dynamic speed
+                                    ease: "linear" 
+                                }}
+                             >
+                                {cleanMessage}
+                             </motion.div>
+                        </div>
+                    ) : (
+                        <div className={`w-full text-center text-xs font-bold font-mono uppercase tracking-wide ${activeStyle.text}`}>
+                            {cleanMessage}
+                        </div>
+                    )}
+                </div>
+
+                {/* Close Button */}
+                <button 
+                    onClick={() => setIsVisible(false)}
+                    className={`shrink-0 p-1.5 rounded-lg hover:bg-black/20 transition active:scale-90 ${activeStyle.text}`}
+                >
+                    <X size={16} />
+                </button>
+            </div>
+        </motion.div>
+    );
+};
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -222,11 +341,10 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   return (
     <div className="min-h-screen flex flex-col relative pb-24 sm:pb-0 bg-void text-white font-sans selection:bg-electric-500 selection:text-white">
       
-      {config?.global_alert && (
-          <div className="bg-neo-yellow/10 border-b border-neo-yellow/20 px-4 py-2 text-center animate-pulse">
-              <p className="text-xs font-bold text-neo-yellow">{config.global_alert}</p>
-          </div>
-      )}
+      {/* GLOBAL ALERT SYSTEM */}
+      <AnimatePresence>
+          {config?.global_alert && <GlobalAlertBanner message={config.global_alert} />}
+      </AnimatePresence>
 
       {/* TOP BAR */}
       {!isVideoPage && (
@@ -287,9 +405,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       <main className={`flex-1 ${!isVideoPage ? 'px-4 pt-6' : ''} max-w-6xl mx-auto w-full`}>
         {children}
       </main>
-
-      {/* PWA INSTALL PROMPT */}
-      <InstallPWA />
 
       {/* MOBILE BOTTOM NAV */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 sm:hidden bg-surface border-t border-border-neo px-4 pb-safe pt-2 shadow-[0_-4px_0px_0px_rgba(0,0,0,0.5)]">

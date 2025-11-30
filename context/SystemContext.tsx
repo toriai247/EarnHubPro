@@ -52,7 +52,8 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         .channel('system_config_global')
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_config' }, (payload) => {
             console.log("System Config Updated:", payload.new);
-            setConfig(payload.new as SystemConfig);
+            const newCfg = payload.new as SystemConfig;
+            setConfig(newCfg);
         })
         .subscribe();
 
@@ -62,11 +63,9 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const isFeatureEnabled = (feature: keyof SystemConfig) => {
-      // If still loading, assume TRUE to prevent flicker, unless specifically checked after load
       if (loading) return true; 
-      // If config failed to load, fail open (true) to allow app usage
       if (!config) return true; 
-      
+      // @ts-ignore
       return !!config[feature];
   };
 
