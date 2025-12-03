@@ -1,13 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Mail, LogIn, AlertCircle, Loader2, ChevronRight, Zap, ScanFace, ArrowRight } from 'lucide-react';
+import { Lock, Mail, LogIn, AlertCircle, Loader2, ScanFace, ArrowRight } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { deriveKeyFromId, decryptData } from '../lib/crypto';
 import Logo from '../components/Logo';
-
-const MotionDiv = motion.div as any;
 
 // Helper to convert ArrayBuffer to Base64 for lookup
 const bufferToBase64 = (buffer: ArrayBuffer) => {
@@ -22,6 +19,12 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Auto-focus email on load
+  useEffect(() => {
+    const input = document.getElementById('email-input');
+    if (input) input.focus();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,88 +90,57 @@ const Login: React.FC = () => {
       }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { 
-        duration: 0.5,
-        staggerChildren: 0.1 
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, x: -10 },
-    visible: { opacity: 1, x: 0 }
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505] relative overflow-hidden font-sans">
+    <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 font-sans selection:bg-electric-500 selection:text-white">
       
-      {/* Animated Background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-electric-500/20 blur-[120px] rounded-full animate-float"></div>
-          <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-purple-600/10 blur-[100px] rounded-full animate-float" style={{ animationDelay: '2s' }}></div>
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-      </div>
+      {/* Static Background Pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-20 pointer-events-none"></div>
 
-      <MotionDiv 
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="w-full max-w-md p-6 relative z-10"
-      >
-        <div className="bg-surface/80 backdrop-blur-xl border border-white/10 shadow-2xl rounded-3xl overflow-hidden">
-          
-          {/* Header */}
-          <div className="bg-gradient-to-r from-electric-600 to-electric-400 p-1"></div>
-          
-          <div className="p-8">
-            <motion.div variants={itemVariants} className="text-center mb-8 flex flex-col items-center">
-              <Logo size="xl" className="mb-4" />
-              <p className="text-gray-400 text-xs font-bold tracking-[0.2em] uppercase mt-2">Secure Gateway</p>
-            </motion.div>
+      <div className="w-full max-w-md relative z-10">
+        
+        {/* Header */}
+        <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+                <Logo size="xl" />
+            </div>
+            <h1 className="text-2xl font-black text-white uppercase tracking-tight">Welcome Back</h1>
+            <p className="text-gray-500 text-sm font-bold">Secure Access Gateway</p>
+        </div>
 
+        <div className="bg-[#111] border border-[#222] rounded-2xl p-6 shadow-2xl">
+            
             <form onSubmit={handleLogin} className="space-y-5">
-              <AnimatePresence mode="wait">
-                {error && (
-                  <MotionDiv 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="bg-red-500/10 border border-red-500/50 p-3 rounded-xl flex items-start gap-3 text-red-400 text-sm font-bold"
-                  >
-                    <AlertCircle size={18} className="mt-0.5 shrink-0" />
-                    <span className="flex-1">{error}</span>
-                  </MotionDiv>
-                )}
-              </AnimatePresence>
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-lg flex items-start gap-3 text-red-400 text-sm font-bold">
+                  <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                  <span className="flex-1">{error}</span>
+                </div>
+              )}
 
-              <motion.div variants={itemVariants} className="space-y-1.5">
-                <label className="text-xs font-bold uppercase text-gray-500 ml-1">Email Access</label>
-                <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-gray-500 ml-1">Email</label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
                     <Mail size={20} />
                   </div>
                   <input 
+                    id="email-input"
                     type="email" 
                     required
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
+                    className="w-full bg-black border border-[#333] rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-[#0a0a0a] transition-colors font-medium text-base"
                     placeholder="name@example.com"
                   />
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div variants={itemVariants} className="space-y-1.5">
+              <div className="space-y-2">
                 <div className="flex justify-between items-center ml-1">
                   <label className="text-xs font-bold uppercase text-gray-500">Passcode</label>
                 </div>
-                <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
                     <Lock size={20} />
                   </div>
                   <input 
@@ -176,55 +148,49 @@ const Login: React.FC = () => {
                     required
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
+                    className="w-full bg-black border border-[#333] rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-[#0a0a0a] transition-colors font-medium text-base"
                     placeholder="••••••••"
                   />
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.button 
-                variants={itemVariants}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+              <button 
                 type="submit" 
                 disabled={isLoading || isBiometricLoading}
-                className="w-full py-4 bg-electric-600 hover:bg-electric-500 text-white rounded-xl font-black flex items-center justify-center gap-2 uppercase tracking-wider shadow-lg shadow-electric-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                className="w-full py-4 bg-electric-600 hover:bg-electric-500 active:bg-electric-700 text-white rounded-xl font-black text-sm uppercase tracking-wider shadow-lg shadow-electric-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isLoading ? <Loader2 className="animate-spin" size={20} /> : <><LogIn size={20} /> Authenticate</>}
-              </motion.button>
+              </button>
             </form>
 
-            <motion.div variants={itemVariants} className="relative my-8">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-                <div className="relative flex justify-center text-[10px] font-bold tracking-widest uppercase"><span className="bg-[#111] px-3 text-gray-500">Quick Access</span></div>
-            </motion.div>
+            <div className="my-6 flex items-center">
+                <div className="flex-1 border-t border-[#333]"></div>
+                <span className="px-3 text-[10px] font-bold text-gray-600 uppercase tracking-widest">Quick Access</span>
+                <div className="flex-1 border-t border-[#333]"></div>
+            </div>
 
-            <motion.button 
-                variants={itemVariants}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+            <button 
                 onClick={handleFingerprintLogin}
                 disabled={isLoading || isBiometricLoading}
-                className="w-full py-3 bg-white/5 border border-white/10 text-white rounded-xl font-bold flex items-center justify-center gap-3 uppercase tracking-wider hover:bg-white/10 hover:border-white/20 transition-all group"
+                className="w-full py-3 bg-[#1a1a1a] border border-[#333] hover:border-[#444] hover:bg-[#222] text-white rounded-xl font-bold flex items-center justify-center gap-3 uppercase text-xs tracking-wider transition-colors active:scale-[0.98]"
             >
                 {isBiometricLoading ? (
                     <><Loader2 className="animate-spin text-neon-green" size={18} /> Verifying...</>
                 ) : (
-                    <><ScanFace size={20} className="text-neon-green group-hover:scale-110 transition" /> Biometric Login</>
+                    <><ScanFace size={20} className="text-neon-green" /> Biometric Login</>
                 )}
-            </motion.button>
+            </button>
 
-            <motion.div variants={itemVariants} className="mt-8 text-center">
+            <div className="mt-8 text-center">
               <p className="text-gray-500 text-sm font-bold">
-                New to Naxxivo?{' '}
-                <Link to="/signup" className="text-white hover:text-electric-400 underline decoration-2 underline-offset-4 transition inline-flex items-center gap-1 group">
-                  Create ID <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
+                New User?{' '}
+                <Link to="/signup" className="text-white hover:text-electric-400 underline decoration-2 underline-offset-4 transition inline-flex items-center gap-1">
+                  Create ID <ArrowRight size={14} />
                 </Link>
               </p>
-            </motion.div>
-          </div>
+            </div>
         </div>
-      </MotionDiv>
+      </div>
     </div>
   );
 };

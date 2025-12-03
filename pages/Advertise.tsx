@@ -1,46 +1,62 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Megaphone, Plus, DollarSign, Calculator, Link as LinkIcon, Users, CheckCircle, AlertCircle, PlayCircle, Share2, Smartphone, Eye, X, Check, FileText, Image as ImageIcon, Zap, Search, Star, PenTool, Clock, Filter, ListFilter, ArrowUpDown } from 'lucide-react';
+import { 
+  Megaphone, Plus, DollarSign, LayoutList, 
+  Trash2, Pause, Play, Globe, Save, X, 
+  CheckCircle2, AlertCircle, BarChart3, Calculator, Users, Clock, FileText, Image as ImageIcon, ExternalLink, RefreshCw 
+} from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
-import { WalletData, MarketTask, MarketSubmission } from '../types';
+import { WalletData, MarketTask, MarketSubmission, TaskRequirement } from '../types';
 import { updateWallet, createTransaction } from '../lib/actions';
 import { useUI } from '../context/UIContext';
-import Loader from '../components/Loader';
-import { motion, AnimatePresence } from 'framer-motion';
 import BalanceDisplay from '../components/BalanceDisplay';
 
 const Advertise: React.FC = () => {
   const { toast, confirm } = useUI();
   const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
+  const [activeTab, setActiveTab] = useState<'manage' | 'create' | 'review'>('manage');
   const [loading, setLoading] = useState(true);
-  const [myCampaigns, setMyCampaigns] = useState<MarketTask[]>([]);
-  const [pendingSubmissions, setPendingSubmissions] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<MarketTask[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   
-  // Form State
-  const [category, setCategory] = useState('social');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [url, setUrl] = useState('');
-  const [quantity, setQuantity] = useState<number>(100);
-  const [pricePerAction, setPricePerAction] = useState<number>(0.05);
-  const [proofType, setProofType] = useState<'screenshot' | 'text' | 'auto'>('screenshot');
-  const [timerSeconds, setTimerSeconds] = useState<number>(30); // Default 30s
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Manage Tab Filters
-  const [manageSearch, setManageSearch] = useState('');
-  const [manageStatus, setManageStatus] = useState('all');
-  const [manageSort, setManageSort] = useState('newest');
-
-  // Constants
-  const MIN_PRICE = 0.0000001; // Updated to high precision
-  const ADMIN_FEE_PERCENT = 30; // 30% retained by system
+  // Create Form State
+  const [useBudgetMode, setUseBudgetMode] = useState(false);
+  const [form, setForm] = useState({
+      title: '',
+      description: '',
+      url: '',
+      category: 'website',
+      quantity: 100,
+      totalBudget: 10.00,
+      pricePerAction: 0.05,
+      timer: 10
+  });
+  
+  // Requirements Builder State
+  const [requirements, setRequirements] = useState<TaskRequirement[]>([]);
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+      if (activeTab === 'review') {
+          fetchSubmissions();
+      }
+  }, [activeTab]);
+
+  // Recalculate based on mode
+  useEffect(() => {
+      if (useBudgetMode) {
+          const qty = Math.floor(form.totalBudget / form.pricePerAction);
+          setForm(prev => ({ ...prev, quantity: qty }));
+      } else {
+          const budget = form.quantity * form.pricePerAction;
+          setForm(prev => ({ ...prev, totalBudget: budget }));
+      }
+  }, [form.totalBudget, form.quantity, form.pricePerAction, useBudgetMode]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -50,540 +66,501 @@ const Advertise: React.FC = () => {
             const { data: w } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
             if (w) setWallet(w as WalletData);
 
-            const { data: c } = await supabase.from('marketplace_tasks').select('*').eq('creator_id', session.user.id).order('created_at', {ascending: false});
-            if (c) {
-                setMyCampaigns(c as any);
-                // Fetch pending submissions for these campaigns
-                const campaignIds = c.map(t => t.id);
-                if (campaignIds.length > 0) {
-                    // 1. Fetch Submissions
-                    const { data: s } = await supabase.from('marketplace_submissions')
-                        .select('*')
-                        .in('task_id', campaignIds)
-                        .eq('status', 'pending');
-                    
-                    if (s && s.length > 0) {
-                        // 2. Fetch Profiles Manually (Avoids FK Issues)
-                        const workerIds = Array.from(new Set(s.map((sub: any) => sub.worker_id)));
-                        if (workerIds.length > 0) {
-                            const { data: profiles } = await supabase.from('profiles').select('id, name_1, email_1').in('id', workerIds);
-                            const profileMap = new Map(profiles?.map((p: any) => [p.id, p]));
-
-                            const enrichedSubmissions = s.map((sub: any) => ({
-                                ...sub,
-                                profiles: profileMap.get(sub.worker_id) || { name_1: 'Unknown User', email_1: 'No Email' }
-                            }));
-                            setPendingSubmissions(enrichedSubmissions);
-                        }
-                    } else {
-                        setPendingSubmissions([]);
-                    }
-                }
-            }
+            const { data: c } = await supabase.from('marketplace_tasks')
+                .select('*')
+                .eq('creator_id', session.user.id)
+                .order('created_at', {ascending: false});
+            
+            if (c) setCampaigns(c as MarketTask[]);
         }
     } catch (e) {
-        console.error("Fetch Data Error:", e);
+        console.error(e);
     } finally {
         setLoading(false);
     }
+  };
+
+  const fetchSubmissions = async () => {
+      setSubmissionError(null);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // V1 STYLE: Direct Query with Inner Join on Tasks created by Me
+      try {
+          const { data, error } = await supabase
+              .from('marketplace_submissions')
+              .select(`
+                  *,
+                  marketplace_tasks!inner(title, creator_id, worker_reward),
+                  profiles(name_1)
+              `)
+              .eq('marketplace_tasks.creator_id', session.user.id) // Only my tasks
+              .eq('status', 'pending')
+              .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          if (data) {
+              const formatted = data.map((s: any) => ({
+                  ...s,
+                  task_title: s.marketplace_tasks?.title || 'Unknown Task',
+                  worker_name: s.profiles?.name_1 || 'Worker',
+                  reward: s.marketplace_tasks?.worker_reward || 0
+              }));
+              setSubmissions(formatted);
+          } else {
+              setSubmissions([]);
+          }
+      } catch (err: any) {
+          console.error("Review Fetch Error:", err);
+          setSubmissionError("Please run 'Enable V1 Compatibility' in Admin > Database Ultra.");
+      }
+  };
+
+  const handleAddRequirement = (type: 'text' | 'image') => {
+      const newReq: TaskRequirement = {
+          id: `req_${Date.now()}`,
+          type,
+          label: '',
+          required: true
+      };
+      setRequirements([...requirements, newReq]);
+  };
+
+  const handleRemoveRequirement = (id: string) => {
+      setRequirements(requirements.filter(r => r.id !== id));
+  };
+
+  const handleRequirementChange = (id: string, val: string) => {
+      setRequirements(requirements.map(r => r.id === id ? { ...r, label: val } : r));
   };
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!wallet) return;
 
-      // Validation
-      if (!title || !url) { toast.error("Please fill all fields"); return; }
-      if (quantity < 10) { toast.error("Minimum quantity is 10"); return; }
-      if (pricePerAction < MIN_PRICE) { toast.error(`Minimum price is $${MIN_PRICE}`); return; }
-      if (timerSeconds < 5) { toast.error("Minimum duration is 5 seconds"); return; }
-
-      const totalCost = quantity * pricePerAction;
-      
-      if (totalCost > wallet.deposit_balance) {
-          toast.error(`Insufficient Deposit Balance. Need $${totalCost.toFixed(7)}`);
+      const totalCost = form.totalBudget;
+      if (wallet.deposit_balance < totalCost) {
+          toast.error(`Insufficient Deposit Balance. Need $${totalCost.toFixed(2)}`);
           return;
       }
 
-      if (!await confirm(`Create Campaign "${title}" for $${totalCost.toFixed(4)}?`, "Confirm Payment")) return;
+      if (form.quantity < 1) {
+          toast.error("Quantity must be at least 1");
+          return;
+      }
 
-      setIsSubmitting(true);
+      if (requirements.length === 0 && form.timer < 5) {
+          toast.error("Please add requirements or set a timer > 5s");
+          return;
+      }
+
+      if (!await confirm(`Create Campaign for $${totalCost.toFixed(2)}?`)) return;
+
       try {
           const { data: { session } } = await supabase.auth.getSession();
-          if (!session) throw new Error("No session");
+          if (!session) return;
 
-          // 1. Deduct from Deposit Balance
           await updateWallet(session.user.id, totalCost, 'decrement', 'deposit_balance');
-          // FIX: Use 'invest' type instead of 'task_create' to satisfy DB constraint
-          await createTransaction(session.user.id, 'invest', totalCost, `Ads: ${title}`);
-
-          // 2. Create Task
-          const workerReward = pricePerAction * ((100 - ADMIN_FEE_PERCENT) / 100);
-          
-          // Determine default description if empty
-          let finalDesc = description;
-          if (!finalDesc) {
-              if (category === 'seo') finalDesc = "Search keyword in Google, find website, visit and stay 1 min.";
-              else if (category === 'review') finalDesc = "Give 5 star rating and positive review. Screenshot proof.";
-              else if (proofType === 'screenshot') finalDesc = "Please upload a valid screenshot proof.";
-              else if (proofType === 'text') finalDesc = "Please submit the required text/username.";
-              else finalDesc = "Complete the action to earn reward.";
-          }
+          await createTransaction(session.user.id, 'invest', totalCost, `Ad Campaign: ${form.title}`);
 
           const { error } = await supabase.from('marketplace_tasks').insert({
               creator_id: session.user.id,
-              title,
-              description: finalDesc,
-              category,
-              target_url: url,
-              total_quantity: quantity,
-              remaining_quantity: quantity,
-              price_per_action: pricePerAction,
-              worker_reward: workerReward,
-              proof_type: proofType,
-              timer_seconds: timerSeconds,
+              title: form.title,
+              description: form.description,
+              category: form.category,
+              target_url: form.url,
+              total_quantity: form.quantity,
+              remaining_quantity: form.quantity,
+              price_per_action: form.pricePerAction, 
+              worker_reward: form.pricePerAction * 0.7, 
+              proof_type: requirements.length > 0 ? 'complex' : 'auto',
+              requirements: requirements,
+              timer_seconds: form.timer,
               status: 'active'
           });
 
           if (error) throw error;
 
-          toast.success("Campaign Created Successfully!");
-          
-          // Trigger global wallet update
-          window.dispatchEvent(new Event('wallet_updated'));
-
-          // Reset Form
-          setTitle('');
-          setUrl('');
-          setDescription('');
-          setQuantity(100);
-          setTimerSeconds(30);
-          fetchData(); 
+          toast.success("Campaign Published!");
+          setForm({ ...form, title: '', description: '', url: '' });
+          setRequirements([]);
           setActiveTab('manage');
-
-      } catch (e: any) {
-          toast.error("Error: " + e.message);
-      } finally {
-          setIsSubmitting(false);
-      }
-  };
-
-  const handleReviewSubmission = async (submissionId: string, action: 'approved' | 'rejected', task: MarketTask) => {
-      try {
-          // Get the submission details
-          const { data: sub } = await supabase.from('marketplace_submissions').select('*').eq('id', submissionId).single();
-          if (!sub) return;
-
-          if (action === 'approved') {
-              // Pay the worker - Update all earning stats
-              await updateWallet(sub.worker_id, task.worker_reward, 'increment', 'earning_balance');
-              await updateWallet(sub.worker_id, task.worker_reward, 'increment', 'total_earning');
-              await updateWallet(sub.worker_id, task.worker_reward, 'increment', 'today_earning');
-              
-              await createTransaction(sub.worker_id, 'earn', task.worker_reward, `Task Approved: ${task.title}`);
-              toast.success("Worker Paid!");
-          } else {
-              // Reject - Refund the Advertiser (Full Price per action)
-              const refundAmount = task.price_per_action;
-              await updateWallet(task.creator_id, refundAmount, 'increment', 'deposit_balance');
-              
-              // Trigger wallet update for the advertiser (current user)
-              window.dispatchEvent(new Event('wallet_updated'));
-              
-              toast.info("Submission Rejected. Cost Refunded.");
-          }
-
-          // Update Status
-          await supabase.from('marketplace_submissions').update({ status: action }).eq('id', submissionId);
-          
-          // Remove from local list
-          setPendingSubmissions(prev => prev.filter(s => s.id !== submissionId));
-          // Refresh data to show new balance if refunded
           fetchData();
 
       } catch (e: any) {
-          toast.error(e.message);
+          if (e.message?.includes('marketplace_tasks_proof_type_check')) {
+             toast.error("Database Update Required: Ask Admin to run 'Task System 2.0 Upgrade'.");
+          } else {
+             toast.error("Error: " + e.message);
+          }
       }
   };
 
-  const handleToggleStatus = async (task: MarketTask) => {
+  const handleDelete = async (id: string) => {
+      if(!await confirm("Delete campaign?")) return;
+      await supabase.from('marketplace_tasks').delete().eq('id', id);
+      fetchData();
+      toast.success("Campaign Deleted");
+  };
+
+  const handleToggle = async (task: MarketTask) => {
       const newStatus = task.status === 'active' ? 'paused' : 'active';
-      const { error } = await supabase.from('marketplace_tasks').update({ status: newStatus }).eq('id', task.id);
-      if (!error) {
-          setMyCampaigns(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
-          toast.success(`Campaign ${newStatus}`);
-      }
+      await supabase.from('marketplace_tasks').update({ status: newStatus }).eq('id', task.id);
+      fetchData();
   };
 
-  const totalCost = quantity * pricePerAction;
-  const userEarns = pricePerAction * ((100 - ADMIN_FEE_PERCENT) / 100);
+  const handleReviewAction = async (submission: any, action: 'approve' | 'reject') => {
+      try {
+          const { error } = await supabase
+              .from('marketplace_submissions')
+              .update({ status: action === 'approve' ? 'approved' : 'rejected' })
+              .eq('id', submission.id);
 
-  const getPlaceholderInstruction = () => {
-      switch(proofType) {
-          case 'screenshot': return "e.g. Upload a screenshot showing you liked the page and followed.";
-          case 'text': return "e.g. Enter the Secret Code found in the video.";
-          case 'auto': return "e.g. Visit the link and wait for 10 seconds.";
-          default: return "Instructions for the worker...";
+          if (error) throw error;
+
+          if (action === 'approve') {
+              // Get reward from submission join
+              const reward = submission.reward || 0;
+              await updateWallet(submission.worker_id, reward, 'increment', 'earning_balance');
+              await updateWallet(submission.worker_id, reward, 'increment', 'total_earning');
+              await updateWallet(submission.worker_id, reward, 'increment', 'today_earning');
+              await createTransaction(submission.worker_id, 'earn', reward, `Task Approved: ${submission.task_title}`);
+              toast.success("Approved & Worker Paid");
+          } 
+          else {
+              await supabase.rpc('increment_task_quantity', { task_id: submission.task_id });
+              toast.info("Rejected. Task slot restored.");
+          }
+
+          setSubmissions(prev => prev.filter(s => s.id !== submission.id));
+
+      } catch (e: any) {
+          toast.error("Action failed: " + e.message);
       }
   };
-
-  // Filter and Sort Logic
-  const filteredCampaigns = myCampaigns
-    .filter(c => {
-        const matchesSearch = c.title.toLowerCase().includes(manageSearch.toLowerCase());
-        const matchesStatus = manageStatus === 'all' || c.status === manageStatus;
-        return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-        if (manageSort === 'newest') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        if (manageSort === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        if (manageSort === 'budget') return (b.total_quantity * b.price_per_action) - (a.total_quantity * a.price_per_action);
-        return 0;
-    });
 
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0">
         
-        {/* Header */}
-        <header className="flex justify-between items-center pt-4">
+        {/* HEADER */}
+        <div className="flex justify-between items-end pt-4">
             <div>
-                <h1 className="text-2xl font-display font-black text-white flex items-center gap-2">
-                    <Megaphone className="text-purple-500" /> ADVERTISE
+                <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <Megaphone className="text-purple-500" /> Advertise
                 </h1>
-                <p className="text-xs text-gray-400">Promote your links to thousands of users.</p>
+                <p className="text-gray-400 text-xs">Create tasks & promote your content.</p>
             </div>
-            
-            <div className="bg-blue-900/30 border border-blue-500/30 px-4 py-2 rounded-xl text-right">
-                <p className="text-[10px] text-blue-300 font-bold uppercase">Deposit Balance</p>
-                <p className="text-lg font-black text-white font-mono"><BalanceDisplay amount={wallet?.deposit_balance || 0}/></p>
+            <div className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl text-right">
+                <p className="text-[10px] text-gray-500 font-bold uppercase">Ad Budget</p>
+                <p className="text-white font-bold font-mono"><BalanceDisplay amount={wallet?.deposit_balance || 0} /></p>
             </div>
-        </header>
+        </div>
 
-        {/* Tabs */}
-        <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
-            <button onClick={() => setActiveTab('create')} className={`flex-1 py-3 rounded-lg text-sm font-bold transition ${activeTab === 'create' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}>
-                Create Campaign
+        {/* TABS */}
+        <div className="flex bg-[#111] p-1 rounded-xl border border-[#222]">
+            <button 
+                onClick={() => setActiveTab('manage')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition ${activeTab === 'manage' ? 'bg-[#222] text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+                Campaigns
             </button>
-            <button onClick={() => setActiveTab('manage')} className={`flex-1 py-3 rounded-lg text-sm font-bold transition ${activeTab === 'manage' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}>
-                Manage & Review
-                {pendingSubmissions.length > 0 && <span className="ml-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingSubmissions.length}</span>}
+            <button 
+                onClick={() => setActiveTab('create')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition ${activeTab === 'create' ? 'bg-[#222] text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+                Create New
+            </button>
+            <button 
+                onClick={() => setActiveTab('review')}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition flex items-center justify-center gap-2 ${activeTab === 'review' ? 'bg-[#222] text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+                Inbox {submissions.length > 0 && <span className="bg-red-500 text-white text-[9px] px-1.5 rounded-full">{submissions.length}</span>}
             </button>
         </div>
 
+        {/* --- CREATE TAB --- */}
         {activeTab === 'create' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                
-                {/* Form */}
-                <GlassCard>
+            <div className="space-y-6 animate-fade-in">
+                <div className="bg-[#111] border border-[#222] rounded-2xl p-6">
                     <form onSubmit={handleCreateCampaign} className="space-y-5">
-                        
-                        {/* Category Selector */}
-                        <div>
-                            <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Campaign Type</label>
-                            <div className="grid grid-cols-3 gap-3">
-                                {[
-                                    { id: 'social', label: 'Social', icon: Share2 },
-                                    { id: 'video', label: 'Video', icon: PlayCircle },
-                                    { id: 'app', label: 'App', icon: Smartphone },
-                                    { id: 'seo', label: 'SEO/Visit', icon: Search },
-                                    { id: 'review', label: 'Review', icon: Star },
-                                    { id: 'content', label: 'Content', icon: PenTool },
-                                ].map(cat => (
-                                    <button 
-                                        type="button"
-                                        key={cat.id}
-                                        onClick={() => setCategory(cat.id)}
-                                        className={`flex flex-col items-center justify-center p-3 rounded-xl border transition ${category === cat.id ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-white/5 border-white/5 text-gray-500 hover:bg-white/10'}`}
-                                    >
-                                        <cat.icon size={20} className="mb-1" />
-                                        <span className="text-xs font-bold">{cat.label}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Title & URL */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-4">
                             <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Title</label>
+                                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Campaign Title</label>
                                 <input 
-                                    required type="text" value={title} onChange={e => setTitle(e.target.value)} 
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
-                                    placeholder={category === 'seo' ? "Search Keyword + Visit" : "e.g. Follow my Page"}
+                                    required 
+                                    type="text" 
+                                    value={form.title} 
+                                    onChange={e => setForm({...form, title: e.target.value})}
+                                    className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none"
+                                    placeholder="e.g. Subscribe to my Channel"
                                 />
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block flex items-center gap-1"><LinkIcon size={12}/> Target URL</label>
+                                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Target URL</label>
                                 <input 
-                                    required type="url" value={url} onChange={e => setUrl(e.target.value)} 
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
+                                    required 
+                                    type="url" 
+                                    value={form.url} 
+                                    onChange={e => setForm({...form, url: e.target.value})}
+                                    className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none"
                                     placeholder="https://..."
                                 />
                             </div>
-                        </div>
-
-                        {/* Proof Type Grid */}
-                        <div>
-                            <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Validation Method (Proof)</label>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div 
-                                    onClick={() => setProofType('screenshot')}
-                                    className={`cursor-pointer p-4 rounded-xl border flex flex-col items-center text-center transition ${proofType === 'screenshot' ? 'bg-purple-500/20 border-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'bg-black/30 border-white/10 text-gray-500 hover:bg-white/5'}`}
-                                >
-                                    <ImageIcon size={24} className="mb-2" />
-                                    <h4 className="font-bold text-sm">Screenshot</h4>
-                                    <p className="text-[10px] opacity-70 mt-1">User uploads image proof</p>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Category</label>
+                                    <select 
+                                        value={form.category} 
+                                        onChange={e => setForm({...form, category: e.target.value})}
+                                        className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none"
+                                    >
+                                        <option value="website">Website Visit</option>
+                                        <option value="video">Watch Video</option>
+                                        <option value="social">Social Media</option>
+                                        <option value="app">App Install</option>
+                                        <option value="review">Review/Rating</option>
+                                    </select>
                                 </div>
-                                <div 
-                                    onClick={() => setProofType('text')}
-                                    className={`cursor-pointer p-4 rounded-xl border flex flex-col items-center text-center transition ${proofType === 'text' ? 'bg-purple-500/20 border-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'bg-black/30 border-white/10 text-gray-500 hover:bg-white/5'}`}
-                                >
-                                    <FileText size={24} className="mb-2" />
-                                    <h4 className="font-bold text-sm">Secret Code</h4>
-                                    <p className="text-[10px] opacity-70 mt-1">User enters code from content</p>
-                                </div>
-                                <div 
-                                    onClick={() => setProofType('auto')}
-                                    className={`cursor-pointer p-4 rounded-xl border flex flex-col items-center text-center transition ${proofType === 'auto' ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 'bg-black/30 border-white/10 text-gray-500 hover:bg-white/5'}`}
-                                >
-                                    <Zap size={24} className="mb-2" />
-                                    <h4 className="font-bold text-sm">Timer Only</h4>
-                                    <p className="text-[10px] opacity-70 mt-1">Pay after waiting (Risky)</p>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Timer (Sec)</label>
+                                    <input 
+                                        type="number" 
+                                        min="5" 
+                                        max="300"
+                                        value={form.timer} 
+                                        onChange={e => setForm({...form, timer: parseInt(e.target.value)})}
+                                        className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none"
+                                    />
                                 </div>
                             </div>
                         </div>
 
-                        {/* Min Duration */}
-                        <div>
-                            <label className="text-xs font-bold text-gray-400 uppercase mb-1 block flex items-center gap-1"><Clock size={12}/> Min Duration (Seconds)</label>
-                            <input 
-                                required type="number" min="5" max="300" value={timerSeconds} onChange={e => setTimerSeconds(parseInt(e.target.value))} 
-                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
-                                placeholder="30"
-                            />
-                            <p className="text-[10px] text-gray-500 mt-1">User must wait this long before submitting. Helps prevent fake clicks.</p>
-                        </div>
-
-                        {/* Instructions */}
-                        <div>
-                            <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Instructions for User</label>
-                            <textarea 
-                                value={description} 
-                                onChange={e => setDescription(e.target.value)} 
-                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none h-20 resize-none text-sm"
-                                placeholder={getPlaceholderInstruction()}
-                            />
-                        </div>
-
-                        {/* Quantity & Budget */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block flex items-center gap-1"><Users size={12}/> Quantity</label>
-                                <input 
-                                    required type="number" min="10" value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} 
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
-                                />
+                        {/* Requirements Builder */}
+                        <div className="border-t border-[#222] pt-4">
+                            <div className="flex justify-between items-center mb-3">
+                                <label className="text-xs font-bold text-white uppercase">Proof Requirements</label>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => handleAddRequirement('text')} className="px-3 py-1.5 bg-[#222] text-white text-[10px] font-bold rounded hover:bg-[#333]">+ Question</button>
+                                    <button type="button" onClick={() => handleAddRequirement('image')} className="px-3 py-1.5 bg-[#222] text-white text-[10px] font-bold rounded hover:bg-[#333]">+ Screenshot</button>
+                                </div>
                             </div>
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase mb-1 block flex items-center gap-1"><DollarSign size={12}/> Price Per User</label>
-                                <input 
-                                    required type="number" step="0.0000001" min={MIN_PRICE} value={pricePerAction} onChange={e => setPricePerAction(parseFloat(e.target.value))} 
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none"
-                                />
+                            
+                            <div className="space-y-2 mb-4">
+                                {requirements.map((req, idx) => (
+                                    <div key={req.id} className="flex gap-2 items-center bg-black/30 p-2 rounded-lg border border-[#333]">
+                                        <span className="text-[10px] bg-[#222] text-gray-400 px-2 py-1 rounded uppercase">{req.type}</span>
+                                        <input 
+                                            type="text" 
+                                            value={req.label} 
+                                            onChange={e => handleRequirementChange(req.id, e.target.value)}
+                                            placeholder={req.type === 'text' ? 'e.g. What is your username?' : 'e.g. Upload screenshot of like'}
+                                            className="flex-1 bg-transparent text-xs text-white outline-none"
+                                        />
+                                        <button type="button" onClick={() => handleRemoveRequirement(req.id)} className="text-red-500 p-1"><X size={14}/></button>
+                                    </div>
+                                ))}
+                                {requirements.length === 0 && <p className="text-xs text-gray-500 italic">No proof required (Timer only).</p>}
                             </div>
                         </div>
 
-                        {/* Cost Calculator */}
-                        <div className="bg-black/30 p-4 rounded-xl border border-white/10 space-y-2">
-                            <h4 className="text-xs font-bold text-white uppercase flex items-center gap-2"><Calculator size={14}/> Cost Breakdown</h4>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-400">Total Budget</span>
-                                <span className="text-white font-bold"><BalanceDisplay amount={totalCost} decimals={7} /></span>
+                        {/* BUDGET CALCULATOR */}
+                        <div className="bg-[#1a1a1a] p-4 rounded-xl border border-[#333]">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                    <Calculator size={16}/> Budgeting
+                                </h3>
+                                <div className="flex items-center gap-2 bg-black/30 p-1 rounded-lg">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setUseBudgetMode(false)}
+                                        className={`px-3 py-1 rounded text-[10px] font-bold uppercase ${!useBudgetMode ? 'bg-purple-600 text-white' : 'text-gray-500'}`}
+                                    >
+                                        Fixed Qty
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setUseBudgetMode(true)}
+                                        className={`px-3 py-1 rounded text-[10px] font-bold uppercase ${useBudgetMode ? 'bg-purple-600 text-white' : 'text-gray-500'}`}
+                                    >
+                                        Total Budget
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-400">Worker Earns</span>
-                                <span className="text-green-400 font-bold"><BalanceDisplay amount={userEarns} decimals={7} /></span>
+
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">
+                                        {useBudgetMode ? 'Cost Per Worker' : 'Cost Per Worker'}
+                                    </label>
+                                    <input type="number" step="0.001" value={form.pricePerAction} onChange={e => setForm({...form, pricePerAction: parseFloat(e.target.value)})} className="w-full bg-black border border-[#333] rounded-lg p-2 text-white text-sm" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">
+                                        {useBudgetMode ? 'Total Budget ($)' : 'Target Workers'}
+                                    </label>
+                                    {useBudgetMode ? (
+                                        <input type="number" step="1" value={form.totalBudget} onChange={e => setForm({...form, totalBudget: parseFloat(e.target.value)})} className="w-full bg-black border border-[#333] rounded-lg p-2 text-white text-sm" />
+                                    ) : (
+                                        <input type="number" step="1" value={form.quantity} onChange={e => setForm({...form, quantity: parseInt(e.target.value)})} className="w-full bg-black border border-[#333] rounded-lg p-2 text-white text-sm" />
+                                    )}
+                                </div>
                             </div>
-                            <div className="h-px bg-white/10 my-1"></div>
-                            <p className="text-[10px] text-gray-500 italic">
-                                Funds will be deducted from your Deposit Wallet. {ADMIN_FEE_PERCENT}% platform fee included.
-                            </p>
+                            
+                            <div className="flex justify-between items-center pt-2 border-t border-[#333]">
+                                {useBudgetMode ? (
+                                    <>
+                                        <span className="text-gray-400 text-xs font-bold">Est. Workers</span>
+                                        <span className="text-xl font-bold text-white">{form.quantity}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="text-gray-400 text-xs font-bold">Total Cost</span>
+                                        <span className="text-xl font-bold text-white">${form.totalBudget.toFixed(2)}</span>
+                                    </>
+                                )}
+                            </div>
                         </div>
 
                         <button 
                             type="submit" 
-                            disabled={isSubmitting}
-                            className="w-full py-4 bg-purple-600 text-white font-black rounded-xl hover:bg-purple-500 transition shadow-lg shadow-purple-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition shadow-lg"
                         >
-                            {isSubmitting ? <Loader /> : <><Plus size={20}/> Launch Campaign</>}
+                            Publish Campaign
                         </button>
-
                     </form>
-                </GlassCard>
-            </motion.div>
-        )}
-
-        {activeTab === 'manage' && (
-            <div className="space-y-6">
-                
-                {/* 1. Pending Submissions Section */}
-                {pendingSubmissions.length > 0 && (
-                    <div className="space-y-4">
-                        <h3 className="text-white font-bold text-sm uppercase flex items-center gap-2">
-                            <AlertCircle className="text-yellow-400" size={16}/> Pending Reviews ({pendingSubmissions.length})
-                        </h3>
-                        {pendingSubmissions.map(sub => {
-                            const parentTask = myCampaigns.find(c => c.id === sub.task_id);
-                            if (!parentTask) return null;
-
-                            return (
-                                <GlassCard key={sub.id} className="border-l-4 border-l-yellow-400">
-                                    <div className="flex flex-col gap-3">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="text-xs text-gray-400 font-bold uppercase">{parentTask.title}</p>
-                                                <p className="text-white text-sm">Worker: {sub.profiles?.name_1 || 'Unknown'}</p>
-                                            </div>
-                                            <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">Needs Review</span>
-                                        </div>
-                                        
-                                        <div className="bg-black/40 p-3 rounded-lg text-xs text-gray-300 break-all font-mono border border-white/5">
-                                            {sub.proof_data.startsWith('http') && (sub.proof_data.match(/\.(jpeg|jpg|gif|png)$/) != null) ? (
-                                                <div className="space-y-2">
-                                                    <img src={sub.proof_data} alt={sub.proof_data} className="max-h-40 rounded border border-white/10" />
-                                                    <a href={sub.proof_data} target="_blank" rel="noreferrer" className="block text-blue-400 hover:underline">View Full Image</a>
-                                                </div>
-                                            ) : (
-                                                <span>{sub.proof_data}</span>
-                                            )}
-                                        </div>
-
-                                        <div className="flex gap-3 pt-2">
-                                            <button 
-                                                onClick={() => handleReviewSubmission(sub.id, 'approved', parentTask)}
-                                                className="flex-1 py-2 bg-green-500/20 text-green-400 font-bold rounded-lg hover:bg-green-500 hover:text-black transition flex items-center justify-center gap-1"
-                                            >
-                                                <Check size={14}/> Approve
-                                            </button>
-                                            <button 
-                                                onClick={() => handleReviewSubmission(sub.id, 'rejected', parentTask)}
-                                                className="flex-1 py-2 bg-red-500/20 text-red-400 font-bold rounded-lg hover:bg-red-500 hover:text-white transition flex items-center justify-center gap-1"
-                                            >
-                                                <X size={14}/> Reject
-                                            </button>
-                                        </div>
-                                    </div>
-                                </GlassCard>
-                            )
-                        })}
-                    </div>
-                )}
-
-                {/* 2. Controls & List */}
-                <div>
-                    <h3 className="text-white font-bold text-sm uppercase mb-3 flex items-center gap-2">
-                        My Campaigns
-                        <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-gray-400">
-                            {filteredCampaigns.length}
-                        </span>
-                    </h3>
-
-                    {/* Filter & Sort Controls */}
-                    <div className="flex flex-col md:flex-row gap-3 mb-4 bg-white/5 p-3 rounded-xl border border-white/5">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16}/>
-                            <input 
-                                type="text" 
-                                value={manageSearch}
-                                onChange={e => setManageSearch(e.target.value)}
-                                placeholder="Search by title..." 
-                                className="w-full bg-black/30 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-white focus:border-purple-500 outline-none"
-                            />
-                        </div>
-                        <div className="flex gap-2">
-                            <div className="relative">
-                                <select 
-                                    value={manageStatus} 
-                                    onChange={e => setManageStatus(e.target.value)}
-                                    className="bg-black/30 border border-white/10 rounded-lg pl-9 pr-8 py-2 text-sm text-white appearance-none focus:border-purple-500 outline-none cursor-pointer"
-                                >
-                                    <option value="all">All Status</option>
-                                    <option value="active">Active</option>
-                                    <option value="paused">Paused</option>
-                                    <option value="completed">Completed</option>
-                                </select>
-                                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14}/>
-                            </div>
-                            <div className="relative">
-                                <select 
-                                    value={manageSort} 
-                                    onChange={e => setManageSort(e.target.value)}
-                                    className="bg-black/30 border border-white/10 rounded-lg pl-9 pr-8 py-2 text-sm text-white appearance-none focus:border-purple-500 outline-none cursor-pointer"
-                                >
-                                    <option value="newest">Newest</option>
-                                    <option value="oldest">Oldest</option>
-                                    <option value="budget">Highest Budget</option>
-                                </select>
-                                <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14}/>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Campaign List */}
-                    {filteredCampaigns.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500 bg-white/5 rounded-xl border border-white/5">
-                            {manageSearch ? "No campaigns match your search." : "No campaigns created yet."}
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {filteredCampaigns.map(task => (
-                                <GlassCard key={task.id} className="relative overflow-hidden">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <h3 className="font-bold text-white flex items-center gap-2">
-                                                {task.title}
-                                                <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded uppercase">{task.category}</span>
-                                            </h3>
-                                            <p className="text-xs text-gray-400 truncate max-w-[200px]">{task.target_url}</p>
-                                        </div>
-                                        <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${task.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                            {task.status}
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-3 gap-2 mb-4">
-                                        <div className="bg-white/5 p-2 rounded text-center">
-                                            <p className="text-[9px] text-gray-500 uppercase">Progress</p>
-                                            <p className="text-sm font-bold text-white">
-                                                {task.total_quantity - task.remaining_quantity}/{task.total_quantity}
-                                            </p>
-                                        </div>
-                                        <div className="bg-white/5 p-2 rounded text-center">
-                                            <p className="text-[9px] text-gray-500 uppercase">Cost/Act</p>
-                                            <p className="text-sm font-bold text-white"><BalanceDisplay amount={task.price_per_action} decimals={7} /></p>
-                                        </div>
-                                        <div className="bg-white/5 p-2 rounded text-center">
-                                            <p className="text-[9px] text-gray-500 uppercase">Timer</p>
-                                            <p className="text-sm font-bold text-purple-400">{task.timer_seconds || 0}s</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => handleToggleStatus(task)}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${task.status === 'active' ? 'border-red-500/30 text-red-400 hover:bg-red-500/10' : 'border-green-500/30 text-green-400 hover:bg-green-500/10'}`}
-                                        >
-                                            {task.status === 'active' ? 'Pause Campaign' : 'Resume Campaign'}
-                                        </button>
-                                    </div>
-                                </GlassCard>
-                            ))}
-                        </div>
-                    )}
                 </div>
             </div>
         )}
 
+        {/* --- MANAGE TAB --- */}
+        {activeTab === 'manage' && (
+            <div className="space-y-4 animate-fade-in">
+                {campaigns.length === 0 ? (
+                    <div className="text-center py-12 bg-[#111] rounded-2xl border border-[#222]">
+                        <Globe size={32} className="mx-auto text-gray-600 mb-3"/>
+                        <p className="text-gray-500 text-sm">No active campaigns.</p>
+                        <button onClick={() => setActiveTab('create')} className="mt-4 text-purple-400 text-xs font-bold hover:underline">Start Advertising</button>
+                    </div>
+                ) : (
+                    campaigns.map(task => (
+                        <GlassCard key={task.id} className="border border-[#222]">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h3 className="font-bold text-white text-sm">{task.title}</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5 capitalize">{task.category} • ${task.price_per_action}/user</p>
+                                </div>
+                                <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${task.status === 'active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                                    {task.status}
+                                </div>
+                            </div>
+
+                            <div className="bg-[#1a1a1a] rounded-lg p-3 mb-4 border border-[#333]">
+                                <div className="flex justify-between text-[10px] text-gray-400 mb-1 uppercase font-bold">
+                                    <span>Progress</span>
+                                    <span>{task.total_quantity - task.remaining_quantity} / {task.total_quantity}</span>
+                                </div>
+                                <div className="h-1.5 bg-[#333] rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-purple-500" 
+                                        style={{ width: `${((task.total_quantity - task.remaining_quantity) / task.total_quantity) * 100}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => handleToggle(task)}
+                                    className="flex-1 py-2 bg-[#222] text-white text-xs font-bold rounded hover:bg-[#333] flex items-center justify-center gap-1"
+                                >
+                                    {task.status === 'active' ? <Pause size={12}/> : <Play size={12}/>} {task.status === 'active' ? 'Pause' : 'Resume'}
+                                </button>
+                                <button 
+                                    onClick={() => handleDelete(task.id)}
+                                    className="p-2 bg-red-900/20 text-red-400 rounded hover:bg-red-900/30"
+                                >
+                                    <Trash2 size={16}/>
+                                </button>
+                            </div>
+                        </GlassCard>
+                    ))
+                )}
+            </div>
+        )}
+
+        {/* --- REVIEW TAB --- */}
+        {activeTab === 'review' && (
+            <div className="space-y-4 animate-fade-in">
+                
+                <div className="flex justify-between items-center bg-[#111] p-2 rounded-xl border border-[#222]">
+                    <span className="text-xs text-gray-400 ml-2">Pending Reviews: {submissions.length}</span>
+                    <button onClick={fetchSubmissions} className="flex items-center gap-1 px-3 py-1.5 bg-[#222] text-white rounded-lg text-xs font-bold hover:bg-[#333]">
+                        <RefreshCw size={12} /> Refresh
+                    </button>
+                </div>
+
+                {submissionError && (
+                    <div className="p-3 bg-red-900/20 text-red-400 text-xs rounded-xl border border-red-500/20 flex items-center gap-2">
+                        <AlertCircle size={16}/> {submissionError}
+                    </div>
+                )}
+
+                {submissions.length === 0 && !submissionError ? (
+                    <div className="text-center py-12 bg-[#111] rounded-2xl border border-[#222]">
+                        <CheckCircle2 size={32} className="mx-auto text-green-600 mb-3 opacity-50"/>
+                        <p className="text-gray-500 text-sm">All submissions reviewed.</p>
+                        <p className="text-xs text-gray-600 mt-1">Click refresh to check for new ones.</p>
+                    </div>
+                ) : (
+                    submissions.map(sub => (
+                        <GlassCard key={sub.id} className="border border-[#222]">
+                            <div className="flex justify-between items-start mb-4 border-b border-[#222] pb-3">
+                                <div>
+                                    <h4 className="text-white font-bold text-sm">{sub.task_title}</h4>
+                                    <p className="text-xs text-gray-500">Worker: {sub.worker_name}</p>
+                                </div>
+                                <div className="text-[10px] text-yellow-500 bg-yellow-900/20 px-2 py-1 rounded font-bold uppercase">Pending Review</div>
+                            </div>
+
+                            <div className="space-y-3 mb-4">
+                                {Object.entries(sub.submission_data || {}).map(([key, value]: any) => (
+                                    <div key={key} className="bg-[#1a1a1a] p-3 rounded-lg border border-[#333]">
+                                        <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">
+                                            {key.includes('ss') ? 'Screenshot Proof' : 'Answer'}
+                                        </p>
+                                        {value.startsWith('http') && (value.includes('.png') || value.includes('.jpg') || value.includes('.jpeg')) ? (
+                                            <div className="relative group">
+                                                <img src={value} alt="Proof" className="w-full h-32 object-cover rounded border border-[#333]" />
+                                                <a href={value} target="_blank" className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold gap-1">
+                                                    <ExternalLink size={14}/> View Full
+                                                </a>
+                                            </div>
+                                        ) : (
+                                            <p className="text-white text-sm bg-black p-2 rounded">{value}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => handleReviewAction(sub, 'approve')}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle2 size={16}/> Approve & Pay
+                                </button>
+                                <button 
+                                    onClick={() => handleReviewAction(sub, 'reject')}
+                                    className="flex-1 py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-red-600/30"
+                                >
+                                    <X size={16}/> Reject
+                                </button>
+                            </div>
+                        </GlassCard>
+                    ))
+                )}
+            </div>
+        )}
     </div>
   );
 };

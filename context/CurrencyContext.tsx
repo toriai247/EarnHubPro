@@ -75,38 +75,78 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         setIsLoading(true);
         try {
-            // 1. Fetch Fresh Balance (Security Check)
+            // 1. Fetch Fresh Wallet State
             const { data: wallet, error: fetchError } = await supabase
                 .from('wallets')
-                .select('balance')
+                .select('*')
                 .eq('user_id', userId)
                 .single();
 
             if (fetchError || !wallet) throw new Error("Failed to retrieve wallet balance.");
 
-            const currentBalance = wallet.balance;
-            const fee = currentBalance * 0.05; // 5% Fee
+            // 2. Fee Logic (5% of current total balance value)
+            // Fee is deducted from the MAIN balance if possible, or total assets reduction
+            // For simplicity, we deduct from 'main_balance' equivalent.
+            
+            const currentBalance = wallet.balance || 0; // Usually main balance
+            const fee = currentBalance * 0.05; 
 
-            // 2. Check Funds
+            // Check if user has enough to cover fee
             if (currentBalance < fee) {
-                throw new Error(`Insufficient balance to pay the 5% exchange fee ($${fee.toFixed(2)}).`);
+                throw new Error(`Insufficient balance to pay the 5% exchange fee (${format(fee, { isNative: true })}).`);
             }
 
-            // 3. Deduct Fee
-            if (fee > 0) {
-                await updateWallet(userId, fee, 'decrement', 'balance');
-                await createTransaction(userId, 'penalty', fee, `Currency Switch Fee (${currency} to ${targetCode})`);
-            }
+            // 3. Calculate Ratio between Old and New Currency
+            const oldRate = CURRENCY_CONFIG[currency].rate;
+            const newRate = CURRENCY_CONFIG[targetCode].rate;
+            
+            // Example: USD(1) -> BDT(120). Ratio = 120/1 = 120. 
+            // 1 USD becomes 120 BDT.
+            const ratio = newRate / oldRate;
 
-            // 4. Update Database Preference
-            const { error } = await supabase.from('wallets').update({ currency: targetCode }).eq('user_id', userId);
+            // 4. Prepare Converted Values
+            // First deduct fee from current balance
+            const balAfterFee = currentBalance - fee;
+            const mainAfterFee = (wallet.main_balance || 0) - fee; // Assuming fee taken from main
+
+            // Convert Function
+            const convert = (val: number) => (val || 0) * ratio;
+
+            const updates = {
+                currency: targetCode,
+                // Core Balances
+                balance: balAfterFee * ratio,
+                main_balance: mainAfterFee * ratio,
+                deposit_balance: convert(wallet.deposit_balance),
+                game_balance: convert(wallet.game_balance),
+                earning_balance: convert(wallet.earning_balance),
+                investment_balance: convert(wallet.investment_balance),
+                referral_balance: convert(wallet.referral_balance),
+                commission_balance: convert(wallet.commission_balance),
+                bonus_balance: convert(wallet.bonus_balance),
+                
+                // Stats / Legacy Fields
+                deposit: convert(wallet.deposit),
+                withdrawable: convert(wallet.withdrawable),
+                total_earning: convert(wallet.total_earning),
+                today_earning: convert(wallet.today_earning),
+                pending_withdraw: convert(wallet.pending_withdraw),
+                referral_earnings: convert(wallet.referral_earnings)
+            };
+
+            // 5. Commit Updates to DB
+            const { error } = await supabase.from('wallets').update(updates).eq('user_id', userId);
             if (error) throw error;
 
-            // 5. Update State & Local Storage
+            // 6. Log Transaction (Fee)
+            // We log the fee amount in the OLD currency context for record keeping
+            await createTransaction(userId, 'penalty', fee, `Currency Switch Fee (${currency} to ${targetCode})`);
+
+            // 7. Update Local State
             setCurrencyState(targetCode);
             localStorage.setItem('eh_currency', targetCode);
             
-            // 6. Trigger Global Refresh
+            // 8. Trigger Global Refresh
             window.dispatchEvent(new Event('wallet_updated'));
             
             return true;

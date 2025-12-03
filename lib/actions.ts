@@ -116,6 +116,7 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   }
 
   // 1. Create Profile - Trigger will handle user_uid
+  // Remove ignoreDuplicates to ensure fields are updated if row exists (e.g. from trigger)
   const { error: profileError } = await supabase.from('profiles').upsert({
     id: userId,
     email_1: email,
@@ -124,7 +125,7 @@ export const createUserProfile = async (userId: string, email: string, fullName:
     referred_by: referredBy,
     level_1: 1,
     is_kyc_1: false
-  }, { onConflict: 'id', ignoreDuplicates: true });
+  }, { onConflict: 'id' });
 
   if (profileError) {
     console.error("Profile create error:", JSON.stringify(profileError));
@@ -134,6 +135,7 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   }
 
   // 2. Create Wallet safely with Selected Currency
+  // Remove ignoreDuplicates to ensure CURRENCY is saved even if trigger created the row
   const { error: walletError } = await supabase.from('wallets').upsert({
     user_id: userId,
     currency: currency, // STORE THE CHOSEN CURRENCY
@@ -152,7 +154,7 @@ export const createUserProfile = async (userId: string, email: string, fullName:
     today_earning: 0,
     pending_withdraw: 0,
     referral_earnings: 0
-  }, { onConflict: 'user_id', ignoreDuplicates: true });
+  }, { onConflict: 'user_id' });
 
   if (walletError) {
       console.error("Wallet create error:", JSON.stringify(walletError));
@@ -404,13 +406,14 @@ export const saveWithdrawMethod = async (userId: string, method: string, number:
     }
 };
 
-export const requestWithdrawal = async (userId: string, amount: number, method: string) => {
+export const requestWithdrawal = async (userId: string, amount: number, method: string, accountNumber: string) => {
     if (!isValidUUID(userId)) throw new Error("Invalid User ID");
 
     const { data, error } = await supabase.rpc('request_withdrawal', {
         p_user_id: userId,
         p_amount: amount,
-        p_method: method
+        p_method: method,
+        p_account_number: accountNumber
     });
 
     if (error) {

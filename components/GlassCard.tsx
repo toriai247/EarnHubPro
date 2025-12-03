@@ -1,28 +1,25 @@
+
 import React from 'react';
 
 interface GlassCardProps {
   children: React.ReactNode;
   className?: string;
-  glow?: boolean; // Retained prop for API compatibility, used for accent border
   onClick?: () => void;
+  glow?: boolean; 
 }
 
-const GlassCard: React.FC<GlassCardProps> = ({ children, className = '', glow = false, onClick }) => {
+const GlassCard: React.FC<GlassCardProps> = ({ children, className = '', onClick, glow }) => {
   return (
     <div 
       onClick={onClick}
       className={`
-        relative overflow-hidden rounded-xl p-6 transition-all duration-200
-        bg-surface border border-border-neo shadow-neo
-        ${glow ? 'border-electric-500 shadow-[5px_5px_0px_0px_#004499]' : ''}
-        ${onClick ? 'cursor-pointer hover:-translate-y-1 hover:shadow-neo-lg active:translate-y-0 active:shadow-none' : ''}
+        bg-card border border-border-base rounded-lg p-5 transition-colors duration-300 shadow-sm
+        ${glow ? 'border-brand shadow-glow' : ''}
+        ${onClick ? 'cursor-pointer hover:bg-input hover:border-border-highlight' : ''}
         ${className}
       `}
     >
-      {/* Content */}
-      <div className="relative z-10 h-full w-full">
-        {children}
-      </div>
+      {children}
     </div>
   );
 };

@@ -1,14 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, Ticket, CheckCircle2, Globe } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
 import { CURRENCY_CONFIG } from '../constants';
 import Logo from '../components/Logo';
-
-const MotionDiv = motion.div as any;
 
 const Signup: React.FC = () => {
   const [name, setName] = useState('');
@@ -27,6 +24,9 @@ const Signup: React.FC = () => {
     if (refParam) {
       setReferralCode(refParam.toUpperCase());
     }
+    // Auto-focus name field
+    const input = document.getElementById('name-input');
+    if (input) input.focus();
   }, [location]);
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -42,7 +42,7 @@ const Signup: React.FC = () => {
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: name } },
+        options: { data: { full_name: name, currency: currency } },
       });
 
       if (authError) throw authError;
@@ -67,158 +67,148 @@ const Signup: React.FC = () => {
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { duration: 0.5, staggerChildren: 0.05 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, x: -10 },
-    visible: { opacity: 1, x: 0 }
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505] relative overflow-hidden font-sans">
-       {/* Background FX */}
-       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-electric-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
-       <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+    <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 font-sans selection:bg-electric-500 selection:text-white">
+       
+       {/* Static Background Pattern */}
+       <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-20 pointer-events-none"></div>
 
-      <MotionDiv 
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="w-full max-w-md p-6 relative z-10"
-      >
-        <div className="bg-surface/80 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-md relative z-10">
+        
+        {/* Header */}
+        <div className="text-center mb-8">
+            <div className="flex justify-center items-center gap-3 mb-2">
+                <h2 className="text-3xl font-black text-white uppercase tracking-tight">JOIN</h2>
+                <Logo size="md" />
+            </div>
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Start your earning journey today</p>
+        </div>
+
+        <div className="bg-[#111] border border-[#222] rounded-2xl p-6 shadow-2xl relative overflow-hidden">
           
-          <div className="bg-gradient-to-r from-purple-500 to-electric-500 h-1.5"></div>
+          {/* Top Line Accent */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-electric-500"></div>
 
-          <div className="p-8">
-            <motion.div variants={itemVariants} className="mb-8 flex flex-col items-start">
-              <div className="flex items-center gap-3 mb-2">
-                  <h2 className="text-3xl font-display font-black text-white uppercase tracking-tight">Join</h2>
-                  <Logo size="md" />
+          <form onSubmit={handleSignup} className="space-y-4 mt-2">
+            
+            {error && (
+              <div className={`p-3 rounded-lg border flex items-start gap-3 text-sm font-bold ${error.includes('sent') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+                {error.includes('sent') ? <CheckCircle2 size={18} className="mt-0.5"/> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
+                <span className="flex-1">{error}</span>
               </div>
-              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Start your earning journey today.</p>
-            </motion.div>
+            )}
 
-            <form onSubmit={handleSignup} className="space-y-4">
-              <AnimatePresence mode="wait">
-                {error && (
-                  <MotionDiv 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className={`p-3 rounded-xl border flex items-start gap-3 text-sm font-bold ${error.includes('sent') ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}
-                  >
-                    {error.includes('sent') ? <CheckCircle2 size={18} className="mt-0.5"/> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
-                    <span className="flex-1">{error}</span>
-                  </MotionDiv>
-                )}
-              </AnimatePresence>
-
-              <motion.div variants={itemVariants} className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
-                  <User size={20} />
+            <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-gray-500 ml-1">Full Name</label>
+                <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                    <User size={20} />
+                    </div>
+                    <input 
+                    id="name-input"
+                    type="text" 
+                    required
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); setError(''); }}
+                    className="w-full bg-black border border-[#333] rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-[#0a0a0a] transition-colors font-medium text-base"
+                    placeholder="John Doe"
+                    />
                 </div>
-                <input 
-                  type="text" 
-                  required
-                  value={name}
-                  onChange={(e) => { setName(e.target.value); setError(''); }}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
-                  placeholder="Full Name"
-                />
-              </motion.div>
+            </div>
 
-              <motion.div variants={itemVariants} className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
-                  <Mail size={20} />
+            <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-gray-500 ml-1">Email</label>
+                <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                    <Mail size={20} />
+                    </div>
+                    <input 
+                    type="email" 
+                    required
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                    className="w-full bg-black border border-[#333] rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-[#0a0a0a] transition-colors font-medium text-base"
+                    placeholder="email@address.com"
+                    />
                 </div>
-                <input 
-                  type="email" 
-                  required
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
-                  placeholder="Email Address"
-                />
-              </motion.div>
+            </div>
 
-              <motion.div variants={itemVariants} className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
-                  <Lock size={20} />
+            <div className="space-y-1">
+                <label className="text-xs font-bold uppercase text-gray-500 ml-1">Password</label>
+                <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                    <Lock size={20} />
+                    </div>
+                    <input 
+                    type="password" 
+                    required
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                    className="w-full bg-black border border-[#333] rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-[#0a0a0a] transition-colors font-medium text-base"
+                    placeholder="Min 6 chars"
+                    />
                 </div>
-                <input 
-                  type="password" 
-                  required
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium"
-                  placeholder="Password (Min 6 chars)"
-                />
-              </motion.div>
+            </div>
 
-              <motion.div variants={itemVariants} className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-electric-500 transition-colors">
-                  <Globe size={20} />
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-gray-500 ml-1">Currency</label>
+                    <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                        <Globe size={18} />
+                        </div>
+                        <select 
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value)}
+                        className="w-full bg-black border border-[#333] rounded-xl py-3 pl-10 pr-8 text-white focus:outline-none focus:border-electric-500 focus:bg-[#0a0a0a] transition-colors font-medium text-sm appearance-none cursor-pointer"
+                        >
+                            {Object.values(CURRENCY_CONFIG).map((c) => (
+                                <option key={c.code} value={c.code}>{c.code}</option>
+                            ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-lg pointer-events-none">
+                            {CURRENCY_CONFIG[currency as keyof typeof CURRENCY_CONFIG]?.flag}
+                        </div>
+                    </div>
                 </div>
-                <select 
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-10 text-white focus:outline-none focus:border-electric-500 focus:bg-black/60 transition-all font-medium appearance-none cursor-pointer"
-                >
-                    {Object.values(CURRENCY_CONFIG).map((c) => (
-                        <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
-                    ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-2xl pointer-events-none">
-                    {CURRENCY_CONFIG[currency as keyof typeof CURRENCY_CONFIG]?.flag}
+
+                <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-gray-500 ml-1">Referral</label>
+                    <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                        <Ticket size={18} />
+                        </div>
+                        <input 
+                        type="text" 
+                        value={referralCode}
+                        onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                        className="w-full bg-black border border-[#333] rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:bg-[#0a0a0a] transition-colors font-mono uppercase text-sm tracking-wider"
+                        placeholder="OPTIONAL"
+                        maxLength={10}
+                        />
+                    </div>
                 </div>
-              </motion.div>
+            </div>
 
-              <motion.div variants={itemVariants} className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-gray-500 group-focus-within:text-purple-500 transition-colors">
-                  <Ticket size={20} />
-                </div>
-                <input 
-                  type="text" 
-                  value={referralCode}
-                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:bg-black/60 transition-all font-mono uppercase tracking-wider"
-                  placeholder="REF CODE (OPTIONAL)"
-                  maxLength={10}
-                />
-              </motion.div>
+            <button 
+                type="submit" 
+                disabled={isLoading}
+                className="w-full py-4 mt-2 bg-white text-black hover:bg-gray-200 active:scale-[0.98] rounded-xl font-black text-sm uppercase tracking-wider shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+                {isLoading ? <Loader2 className="animate-spin" size={20} /> : <>Create Account <ArrowRight size={20} /></>}
+            </button>
+          </form>
 
-              <motion.div variants={itemVariants} className="pt-2">
-                <motion.button 
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit" 
-                    disabled={isLoading}
-                    className="w-full py-4 bg-gradient-to-r from-electric-600 to-electric-500 text-white rounded-xl font-black flex items-center justify-center gap-2 uppercase tracking-wider shadow-lg shadow-electric-500/20 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-electric-500/40 transition-all"
-                >
-                    {isLoading ? <Loader2 className="animate-spin" size={20} /> : <>Create Account <ArrowRight size={20} /></>}
-                </motion.button>
-              </motion.div>
-            </form>
-
-            <motion.div variants={itemVariants} className="mt-8 text-center">
-              <p className="text-gray-500 text-sm font-bold">
-                Already have ID?{' '}
-                <Link to="/login" className="text-white hover:text-electric-400 underline decoration-2 underline-offset-4 transition">
-                  Sign In
-                </Link>
-              </p>
-            </motion.div>
+          <div className="mt-8 text-center">
+            <p className="text-gray-500 text-sm font-bold">
+              Already have ID?{' '}
+              <Link to="/login" className="text-white hover:text-electric-400 underline decoration-2 underline-offset-4 transition">
+                Sign In
+              </Link>
+            </p>
           </div>
         </div>
-      </MotionDiv>
+      </div>
     </div>
   );
 };

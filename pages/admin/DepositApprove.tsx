@@ -82,7 +82,7 @@ const DepositApprove: React.FC = () => {
       setAiResult(null); // Reset previous result
 
       try {
-          toast.info("AI is analyzing the screenshot...");
+          toast.info("DeepSeek AI is analyzing the screenshot...");
           const result = await analyzeDepositScreenshot(
               req.screenshot_url, 
               req.amount, 
@@ -166,7 +166,7 @@ const DepositApprove: React.FC = () => {
                 <h2 className="text-2xl font-display font-bold text-white mb-2 flex items-center gap-2">
                     <Bot className="text-neon-green" /> Auto-Deposit Manager
                 </h2>
-                <p className="text-gray-400 text-sm">AI-Assisted Payment Verification.</p>
+                <p className="text-gray-400 text-sm">DeepSeek-Assisted Payment Verification.</p>
                 {config?.is_activation_enabled && (
                     <div className="mt-2 text-xs bg-purple-500/20 text-purple-300 px-3 py-1 rounded inline-block border border-purple-500/30">
                         Auto-Activate threshold: ${config.activation_amount}

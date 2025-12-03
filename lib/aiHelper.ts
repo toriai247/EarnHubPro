@@ -1,15 +1,120 @@
 
-import { GoogleGenAI } from "@google/genai";
+const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
 
-// Initialize Gemini Helper Function (Lazy Init to prevent crash on load)
-const getAI = () => {
-  const apiKey = process.env.API_KEY;
+// Default Key provided by configuration
+const DEFAULT_KEY = "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";
+
+// Helper to get API Key
+const getApiKey = () => {
+  // 1. Check for Admin-configured key in Local Storage
+  const customKey = typeof window !== 'undefined' ? localStorage.getItem('deepseek_api_key') : null;
+  
+  // 2. Safe Env Access (Vite)
+  let envKey = null;
+  try {
+      // @ts-ignore
+      if (typeof import.meta !== 'undefined' && import.meta.env) {
+          // @ts-ignore
+          envKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
+      }
+  } catch (e) {}
+
+  // 3. Fallback to Default
+  const apiKey = customKey || envKey || DEFAULT_KEY;
+
   if (!apiKey) {
-    console.error("API_KEY is missing");
-    throw new Error("API Key not configured");
+    console.error("DeepSeek API Key is missing");
   }
-  return new GoogleGenAI({ apiKey });
+  return apiKey;
 };
+
+// --- Generic DeepSeek Call Helper ---
+const callDeepSeek = async (messages: any[], jsonMode = false, model = "deepseek-chat") => {
+    const apiKey = getApiKey();
+    
+    try {
+        const response = await fetch(DEEPSEEK_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: messages,
+                response_format: jsonMode ? { type: "json_object" } : undefined,
+                stream: false,
+                temperature: 0.7
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || `DeepSeek API Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    } catch (error: any) {
+        console.error("DeepSeek Request Failed:", error);
+        throw error;
+    }
+};
+
+// --- Test Connection & Validate Key ---
+export const validateDeepSeekKey = async (key: string) => {
+    try {
+        const start = performance.now();
+        const response = await fetch(DEEPSEEK_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`
+            },
+            body: JSON.stringify({
+                model: "deepseek-chat",
+                messages: [{ role: "user", content: "ping" }],
+                max_tokens: 5
+            })
+        });
+        const end = performance.now();
+
+        if (!response.ok) throw new Error("Invalid API Key");
+
+        return { 
+            valid: true, 
+            latency: Math.round(end - start),
+            message: "Connected Successfully"
+        };
+    } catch (error: any) {
+        return { valid: false, latency: 0, message: error.message || "Connection Failed" };
+    }
+};
+
+// --- Chat Helper ---
+export const chatWithAI = async (userMessage: string, systemContext: string) => {
+    const messages = [
+        { role: "system", content: systemContext },
+        { role: "user", content: userMessage }
+    ];
+    return await callDeepSeek(messages, false);
+};
+
+// --- Public Context for Chatbot ---
+export const NAXXIVO_PUBLIC_CONTEXT = `
+You are Nova, the AI Assistant for Naxxivo.
+Naxxivo is a next-gen earning platform offering Investment Plans, Daily Tasks, Micro-Jobs, and Real-Time Gaming (Crash, Ludo, Spin, Dice).
+Your role is to help users navigate the platform, explain how to earn money, and troubleshoot basic issues.
+
+Key Information:
+- Earning: Users earn by completing tasks, investing in plans (daily ROI), inviting friends (referral bonus), or winning games.
+- Wallet: There are multiple wallets (Main, Game, Deposit, etc.). Funds must be in the correct wallet to be used.
+- Withdrawals: Processed manually within 24 hours. Verification (KYC) might be required.
+- Support: For account-specific issues (e.g. missing deposit), direct them to the Support Ticket system in the app.
+
+Tone: Friendly, professional, and encouraging. Keep responses concise.
+Do not provide financial advice. Do not ask for passwords or private keys.
+`;
 
 // --- 1. Analyze Deposit Screenshot (With Time Guard) ---
 export const analyzeDepositScreenshot = async (
@@ -17,38 +122,24 @@ export const analyzeDepositScreenshot = async (
   claimedAmount: number, 
   claimedTrx: string,
   method: string,
-  sessionStartTime?: string // ISO String of when "Start Payment" was clicked
+  sessionStartTime?: string
 ) => {
   try {
-    const ai = getAI();
+    // Note: DeepSeek-Chat might not support Vision. If it fails, we catch the error.
+    // For robust vision, you might need a different endpoint or model (e.g. DeepSeek-VL if hosted).
+    // Assuming standard OpenAI-compatible vision payload structure.
     
-    // Fetch image and convert to base64
-    const response = await fetch(imageUrl);
-    const blob = await response.blob();
-    const base64Data = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-      reader.readAsDataURL(blob);
-    });
-    const base64String = base64Data as string;
-
-    const model = "gemini-2.5-flash";
-    
-    // Strict Time Logic Prompt
     let timePrompt = "";
     if (sessionStartTime) {
         const startDate = new Date(sessionStartTime);
-        
-        // We pass the local time string to help the AI understand context better
         timePrompt = `
         CRITICAL SECURITY RULE (TIME WINDOW):
         The user started the payment session at: ${startDate.toISOString()} (Server Time).
         The valid payment window is exactly 10 minutes.
-        
         INSTRUCTIONS:
         1. Scan the image for any time/date.
         2. Convert the found time to a standard format.
-        3. Compare the found time with the Session Start Time (${startDate.toLocaleTimeString()}).
+        3. Compare the found time with the Session Start Time.
         4. IF the screenshot time is OLDER than the session start time -> REJECT (Old screenshot).
         5. IF the screenshot time is > 10 minutes AFTER start time -> REJECT (Expired).
         `;
@@ -56,7 +147,6 @@ export const analyzeDepositScreenshot = async (
 
     const prompt = `
       You are a Strict Auto-Deposit Verification Bot. Analyze this payment screenshot.
-      
       User Claims:
       - Amount: ${claimedAmount}
       - Transaction ID (TrxID): ${claimedTrx}
@@ -75,33 +165,27 @@ export const analyzeDepositScreenshot = async (
         "status": "match" | "mismatch" | "suspicious" | "unclear",
         "found_trx": "string or null",
         "found_amount": "number or null",
-        "found_time": "string or null",
         "confidence": number (0-100),
-        "reason": "Clear explanation of why it matched or failed. If time mismatch, explicitly state it."
+        "reason": "Clear explanation of why it matched or failed."
       }
     `;
 
-    const result = await ai.models.generateContent({
-      model: model,
-      contents: [
+    const messages = [
         {
-          role: "user",
-          parts: [
-            { text: prompt },
-            { inlineData: { mimeType: "image/jpeg", data: base64String } }
-          ]
+            role: "user",
+            content: [
+                { type: "text", text: prompt },
+                { type: "image_url", image_url: { url: imageUrl } }
+            ]
         }
-      ],
-      config: {
-        responseMimeType: "application/json"
-      }
-    });
+    ];
 
-    return JSON.parse(result.text || "{}");
+    const result = await callDeepSeek(messages, true);
+    return JSON.parse(result || "{}");
 
   } catch (error) {
     console.error("AI Analysis Error:", error);
-    return { status: "error", reason: "Failed to analyze image. Please try again." };
+    return { status: "error", reason: "DeepSeek Vision Analysis Failed. Manual Review Required." };
   }
 };
 
@@ -112,29 +196,14 @@ export const analyzeKYCDocuments = async (
   userName: string
 ) => {
   try {
-    const ai = getAI();
-
-    const getBase64 = async (url: string) => {
-        const res = await fetch(url);
-        const blob = await res.blob();
-        return new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-            reader.readAsDataURL(blob);
-        });
-    }
-
-    const frontB64 = await getBase64(frontUrl);
-    const backB64 = await getBase64(backUrl);
-
     const prompt = `
       You are an Identity Verification AI. 
       Target Name: "${userName}"
 
-      Analyze these two ID card images (Front and Back).
+      Analyze these two ID card images.
       1. Extract the name from the ID card.
       2. Compare extracted name with Target Name (allow minor spelling differences).
-      3. Check for signs of digital manipulation (photoshop).
+      3. Check for signs of digital manipulation.
       4. Verify it looks like a valid government ID.
 
       Return ONLY JSON:
@@ -143,33 +212,28 @@ export const analyzeKYCDocuments = async (
         "name_match": boolean,
         "extracted_name": "string",
         "document_type": "string",
-        "risk_score": number (0-100, where 100 is high risk),
+        "risk_score": number (0-100),
         "notes": "string"
       }
     `;
 
-    const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
+    const messages = [
         {
-          role: "user",
-          parts: [
-            { text: prompt },
-            { inlineData: { mimeType: "image/jpeg", data: frontB64 } },
-            { inlineData: { mimeType: "image/jpeg", data: backB64 } }
-          ]
+            role: "user",
+            content: [
+                { type: "text", text: prompt },
+                { type: "image_url", image_url: { url: frontUrl } },
+                { type: "image_url", image_url: { url: backUrl } }
+            ]
         }
-      ],
-      config: {
-        responseMimeType: "application/json"
-      }
-    });
+    ];
 
-    return JSON.parse(result.text || "{}");
+    const result = await callDeepSeek(messages, true);
+    return JSON.parse(result || "{}");
 
   } catch (error) {
     console.error("KYC AI Error:", error);
-    return { is_valid: false, notes: "AI Analysis failed." };
+    return { is_valid: false, notes: "DeepSeek Analysis failed." };
   }
 };
 
@@ -177,66 +241,41 @@ export const analyzeKYCDocuments = async (
 export const analyzeTaskProof = async (
     taskTitle: string,
     taskDescription: string,
-    proofData: string, // Text or URL
+    proofData: string,
     proofType: 'text' | 'screenshot' | 'auto'
 ) => {
     try {
-        const ai = getAI();
-        const model = "gemini-2.5-flash";
-        let parts: any[] = [];
-
-        // Construct Prompt
         const basePrompt = `
-            You are a Micro-Job Verification AI. Your job is to prevent fraud.
-            
-            Task Context:
-            - Title: "${taskTitle}"
-            - Instructions: "${taskDescription}"
-            - Expected Proof Type: ${proofType}
-
+            You are a Micro-Job Verification AI. Prevent fraud.
+            Task: "${taskTitle}"
+            Instructions: "${taskDescription}"
+            Expected Proof: ${proofType}
             User Submission: "${proofData}"
 
-            Evaluate if the user's submission is valid proof that they completed the task.
-            
-            Rules:
-            1. If proof is just "done", "ok", or gibberish, REJECT it immediately.
-            2. If task asks for a Username, ensure the submission looks like a username.
-            3. If task asks for a Code, ensure submission looks like a code.
-            4. If proof is a URL to an image, analyze the image context (e.g. if task is YouTube, image must look like YouTube, if Task is Facebook, image must show Facebook).
-
+            Evaluate if the user's submission is valid.
             Return JSON:
             {
                 "verdict": "approved" | "rejected" | "manual_review",
                 "confidence": number (0-100),
-                "reason": "Short reason for decision"
+                "reason": "Short reason"
             }
         `;
 
-        parts.push({ text: basePrompt });
-
-        // If proof is an image URL, fetch it
+        const messages = [];
         if (proofType === 'screenshot' && proofData.startsWith('http')) {
-            try {
-                const response = await fetch(proofData);
-                const blob = await response.blob();
-                const base64Data = await new Promise<string>((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-                    reader.readAsDataURL(blob);
-                });
-                parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Data } });
-            } catch (e) {
-                return { verdict: "manual_review", confidence: 0, reason: "Could not download proof image for AI analysis." };
-            }
+             messages.push({
+                role: "user",
+                content: [
+                    { type: "text", text: basePrompt },
+                    { type: "image_url", image_url: { url: proofData } }
+                ]
+            });
+        } else {
+            messages.push({ role: "user", content: basePrompt });
         }
 
-        const result = await ai.models.generateContent({
-            model: model,
-            contents: [{ role: "user", parts: parts }],
-            config: { responseMimeType: "application/json" }
-        });
-
-        return JSON.parse(result.text || "{}");
+        const result = await callDeepSeek(messages, true);
+        return JSON.parse(result || "{}");
 
     } catch (error) {
         console.error("Task AI Error:", error);
@@ -251,10 +290,6 @@ export const analyzeUserRisk = async (
   gameHistory: any[]
 ) => {
   try {
-    const ai = getAI();
-    const model = "gemini-2.5-flash";
-
-    // Summarize data for prompt
     const depositTotal = recentTransactions
       .filter(t => t.type === 'deposit' && t.status === 'success')
       .reduce((sum, t) => sum + t.amount, 0);
@@ -267,32 +302,18 @@ export const analyzeUserRisk = async (
     const gamesWon = gameHistory.filter(g => g.profit > 0).length;
     const winRate = gamesPlayed > 0 ? (gamesWon / gamesPlayed) * 100 : 0;
 
-    // We send concise JSON data to save context window
     const prompt = `
-      You are the Risk Analysis AI for Naxxivo.
-      Analyze this user's activity for fraud, exploits, or abuse.
-
+      You are the Risk Analysis AI for Naxxivo. Analyze user activity for fraud.
+      
       User ID: ${userProfile.id}
       Created: ${userProfile.created_at}
+      Financials: Deposits $${depositTotal}, Withdrawals $${withdrawTotal}
+      Game Stats: ${gamesPlayed} played, ${winRate.toFixed(1)}% Win Rate.
       
-      Financial Summary:
-      - Total Deposits: $${depositTotal}
-      - Total Withdrawals: $${withdrawTotal}
-      - Transactions Sample: ${JSON.stringify(recentTransactions.slice(0, 5).map(t => ({ t: t.type, a: t.amount, s: t.status })))}
-
-      Game Activity:
-      - Games Played: ${gamesPlayed}
-      - Win Rate: ${winRate.toFixed(1)}%
-      - History Sample: ${JSON.stringify(gameHistory.slice(0, 5).map(g => ({ g: g.gameName, p: g.profit })))}
-
-      Rules for Suspension (Verdict 'suspend'):
-      1. Win Rate > 90% with > 10 games played (Possible game exploit/cheat).
-      2. Withdrawals > Deposits * 5 without significant recorded gameplay wins (Money laundering risk).
-      3. Creating account and immediately attempting high value withdrawals without activity.
-
-      Rules for Warning (Verdict 'flag'):
-      1. Win Rate > 75%.
-      2. Withdrawals > Deposits.
+      Rules:
+      1. Win Rate > 90% with > 10 games = Suspend (Cheat).
+      2. Withdrawals > Deposits * 5 without wins = Suspend (Laundering).
+      3. New account high withdrawal = Flag.
 
       Return JSON:
       {
@@ -302,13 +323,8 @@ export const analyzeUserRisk = async (
       }
     `;
 
-    const result = await ai.models.generateContent({
-      model: model,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: { responseMimeType: "application/json" }
-    });
-
-    return JSON.parse(result.text || "{}");
+    const result = await callDeepSeek([{ role: "user", content: prompt }], true);
+    return JSON.parse(result || "{}");
 
   } catch (error) {
     console.error("Risk AI Error:", error);

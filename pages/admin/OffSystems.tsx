@@ -2,11 +2,11 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
-import { SystemConfig } from '../../types';
+import { SystemConfig, GameConfig } from '../../types';
 import { 
   Power, Save, AlertTriangle, Lock, MonitorOff, 
   Gamepad2, Zap, Users, Video, Wallet, ArrowUpRight, ShieldAlert, Activity, Eye, RefreshCw, X, CheckCircle2, Server, RotateCcw, AlertOctagon,
-  Info, Megaphone
+  Info, Megaphone, Dice1, Play
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import Loader from '../../components/Loader';
@@ -16,6 +16,7 @@ const OffSystems: React.FC = () => {
   const { toast, confirm } = useUI();
   const [config, setConfig] = useState<SystemConfig | null>(null);
   const [originalConfig, setOriginalConfig] = useState<SystemConfig | null>(null);
+  const [gameConfigs, setGameConfigs] = useState<GameConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -23,6 +24,7 @@ const OffSystems: React.FC = () => {
 
   useEffect(() => {
     fetchConfig();
+    fetchGameConfigs();
     
     // Listen for realtime changes from other admins
     const sub = supabase
@@ -70,12 +72,40 @@ const OffSystems: React.FC = () => {
     setLoading(false);
   };
 
+  const fetchGameConfigs = async () => {
+      const { data } = await supabase.from('game_configs').select('*').order('name');
+      if (data) setGameConfigs(data as GameConfig[]);
+  };
+
   const handleToggle = (key: keyof SystemConfig) => {
       if (!config) return;
       // @ts-ignore
       const newVal = !config[key];
       // @ts-ignore
       setConfig({ ...config, [key]: newVal });
+  };
+
+  const handleGameToggle = async (gameId: string, currentStatus: boolean) => {
+      const newStatus = !currentStatus;
+      const gameName = gameConfigs.find(g => g.id === gameId)?.name || 'Unknown Game';
+      
+      // Update locally
+      setGameConfigs(prev => prev.map(g => g.id === gameId ? { ...g, is_active: newStatus } : g));
+      
+      // Update DB - Using upsert() to ensure row exists and handle policies better
+      const { error } = await supabase.from('game_configs').upsert({ 
+          id: gameId, 
+          name: gameName,
+          is_active: newStatus 
+      });
+      
+      if (error) {
+          console.error("Game Status Update Error:", error);
+          toast.error(`Update failed: ${error.message}`);
+          fetchGameConfigs(); // Revert local state
+      } else {
+          toast.success(`Game ${newStatus ? 'Activated' : 'Deactivated'}`);
+      }
   };
 
   const handleBulkAction = async (action: 'restore' | 'shutdown') => {
@@ -415,8 +445,8 @@ const OffSystems: React.FC = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <SystemModule 
-                    title="Game Hub" 
-                    desc="Crash, Spin, Ludo, Dice & betting games." 
+                    title="Game Hub (Global)" 
+                    desc="Master switch for all games." 
                     icon={Gamepad2} 
                     isOn={config.is_games_enabled} 
                     toggleKey="is_games_enabled" 
@@ -451,6 +481,45 @@ const OffSystems: React.FC = () => {
                 />
             </div>
         </div>
+
+        {/* INDIVIDUAL GAME CONTROL */}
+        {config.is_games_enabled && (
+            <div>
+                <div className="flex items-center gap-2 mb-4 px-1 mt-6">
+                    <Dice1 className="text-purple-500" size={18} />
+                    <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest">Individual Game Status</h3>
+                    <div className="h-px bg-white/10 flex-1 ml-2"></div>
+                </div>
+                
+                {gameConfigs.length === 0 && (
+                    <div className="bg-white/5 border border-white/5 rounded-xl p-4 text-center text-gray-500 text-sm">
+                        No individual game configs found. Please run the initialization SQL in Database Ultra.
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {gameConfigs.map((game) => (
+                        <div key={game.id} className={`p-4 rounded-xl border flex items-center justify-between transition-all ${game.is_active ? 'bg-purple-900/10 border-purple-500/30' : 'bg-black/40 border-white/5 opacity-80 grayscale'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${game.is_active ? 'bg-purple-500/20 text-purple-400' : 'bg-white/10 text-gray-500'}`}>
+                                    {game.id === 'spin' ? <RefreshCw size={18}/> : 
+                                     game.id === 'crash' ? <Play size={18}/> : 
+                                     game.id === 'ludo' ? <Users size={18}/> : 
+                                     <Dice1 size={18}/>}
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-white text-sm">{game.name}</h4>
+                                    <p className={`text-[10px] font-bold uppercase ${game.is_active ? 'text-green-400' : 'text-red-400'}`}>
+                                        {game.is_active ? 'Playable' : 'Disabled'}
+                                    </p>
+                                </div>
+                            </div>
+                            <ToggleSwitch isOn={game.is_active} onClick={() => handleGameToggle(game.id, game.is_active)} />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
 
         {/* GLOBAL ANNOUNCEMENT */}
         <div className="bg-black/40 border border-white/10 rounded-2xl p-6 relative overflow-hidden mt-6">

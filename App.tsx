@@ -36,7 +36,6 @@ import FeatureAccessBlock from './components/FeatureAccessBlock';
 import { supabase } from './integrations/supabase/client';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { UIProvider } from './context/UIContext';
-import { ThemeProvider } from './context/ThemeContext';
 import { SystemProvider, useSystem } from './context/SystemContext';
 import InstallPWA from './components/InstallPWA'; // Added
 
@@ -160,17 +159,15 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <ThemeProvider>
-      <UIProvider>
-        <CurrencyProvider>
+    <UIProvider>
+      <CurrencyProvider>
+        <Router>
           <SystemProvider>
-            <Router>
-                <AppContent />
-            </Router>
+              <AppContent />
           </SystemProvider>
-        </CurrencyProvider>
-      </UIProvider>
-    </ThemeProvider>
+        </Router>
+      </CurrencyProvider>
+    </UIProvider>
   );
 };
 

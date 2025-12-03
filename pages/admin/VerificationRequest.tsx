@@ -63,7 +63,7 @@ const VerificationRequest: React.FC = () => {
       setAiReport(null);
       
       try {
-          toast.info("Gemini Vision AI is analyzing documents...");
+          toast.info("DeepSeek AI is analyzing documents...");
           const result = await analyzeKYCDocuments(
               selectedRequest.front_image_url,
               selectedRequest.back_image_url,
@@ -286,7 +286,7 @@ const VerificationRequest: React.FC = () => {
                                 <Bot size={20} className={aiReport.name_match ? "text-green-400" : "text-yellow-400"} />
                                 <div>
                                     <h4 className={`font-bold text-sm uppercase ${aiReport.name_match ? "text-green-400" : "text-yellow-400"}`}>
-                                        AI Analysis: {aiReport.name_match ? 'PASSED' : 'CAUTION'}
+                                        DeepSeek AI Analysis: {aiReport.name_match ? 'PASSED' : 'CAUTION'}
                                     </h4>
                                     <p className="text-xs text-gray-300 mt-1">{aiReport.notes}</p>
                                     <div className="mt-2 text-[10px] bg-black/20 p-2 rounded inline-block font-mono text-gray-400">

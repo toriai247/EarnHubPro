@@ -12,7 +12,6 @@ import {
     Cpu, HardDriveDownload, AlertOctagon
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
-import { motion, AnimatePresence } from 'framer-motion';
 
 // Comprehensive List of Tables
 const TABLE_LIST = [
@@ -21,75 +20,114 @@ const TABLE_LIST = [
     'referrals', 'tasks', 'user_tasks', 'system_config', 'payment_methods',
     'deposit_bonuses', 'withdrawal_settings', 'user_withdrawal_methods',
     'crash_game_state', 'crash_bets', 'referral_tiers', 'ludo_cards',
-    'spin_items', 'bot_profiles', 'help_requests', 'marketplace_tasks', 'marketplace_submissions'
+    'spin_items', 'bot_profiles', 'help_requests', 'marketplace_tasks', 'marketplace_submissions',
+    'game_configs'
 ];
 
 // SQL Templates Library
 const SQL_TOOLS = {
     setup: [
         {
-            title: 'Initialize Referral System',
-            desc: 'Creates the referral_tiers table for multi-level commissions.',
-            sql: `CREATE TABLE IF NOT EXISTS public.referral_tiers (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  level INTEGER NOT NULL,
-  commission_percent NUMERIC NOT NULL,
-  type TEXT CHECK (type IN ('deposit', 'earning')) DEFAULT 'deposit',
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);`
-        },
-        {
-            title: 'Initialize System Config',
-            desc: 'Creates the master configuration table for site settings.',
-            sql: `CREATE TABLE IF NOT EXISTS public.system_config (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    is_tasks_enabled BOOLEAN DEFAULT true,
-    is_games_enabled BOOLEAN DEFAULT true,
-    is_invest_enabled BOOLEAN DEFAULT true,
-    is_invite_enabled BOOLEAN DEFAULT true,
-    is_video_enabled BOOLEAN DEFAULT true,
-    is_deposit_enabled BOOLEAN DEFAULT true,
-    is_withdraw_enabled BOOLEAN DEFAULT true,
-    maintenance_mode BOOLEAN DEFAULT false,
-    global_alert TEXT,
-    p2p_transfer_fee_percent NUMERIC DEFAULT 2.0,
-    p2p_min_transfer NUMERIC DEFAULT 10.0,
-    is_activation_enabled BOOLEAN DEFAULT false,
-    activation_amount NUMERIC DEFAULT 1.00,
-    is_pwa_enabled BOOLEAN DEFAULT true
-);`
-        },
-        {
-            title: 'PWA Control',
-            desc: 'Adds column to system_config to control PWA install prompt.',
-            sql: `ALTER TABLE public.system_config 
-ADD COLUMN IF NOT EXISTS is_pwa_enabled BOOLEAN DEFAULT true;`
-        },
-        {
-            title: 'Account Activation Columns',
-            desc: 'Adds columns to profiles for the account activation feature.',
-            sql: `ALTER TABLE public.profiles 
-ADD COLUMN IF NOT EXISTS is_account_active BOOLEAN DEFAULT false;
+            title: 'Enable V1 Compatibility Mode',
+            desc: 'Fixes "No submissions" by making task data accessible to all creators (Simpler RLS).',
+            sql: `
+-- Simplifies RLS for V1 Style Access
+ALTER TABLE marketplace_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE marketplace_submissions ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE public.system_config 
-ADD COLUMN IF NOT EXISTS is_activation_enabled BOOLEAN DEFAULT false;
+-- 1. Tasks: Everyone can read, Creators can edit
+DROP POLICY IF EXISTS "Public read tasks" ON marketplace_tasks;
+CREATE POLICY "Public read tasks" ON marketplace_tasks FOR SELECT USING (true);
 
-ALTER TABLE public.system_config 
-ADD COLUMN IF NOT EXISTS activation_amount NUMERIC DEFAULT 1.00;`
+DROP POLICY IF EXISTS "Creators full access" ON marketplace_tasks;
+CREATE POLICY "Creators full access" ON marketplace_tasks FOR ALL USING (auth.uid() = creator_id);
+
+-- 2. Submissions: Creators see ALL for their tasks, Workers see OWN
+DROP POLICY IF EXISTS "Creators view submissions" ON marketplace_submissions;
+CREATE POLICY "Creators view submissions" ON marketplace_submissions 
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM marketplace_tasks 
+    WHERE marketplace_tasks.id = marketplace_submissions.task_id 
+    AND marketplace_tasks.creator_id = auth.uid()
+  )
+);
+
+DROP POLICY IF EXISTS "Creators update submissions" ON marketplace_submissions;
+CREATE POLICY "Creators update submissions" ON marketplace_submissions 
+FOR UPDATE USING (
+  EXISTS (
+    SELECT 1 FROM marketplace_tasks 
+    WHERE marketplace_tasks.id = marketplace_submissions.task_id 
+    AND marketplace_tasks.creator_id = auth.uid()
+  )
+);
+
+DROP POLICY IF EXISTS "Workers manage own" ON marketplace_submissions;
+CREATE POLICY "Workers manage own" ON marketplace_submissions 
+FOR ALL USING (auth.uid() = worker_id);
+`
+        },
+        {
+            title: 'Factory Reset: Task System v3',
+            desc: 'Wipes old task tables and creates new secure tables.',
+            sql: `
+DROP TABLE IF EXISTS public.marketplace_submissions CASCADE;
+DROP TABLE IF EXISTS public.marketplace_tasks CASCADE;
+
+CREATE TABLE public.marketplace_tasks (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    creator_id UUID REFERENCES auth.users(id) NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    category TEXT NOT NULL,
+    target_url TEXT NOT NULL,
+    total_quantity INTEGER NOT NULL DEFAULT 0,
+    remaining_quantity INTEGER NOT NULL DEFAULT 0,
+    price_per_action NUMERIC(10, 4) NOT NULL,
+    worker_reward NUMERIC(10, 4) NOT NULL,
+    proof_type TEXT DEFAULT 'complex',
+    requirements JSONB DEFAULT '[]'::jsonb,
+    timer_seconds INTEGER DEFAULT 15,
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE public.marketplace_submissions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    task_id UUID REFERENCES public.marketplace_tasks(id) ON DELETE CASCADE,
+    worker_id UUID REFERENCES auth.users(id) NOT NULL,
+    submission_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.marketplace_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.marketplace_submissions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read tasks" ON public.marketplace_tasks FOR SELECT USING (true);
+CREATE POLICY "Creators all tasks" ON public.marketplace_tasks FOR ALL USING (auth.uid() = creator_id);
+CREATE POLICY "Workers own submissions" ON public.marketplace_submissions FOR ALL USING (auth.uid() = worker_id);
+CREATE POLICY "Creators view submissions" ON public.marketplace_submissions FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.marketplace_tasks WHERE id = task_id AND creator_id = auth.uid())
+);
+CREATE POLICY "Creators update submissions" ON public.marketplace_submissions FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM public.marketplace_tasks WHERE id = task_id AND creator_id = auth.uid())
+);
+`
         }
     ],
     maintenance: [
         {
-            title: 'Fix Wallet Constraints',
-            desc: 'Ensures wallet balances cannot be negative.',
-            sql: `ALTER TABLE wallets ADD CONSTRAINT balance_non_negative CHECK (balance >= 0);
-ALTER TABLE wallets ADD CONSTRAINT main_balance_non_negative CHECK (main_balance >= 0);`
+            title: 'Initialize Withdrawal Numbers',
+            desc: 'Adds account_number column to withdraw_requests table.',
+            sql: `ALTER TABLE public.withdraw_requests ADD COLUMN IF NOT EXISTS account_number TEXT;` 
         },
         {
-            title: 'Clear Old Notifications',
-            desc: 'Deletes notifications older than 30 days.',
-            sql: `DELETE FROM notifications WHERE created_at < NOW() - INTERVAL '30 days';`
+            title: 'Fix Wallet Constraints',
+            desc: 'Ensures wallet balances cannot be negative.',
+            sql: `ALTER TABLE wallets DROP CONSTRAINT IF EXISTS balance_non_negative;
+ALTER TABLE wallets ADD CONSTRAINT balance_non_negative CHECK (balance >= 0);`
         }
     ],
     danger: [
@@ -97,7 +135,7 @@ ALTER TABLE wallets ADD CONSTRAINT main_balance_non_negative CHECK (main_balance
             title: 'Factory Reset (Data Only)',
             desc: 'Wipes all user data but keeps table structure.',
             sql: `TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, notifications, marketplace_submissions, user_tasks CASCADE;
-UPDATE wallets SET balance=0, main_balance=0, deposit=0, withdrawable=0, total_earning=0;
+UPDATE wallets SET balance=0, main_balance=0, deposit=0, withdrawable=0, total_earning=0, deposit_balance=0, game_balance=0, earning_balance=0, bonus_balance=0, referral_balance=0, commission_balance=0, investment_balance=0;
 UPDATE profiles SET level_1=1, xp_1=0;`
         }
     ]
@@ -170,7 +208,6 @@ const DatabaseUltra: React.FC = () => {
         setLoadingData(true);
         const { data, error } = await supabase.from(table).select('*').limit(50).order('created_at', { ascending: false });
         if (error) {
-            // Some tables might not have created_at, fallback
             const { data: retryData } = await supabase.from(table).select('*').limit(50);
             setTableData(retryData || []);
         } else {
@@ -240,20 +277,17 @@ const DatabaseUltra: React.FC = () => {
         toast.success("SQL Copied to Clipboard");
     };
 
-    // Calculate Storage Usage (Estimated: 1KB per row avg)
     const estimatedSizeMB = (totalRecords * 0.5) / 1024; 
 
     return (
         <div className="space-y-6 animate-fade-in pb-20">
-            
-            {/* HEADER */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h2 className="text-3xl font-display font-black text-cyan-400 flex items-center gap-3">
                         <Database className="text-white" size={32} /> DATABASE ULTRA
                     </h2>
                     <p className="text-gray-400 text-sm mt-1">
-                        Advanced Admin Console • v4.2.0
+                        Advanced Admin Console • v4.5.0
                     </p>
                 </div>
                 <div className="flex items-center gap-2 bg-black/40 border border-white/10 px-3 py-1.5 rounded-lg">
@@ -266,7 +300,6 @@ const DatabaseUltra: React.FC = () => {
                 </div>
             </div>
 
-            {/* NAVIGATION */}
             <div className="flex overflow-x-auto no-scrollbar gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
                 {[
                     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -288,270 +321,243 @@ const DatabaseUltra: React.FC = () => {
                 ))}
             </div>
 
-            <AnimatePresence mode="wait">
-                
-                {/* 1. DASHBOARD */}
-                {activeTab === 'dashboard' && (
-                    <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-                        
-                        {/* KPI GRID */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <GlassCard className="p-5 border-l-4 border-l-cyan-500 bg-cyan-950/10">
-                                <div className="flex justify-between items-start mb-2">
-                                    <p className="text-cyan-400 text-xs font-bold uppercase tracking-wider">Total Records</p>
-                                    <List size={20} className="text-cyan-500"/>
-                                </div>
-                                <h3 className="text-3xl font-black text-white">
-                                    {loadingStats ? <Loader2 className="animate-spin"/> : totalRecords.toLocaleString()}
-                                </h3>
-                                <p className="text-[10px] text-gray-500 mt-1">Across all tables</p>
-                            </GlassCard>
-
-                            <GlassCard className="p-5 border-l-4 border-l-purple-500 bg-purple-950/10">
-                                <div className="flex justify-between items-start mb-2">
-                                    <p className="text-purple-400 text-xs font-bold uppercase tracking-wider">Estimated Size</p>
-                                    <HardDrive size={20} className="text-purple-500"/>
-                                </div>
-                                <h3 className="text-3xl font-black text-white">
-                                    {loadingStats ? <Loader2 className="animate-spin"/> : `~${estimatedSizeMB.toFixed(2)} MB`}
-                                </h3>
-                                <p className="text-[10px] text-gray-500 mt-1">Text-based estimation</p>
-                            </GlassCard>
-
-                            <GlassCard className="p-5 border-l-4 border-l-green-500 bg-green-950/10">
-                                <div className="flex justify-between items-start mb-2">
-                                    <p className="text-green-400 text-xs font-bold uppercase tracking-wider">System Health</p>
-                                    <Activity size={20} className="text-green-500"/>
-                                </div>
-                                <h3 className="text-3xl font-black text-white">100%</h3>
-                                <p className="text-[10px] text-gray-500 mt-1">All systems operational</p>
-                            </GlassCard>
-                        </div>
-
-                        {/* STORAGE HEATMAP */}
-                        <GlassCard>
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-white flex items-center gap-2">
-                                    <PieChart size={18} className="text-cyan-400"/> Database Distribution
-                                </h3>
-                                <button onClick={refreshStats} className="text-gray-400 hover:text-white"><RefreshCw size={16}/></button>
+            {/* CONTENT AREA */}
+            {activeTab === 'dashboard' && (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <GlassCard className="p-5 border-l-4 border-l-cyan-500 bg-cyan-950/10">
+                            <div className="flex justify-between items-start mb-2">
+                                <p className="text-cyan-400 text-xs font-bold uppercase tracking-wider">Total Records</p>
+                                <List size={20} className="text-cyan-500"/>
                             </div>
-                            
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                {TABLE_LIST.map(table => {
-                                    const count = tableStats[table] || 0;
-                                    const intensity = Math.min(100, Math.max(10, (count / (totalRecords || 1)) * 500)); // Normalize for visibility
-                                    
-                                    return (
-                                        <div key={table} className="bg-black/40 border border-white/5 p-3 rounded-xl flex flex-col gap-1 hover:border-cyan-500/30 transition group">
-                                            <div className="flex justify-between items-center">
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase truncate max-w-[80px]" title={table}>{table}</p>
-                                                <div className={`w-2 h-2 rounded-full`} style={{ backgroundColor: `hsl(180, 100%, ${intensity}%)`, boxShadow: `0 0 ${intensity/5}px cyan` }}></div>
-                                            </div>
-                                            <p className="text-lg font-mono font-bold text-white group-hover:text-cyan-400 transition">{count.toLocaleString()}</p>
-                                        </div>
-                                    )
-                                })}
-                            </div>
+                            <h3 className="text-3xl font-black text-white">
+                                {loadingStats ? <Loader2 className="animate-spin"/> : totalRecords.toLocaleString()}
+                            </h3>
+                            <p className="text-[10px] text-gray-500 mt-1">Across all tables</p>
                         </GlassCard>
 
-                    </motion.div>
-                )}
-
-                {/* 2. EXPLORER */}
-                {activeTab === 'explorer' && (
-                    <motion.div key="explorer" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col lg:flex-row gap-4 h-[75vh]">
-                        
-                        {/* Sidebar */}
-                        <div className="w-full lg:w-64 bg-black/40 border border-white/10 rounded-2xl flex flex-col overflow-hidden shrink-0">
-                            <div className="p-3 border-b border-white/10 bg-white/5 font-bold text-xs uppercase text-gray-400">Tables</div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                {TABLE_LIST.map(table => (
-                                    <button 
-                                        key={table}
-                                        onClick={() => setSelectedTable(table)}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition flex justify-between items-center ${selectedTable === table ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
-                                    >
-                                        <span className="truncate">{table}</span>
-                                        <span className="opacity-50">{tableStats[table] || 0}</span>
-                                    </button>
-                                ))}
+                        <GlassCard className="p-5 border-l-4 border-l-purple-500 bg-purple-950/10">
+                            <div className="flex justify-between items-start mb-2">
+                                <p className="text-purple-400 text-xs font-bold uppercase tracking-wider">Estimated Size</p>
+                                <HardDrive size={20} className="text-purple-500"/>
                             </div>
+                            <h3 className="text-3xl font-black text-white">
+                                {loadingStats ? <Loader2 className="animate-spin"/> : `~${estimatedSizeMB.toFixed(2)} MB`}
+                            </h3>
+                            <p className="text-[10px] text-gray-500 mt-1">Text-based estimation</p>
+                        </GlassCard>
+
+                        <GlassCard className="p-5 border-l-4 border-l-green-500 bg-green-950/10">
+                            <div className="flex justify-between items-start mb-2">
+                                <p className="text-green-400 text-xs font-bold uppercase tracking-wider">System Health</p>
+                                <Activity size={20} className="text-green-500"/>
+                            </div>
+                            <h3 className="text-3xl font-black text-white">100%</h3>
+                            <p className="text-[10px] text-gray-500 mt-1">All systems operational</p>
+                        </GlassCard>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'explorer' && (
+                <div className="flex flex-col lg:flex-row gap-4 h-[75vh]">
+                    <div className="w-full lg:w-64 bg-black/40 border border-white/10 rounded-2xl flex flex-col overflow-hidden shrink-0">
+                        <div className="p-3 border-b border-white/10 bg-white/5 font-bold text-xs uppercase text-gray-400">Tables</div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                            {TABLE_LIST.map(table => (
+                                <button 
+                                    key={table}
+                                    onClick={() => setSelectedTable(table)}
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition flex justify-between items-center ${selectedTable === table ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+                                >
+                                    <span className="truncate">{table}</span>
+                                    <span className="opacity-50">{tableStats[table] || 0}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex-1 bg-black/40 border border-white/10 rounded-2xl flex flex-col overflow-hidden relative">
+                        <div className="p-3 border-b border-white/10 bg-white/5 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <h3 className="font-mono font-bold text-white text-lg">{selectedTable}</h3>
+                                <div className="flex bg-black/30 rounded-lg p-0.5 border border-white/10">
+                                    <button onClick={() => setViewMode('data')} className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition ${viewMode === 'data' ? 'bg-white/10 text-white' : 'text-gray-500'}`}>Data</button>
+                                    <button onClick={() => setViewMode('schema')} className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition ${viewMode === 'schema' ? 'bg-white/10 text-white' : 'text-gray-500'}`}>Schema</button>
+                                </div>
+                            </div>
+                            <button onClick={() => fetchTableData(selectedTable)} className="p-1.5 bg-white/5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition">
+                                <RefreshCw size={14} className={loadingData ? 'animate-spin' : ''}/>
+                            </button>
                         </div>
 
-                        {/* Main View */}
-                        <div className="flex-1 bg-black/40 border border-white/10 rounded-2xl flex flex-col overflow-hidden relative">
-                            {/* Toolbar */}
-                            <div className="p-3 border-b border-white/10 bg-white/5 flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <h3 className="font-mono font-bold text-white text-lg">{selectedTable}</h3>
-                                    <div className="flex bg-black/30 rounded-lg p-0.5 border border-white/10">
-                                        <button onClick={() => setViewMode('data')} className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition ${viewMode === 'data' ? 'bg-white/10 text-white' : 'text-gray-500'}`}>Data</button>
-                                        <button onClick={() => setViewMode('schema')} className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition ${viewMode === 'schema' ? 'bg-white/10 text-white' : 'text-gray-500'}`}>Schema</button>
-                                    </div>
+                        <div className="flex-1 overflow-auto custom-scrollbar p-0">
+                            {loadingData ? (
+                                <div className="h-full flex items-center justify-center">
+                                    <Loader2 className="animate-spin text-cyan-500" size={32} />
                                 </div>
-                                <button onClick={() => fetchTableData(selectedTable)} className="p-1.5 bg-white/5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition">
-                                    <RefreshCw size={14} className={loadingData ? 'animate-spin' : ''}/>
-                                </button>
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 overflow-auto custom-scrollbar p-0">
-                                {loadingData ? (
-                                    <div className="h-full flex items-center justify-center">
-                                        <Loader2 className="animate-spin text-cyan-500" size={32} />
+                            ) : viewMode === 'data' ? (
+                                tableData.length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                                        <Database size={40} className="opacity-20 mb-2" />
+                                        <p className="text-sm">No records found.</p>
                                     </div>
-                                ) : viewMode === 'data' ? (
-                                    tableData.length === 0 ? (
-                                        <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                                            <Database size={40} className="opacity-20 mb-2" />
-                                            <p className="text-sm">No records found.</p>
-                                        </div>
-                                    ) : (
-                                        <table className="w-full text-left text-xs border-collapse">
-                                            <thead className="bg-black/50 sticky top-0 z-10 text-gray-400 font-mono">
-                                                <tr>
-                                                    {Object.keys(tableData[0]).map(key => (
-                                                        <th key={key} className="p-3 border-b border-white/10 whitespace-nowrap bg-black">{key}</th>
+                                ) : (
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead className="bg-black/50 sticky top-0 z-10 text-gray-400 font-mono">
+                                            <tr>
+                                                {Object.keys(tableData[0]).map(key => (
+                                                    <th key={key} className="p-3 border-b border-white/10 whitespace-nowrap bg-black">{key}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5 font-mono">
+                                            {tableData.map((row, i) => (
+                                                <tr key={i} className="hover:bg-white/5 transition">
+                                                    {Object.values(row).map((val: any, j) => (
+                                                        <td key={j} className="p-3 whitespace-nowrap text-gray-300 max-w-[200px] truncate">
+                                                            {typeof val === 'object' ? JSON.stringify(val) : String(val)}
+                                                        </td>
                                                     ))}
                                                 </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-white/5 font-mono">
-                                                {tableData.map((row, i) => (
-                                                    <tr key={i} className="hover:bg-white/5 transition">
-                                                        {Object.values(row).map((val: any, j) => (
-                                                            <td key={j} className="p-3 whitespace-nowrap text-gray-300 max-w-[200px] truncate">
-                                                                {typeof val === 'object' ? JSON.stringify(val) : String(val)}
-                                                            </td>
-                                                        ))}
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    )
-                                ) : (
-                                    <div className="p-6">
-                                        <div className="bg-black/50 border border-white/10 rounded-xl p-4 font-mono text-xs text-green-400 whitespace-pre-wrap">
-                                            {`-- Schema for ${selectedTable} (Auto-Generated View)\n`}
-                                            {tableData.length > 0 && Object.keys(tableData[0]).map(key => {
-                                                const val = tableData[0][key];
-                                                const type = typeof val;
-                                                return `${key}: ${type === 'object' ? 'json/array' : type}`;
-                                            }).join('\n')}
-                                            {tableData.length === 0 && "-- No data available to infer schema."}
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )
+                            ) : (
+                                <div className="p-6">
+                                    <div className="bg-black/50 border border-white/10 rounded-xl p-4 font-mono text-xs text-green-400 whitespace-pre-wrap">
+                                        {`-- Schema for ${selectedTable} (Auto-Generated View)\n`}
+                                        {tableData.length > 0 && Object.keys(tableData[0]).map(key => {
+                                            const val = tableData[0][key];
+                                            const type = typeof val;
+                                            return `${key}: ${type === 'object' ? 'json/array' : type}`;
+                                        }).join('\n')}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'backups' && (
+                <div className="space-y-6">
+                    <GlassCard className="bg-cyan-950/10 border-cyan-500/30 flex justify-between items-center">
+                        <div>
+                            <h3 className="font-bold text-white text-lg">Secure Backup Vault</h3>
+                            <p className="text-xs text-gray-400">Encrypted JSON dumps of all tables.</p>
+                        </div>
+                        <button 
+                            onClick={handleBackup}
+                            disabled={processingBackup}
+                            className="bg-cyan-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-cyan-500 transition shadow-lg shadow-cyan-900/50 disabled:opacity-50"
+                        >
+                            {processingBackup ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
+                            {processingBackup ? `Backing Up ${backupProgress}%` : 'Create New Backup'}
+                        </button>
+                    </GlassCard>
+
+                    <div className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden">
+                        <div className="p-4 bg-white/5 border-b border-white/10 font-bold text-white text-sm flex items-center gap-2">
+                            <Clock size={16}/> Backup History
+                        </div>
+                        <div className="divide-y divide-white/5">
+                            {backups.length === 0 ? (
+                                <div className="p-8 text-center text-gray-500">No backups found in storage bucket 'db-backups'.</div>
+                            ) : (
+                                backups.map(file => (
+                                    <div key={file.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center border border-blue-500/30">
+                                                <FileJson size={20} />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-white">{file.name}</p>
+                                                <p className="text-[10px] text-gray-500">{new Date(file.created_at).toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleDownloadBackup(file.name)} className="p-2 bg-white/5 hover:bg-green-500/20 text-green-400 rounded transition"><HardDriveDownload size={16}/></button>
+                                            <button onClick={() => handleDeleteBackup(file.name)} className="p-2 bg-white/5 hover:bg-red-500/20 text-red-400 rounded transition"><Trash2 size={16}/></button>
                                         </div>
                                     </div>
-                                )}
-                            </div>
+                                ))
+                            )}
                         </div>
-                    </motion.div>
-                )}
+                    </div>
+                </div>
+            )}
 
-                {/* 3. RECOVERY VAULT */}
-                {activeTab === 'backups' && (
-                    <motion.div key="backups" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-                        <GlassCard className="bg-cyan-950/10 border-cyan-500/30 flex justify-between items-center">
-                            <div>
-                                <h3 className="font-bold text-white text-lg">Secure Backup Vault</h3>
-                                <p className="text-xs text-gray-400">Encrypted JSON dumps of all tables.</p>
-                            </div>
-                            <button 
-                                onClick={handleBackup}
-                                disabled={processingBackup}
-                                className="bg-cyan-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-cyan-500 transition shadow-lg shadow-cyan-900/50 disabled:opacity-50"
-                            >
-                                {processingBackup ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
-                                {processingBackup ? `Backing Up ${backupProgress}%` : 'Create New Backup'}
-                            </button>
-                        </GlassCard>
-
-                        <div className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden">
-                            <div className="p-4 bg-white/5 border-b border-white/10 font-bold text-white text-sm flex items-center gap-2">
-                                <Clock size={16}/> Backup History
-                            </div>
-                            <div className="divide-y divide-white/5">
-                                {backups.length === 0 ? (
-                                    <div className="p-8 text-center text-gray-500">No backups found in storage bucket 'db-backups'.</div>
-                                ) : (
-                                    backups.map(file => (
-                                        <div key={file.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center border border-blue-500/30">
-                                                    <FileJson size={20} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-white">{file.name}</p>
-                                                    <p className="text-[10px] text-gray-500">{new Date(file.created_at).toLocaleString()}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => handleDownloadBackup(file.name)} className="p-2 bg-white/5 hover:bg-green-500/20 text-green-400 rounded transition"><HardDriveDownload size={16}/></button>
-                                                <button onClick={() => handleDeleteBackup(file.name)} className="p-2 bg-white/5 hover:bg-red-500/20 text-red-400 rounded transition"><Trash2 size={16}/></button>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
+            {activeTab === 'tools' && (
+                <div className="space-y-8">
+                    
+                    {/* Setup Tools */}
+                    <div>
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <Cpu size={16} /> Initialization Scripts
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {SQL_TOOLS.setup.map((tool, idx) => (
+                                <GlassCard key={idx} className="border border-blue-500/20 bg-blue-900/10 hover:border-blue-500/40 transition group">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 group-hover:scale-110 transition"><Code size={20}/></div>
+                                        <button onClick={() => copySQL(tool.sql)} className="text-[10px] bg-black/40 hover:bg-blue-600 text-gray-400 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
+                                            <Copy size={10}/> Copy SQL
+                                        </button>
+                                    </div>
+                                    <h4 className="font-bold text-white text-sm mb-1">{tool.title}</h4>
+                                    <p className="text-xs text-gray-400 mb-3 h-8">{tool.desc}</p>
+                                </GlassCard>
+                            ))}
                         </div>
-                    </motion.div>
-                )}
+                    </div>
 
-                {/* 4. SYSTEM TOOLS */}
-                {activeTab === 'tools' && (
-                    <motion.div key="tools" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
-                        
-                        {/* Setup Tools */}
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <Cpu size={16} /> Initialization Scripts
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {SQL_TOOLS.setup.map((tool, idx) => (
-                                    <GlassCard key={idx} className="border border-blue-500/20 bg-blue-900/10 hover:border-blue-500/40 transition group">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 group-hover:scale-110 transition"><Code size={20}/></div>
-                                            <button onClick={() => copySQL(tool.sql)} className="text-[10px] bg-black/40 hover:bg-blue-600 text-gray-400 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
-                                                <Copy size={10}/> Copy SQL
-                                            </button>
-                                        </div>
-                                        <h4 className="font-bold text-white text-sm mb-1">{tool.title}</h4>
-                                        <p className="text-xs text-gray-400 mb-3 h-8">{tool.desc}</p>
-                                        <div className="bg-black/50 p-2 rounded border border-white/10 h-20 overflow-y-auto custom-scrollbar">
-                                            <pre className="text-[9px] font-mono text-blue-300 whitespace-pre-wrap">{tool.sql}</pre>
-                                        </div>
-                                    </GlassCard>
-                                ))}
-                            </div>
+                    {/* Maintenance & Fixes */}
+                    <div>
+                        <h3 className="text-sm font-bold text-yellow-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <Activity size={16} /> Maintenance & Fixes
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {SQL_TOOLS.maintenance.map((tool, idx) => (
+                                <GlassCard key={idx} className="border border-yellow-500/20 bg-yellow-900/10 hover:border-yellow-500/40 transition group">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="p-2 bg-yellow-500/20 rounded-lg text-yellow-400 group-hover:scale-110 transition"><Terminal size={20}/></div>
+                                        <button onClick={() => copySQL(tool.sql)} className="text-[10px] bg-black/40 hover:bg-yellow-600 text-gray-400 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
+                                            <Copy size={10}/> Copy SQL
+                                        </button>
+                                    </div>
+                                    <h4 className="font-bold text-white text-sm mb-1">{tool.title}</h4>
+                                    <p className="text-xs text-gray-400 mb-3 h-8">{tool.desc}</p>
+                                </GlassCard>
+                            ))}
                         </div>
+                    </div>
 
-                        {/* Danger Zone */}
-                        <div>
-                            <h3 className="text-sm font-bold text-red-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <AlertOctagon size={16} /> Danger Zone
-                            </h3>
-                            <div className="grid grid-cols-1 gap-4">
-                                {SQL_TOOLS.danger.map((tool, idx) => (
-                                    <GlassCard key={idx} className="border border-red-500/30 bg-red-950/10 relative overflow-hidden">
-                                        <div className="absolute right-0 top-0 p-4 opacity-10"><Skull size={100} className="text-red-500"/></div>
-                                        <div className="relative z-10 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-                                            <div>
-                                                <h4 className="font-bold text-red-400 text-lg mb-1 flex items-center gap-2"><AlertTriangle size={18}/> {tool.title}</h4>
-                                                <p className="text-xs text-gray-400 max-w-md">{tool.desc}</p>
-                                            </div>
-                                            <div className="w-full md:w-1/2 bg-black/50 p-3 rounded-xl border border-red-500/20 flex gap-3 items-center">
-                                                <pre className="text-[10px] font-mono text-red-300 flex-1 overflow-x-auto no-scrollbar">{tool.sql}</pre>
-                                                <button onClick={() => copySQL(tool.sql)} className="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500 hover:text-white transition"><Copy size={14}/></button>
-                                            </div>
+                    {/* Danger Zone */}
+                    <div>
+                        <h3 className="text-sm font-bold text-red-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <AlertOctagon size={16} /> Danger Zone
+                        </h3>
+                        <div className="grid grid-cols-1 gap-4">
+                            {SQL_TOOLS.danger.map((tool, idx) => (
+                                <GlassCard key={idx} className="border border-red-500/30 bg-red-950/10 relative overflow-hidden">
+                                    <div className="absolute right-0 top-0 p-4 opacity-10"><Skull size={100} className="text-red-500"/></div>
+                                    <div className="relative z-10 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-red-400 text-lg mb-1 flex items-center gap-2"><AlertTriangle size={18}/> {tool.title}</h4>
+                                            <p className="text-xs text-gray-400 max-w-md">{tool.desc}</p>
                                         </div>
-                                    </GlassCard>
-                                ))}
-                            </div>
+                                        <button onClick={() => copySQL(tool.sql)} className="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500 hover:text-white transition"><Copy size={14}/></button>
+                                    </div>
+                                </GlassCard>
+                            ))}
                         </div>
+                    </div>
 
-                    </motion.div>
-                )}
+                </div>
+            )}
 
-            </AnimatePresence>
         </div>
     );
 };

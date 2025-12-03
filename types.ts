@@ -11,6 +11,13 @@ export interface InvestmentPlan {
   is_active?: boolean;
 }
 
+export interface TaskRequirement {
+  id: string;
+  type: 'text' | 'image' | 'code';
+  label: string;
+  required: boolean;
+}
+
 // NEW: Marketplace Task Interface
 export interface MarketTask {
   id: string;
@@ -23,8 +30,9 @@ export interface MarketTask {
   remaining_quantity: number;
   price_per_action: number;
   worker_reward: number; // The 70% share
-  proof_type: 'screenshot' | 'text' | 'auto';
-  timer_seconds?: number; // Minimum time user must wait
+  proof_type: 'screenshot' | 'text' | 'auto' | 'complex'; // Added complex
+  requirements?: TaskRequirement[]; // New structured requirements
+  timer_seconds?: number; 
   status: 'active' | 'paused' | 'completed' | 'banned';
   created_at: string;
 }
@@ -33,7 +41,8 @@ export interface MarketSubmission {
   id: string;
   task_id: string;
   worker_id: string;
-  proof_data?: string;
+  proof_data?: string; // Legacy
+  submission_data?: Record<string, string>; // New structured data { "req_id": "answer/url" }
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
 }
@@ -149,6 +158,12 @@ export interface Game {
   icon?: any;
 }
 
+export interface GameConfig {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
+
 export interface VideoShort {
   id: string;
   username: string;
@@ -202,6 +217,7 @@ export interface WithdrawRequest {
     user_id: string;
     amount: number;
     method: string;
+    account_number?: string; // Target ID/Phone
     status: 'pending' | 'approved' | 'rejected';
     created_at: string;
     processed_at?: string;
