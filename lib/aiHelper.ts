@@ -125,10 +125,6 @@ export const analyzeDepositScreenshot = async (
   sessionStartTime?: string
 ) => {
   try {
-    // Note: DeepSeek-Chat might not support Vision. If it fails, we catch the error.
-    // For robust vision, you might need a different endpoint or model (e.g. DeepSeek-VL if hosted).
-    // Assuming standard OpenAI-compatible vision payload structure.
-    
     let timePrompt = "";
     if (sessionStartTime) {
         const startDate = new Date(sessionStartTime);
@@ -237,53 +233,119 @@ export const analyzeKYCDocuments = async (
   }
 };
 
-// --- 3. Analyze Task Proof (Micro Jobs) ---
-export const analyzeTaskProof = async (
-    taskTitle: string,
-    taskDescription: string,
-    proofData: string,
-    proofType: 'text' | 'screenshot' | 'auto'
-) => {
+// --- 3. CREATE TASK REFERENCE (CREATOR PHASE) ---
+export const analyzeTaskReference = async (imageUrl: string, category: string) => {
     try {
-        const basePrompt = `
-            You are a Micro-Job Verification AI. Prevent fraud.
-            Task: "${taskTitle}"
-            Instructions: "${taskDescription}"
-            Expected Proof: ${proofType}
-            User Submission: "${proofData}"
+        let specificPrompt = "";
+        switch (category) {
+            case 'youtube': 
+            case 'video':
+                specificPrompt = "Identify if the 'Subscribe' button is active or grayed out (Subscribed). Extract the Channel Name and Subscriber Count. Check for 'Liked' status.";
+                break;
+            case 'social':
+                specificPrompt = "Look for 'Follow', 'Following', or 'Liked' indicators. Extract the profile username.";
+                break;
+            case 'app':
+                specificPrompt = "Identify the main UI elements, header text, and prominent button colors.";
+                break;
+            default:
+                specificPrompt = "Extract all visible text and dominant colors.";
+        }
 
-            Evaluate if the user's submission is valid.
-            Return JSON:
+        const prompt = `
+            You are analyzing a reference image for a micro-task campaign.
+            Category: ${category}
+            
+            ${specificPrompt}
+
+            Your Goal:
+            1. Create a "Visual DNA" summary of key features (text, colors, status) that a worker's proof must match.
+            2. Generate a Verification Quiz Question based on visual details (e.g. "What is the color of the X button?", "What number is visible next to Y?").
+
+            Return ONLY JSON:
             {
-                "verdict": "approved" | "rejected" | "manual_review",
-                "confidence": number (0-100),
-                "reason": "Short reason"
+                "visual_dna": {
+                    "required_text": ["list", "of", "strings"],
+                    "required_status": "string (e.g. Subscribed)",
+                    "dominant_colors": ["color1", "color2"],
+                    "key_objects": ["list", "of", "objects"]
+                },
+                "quiz": {
+                    "question": "The question string",
+                    "options": ["Option A", "Option B", "Option C", "Option D"],
+                    "correct_index": 0
+                }
             }
         `;
 
-        const messages = [];
-        if (proofType === 'screenshot' && proofData.startsWith('http')) {
-             messages.push({
+        const messages = [
+            {
                 role: "user",
                 content: [
-                    { type: "text", text: basePrompt },
-                    { type: "image_url", image_url: { url: proofData } }
+                    { type: "text", text: prompt },
+                    { type: "image_url", image_url: { url: imageUrl } }
                 ]
-            });
-        } else {
-            messages.push({ role: "user", content: basePrompt });
-        }
+            }
+        ];
 
         const result = await callDeepSeek(messages, true);
         return JSON.parse(result || "{}");
 
     } catch (error) {
-        console.error("Task AI Error:", error);
-        return { verdict: "manual_review", confidence: 0, reason: "AI Service Unavailable" };
+        console.error("Task Ref Analysis Error:", error);
+        return {
+            visual_dna: {},
+            quiz: {
+                question: "What is the primary color of the app logo?",
+                options: ["Red", "Blue", "Green", "Yellow"],
+                correct_index: 1
+            }
+        };
     }
 };
 
-// --- 4. User Risk Analysis (Activity Watchdog) ---
+// --- 4. VERIFY WORKER SUBMISSION (WORKER PHASE) ---
+export const verifyTaskSubmission = async (workerImageUrl: string, referenceDNA: any) => {
+    try {
+        const prompt = `
+            You are an AI Task Verifier.
+            
+            Compare the provided Worker Screenshot against this Reference DNA:
+            ${JSON.stringify(referenceDNA)}
+
+            Verification Rules:
+            1. Does the image contain the 'required_text'?
+            2. Does it show the 'required_status' (e.g. Subscribed)?
+            3. Do the colors and objects match the reference DNA?
+            
+            Return ONLY JSON:
+            {
+                "match": boolean,
+                "confidence": number (0-100),
+                "reason": "Why it matched or failed"
+            }
+        `;
+
+        const messages = [
+            {
+                role: "user",
+                content: [
+                    { type: "text", text: prompt },
+                    { type: "image_url", image_url: { url: workerImageUrl } }
+                ]
+            }
+        ];
+
+        const result = await callDeepSeek(messages, true);
+        return JSON.parse(result || "{}");
+
+    } catch (error) {
+        console.error("Submission Verify Error:", error);
+        return { match: false, confidence: 0, reason: "AI Verification Failed" };
+    }
+};
+
+// --- 5. User Risk Analysis (Activity Watchdog) ---
 export const analyzeUserRisk = async (
   userProfile: any,
   recentTransactions: any[],

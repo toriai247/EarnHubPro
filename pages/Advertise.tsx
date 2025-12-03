@@ -2,61 +2,43 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
-  Megaphone, Plus, DollarSign, LayoutList, 
-  Trash2, Pause, Play, Globe, Save, X, 
-  CheckCircle2, AlertCircle, BarChart3, Calculator, Users, Clock, FileText, Image as ImageIcon, ExternalLink, RefreshCw 
+  Megaphone, Plus, DollarSign, Globe, Trash2, Pause, Play, 
+  Calculator, UploadCloud, Sparkles, Bot, Loader2, RefreshCw, X, CheckCircle2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
-import { WalletData, MarketTask, MarketSubmission, TaskRequirement } from '../types';
+import { WalletData, MarketTask, QuizConfig } from '../types';
 import { updateWallet, createTransaction } from '../lib/actions';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
+import { analyzeTaskReference } from '../lib/aiHelper';
 
 const Advertise: React.FC = () => {
   const { toast, confirm } = useUI();
   const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [activeTab, setActiveTab] = useState<'manage' | 'create' | 'review'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'create'>('manage');
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<MarketTask[]>([]);
-  const [submissions, setSubmissions] = useState<any[]>([]);
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
   
   // Create Form State
-  const [useBudgetMode, setUseBudgetMode] = useState(false);
   const [form, setForm] = useState({
       title: '',
       description: '',
       url: '',
-      category: 'website',
+      category: 'social', // Default to social
       quantity: 100,
-      totalBudget: 10.00,
       pricePerAction: 0.05,
-      timer: 10
+      timer: 15
   });
   
-  // Requirements Builder State
-  const [requirements, setRequirements] = useState<TaskRequirement[]>([]);
-
+  // AI Quiz Generator State
+  const [screenshot, setScreenshot] = useState<File | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [generatedData, setGeneratedData] = useState<{ quiz: QuizConfig, dna: any } | null>(null);
+  
   useEffect(() => {
     fetchData();
   }, []);
-
-  useEffect(() => {
-      if (activeTab === 'review') {
-          fetchSubmissions();
-      }
-  }, [activeTab]);
-
-  // Recalculate based on mode
-  useEffect(() => {
-      if (useBudgetMode) {
-          const qty = Math.floor(form.totalBudget / form.pricePerAction);
-          setForm(prev => ({ ...prev, quantity: qty }));
-      } else {
-          const budget = form.quantity * form.pricePerAction;
-          setForm(prev => ({ ...prev, totalBudget: budget }));
-      }
-  }, [form.totalBudget, form.quantity, form.pricePerAction, useBudgetMode]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -80,102 +62,82 @@ const Advertise: React.FC = () => {
     }
   };
 
-  const fetchSubmissions = async () => {
-      setSubmissionError(null);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      // V1 STYLE: Direct Query with Inner Join on Tasks created by Me
-      try {
-          const { data, error } = await supabase
-              .from('marketplace_submissions')
-              .select(`
-                  *,
-                  marketplace_tasks!inner(title, creator_id, worker_reward),
-                  profiles(name_1)
-              `)
-              .eq('marketplace_tasks.creator_id', session.user.id) // Only my tasks
-              .eq('status', 'pending')
-              .order('created_at', { ascending: false });
-
-          if (error) throw error;
-
-          if (data) {
-              const formatted = data.map((s: any) => ({
-                  ...s,
-                  task_title: s.marketplace_tasks?.title || 'Unknown Task',
-                  worker_name: s.profiles?.name_1 || 'Worker',
-                  reward: s.marketplace_tasks?.worker_reward || 0
-              }));
-              setSubmissions(formatted);
-          } else {
-              setSubmissions([]);
-          }
-      } catch (err: any) {
-          console.error("Review Fetch Error:", err);
-          setSubmissionError("Please run 'Enable V1 Compatibility' in Admin > Database Ultra.");
+  const handleAnalyzeImage = async () => {
+      if (!screenshot) {
+          toast.error("Please upload a screenshot first.");
+          return;
       }
-  };
+      setIsAnalyzing(true);
+      try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) throw new Error("No session");
 
-  const handleAddRequirement = (type: 'text' | 'image') => {
-      const newReq: TaskRequirement = {
-          id: `req_${Date.now()}`,
-          type,
-          label: '',
-          required: true
-      };
-      setRequirements([...requirements, newReq]);
-  };
+          // 1. Upload
+          const fileExt = screenshot.name.split('.').pop();
+          const fileName = `temp_ai/${session.user.id}_${Date.now()}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage.from('task-proofs').upload(fileName, screenshot);
+          if (uploadError) throw uploadError;
+          
+          const { data: urlData } = supabase.storage.from('task-proofs').getPublicUrl(fileName);
+          const imageUrl = urlData.publicUrl;
 
-  const handleRemoveRequirement = (id: string) => {
-      setRequirements(requirements.filter(r => r.id !== id));
-  };
+          // 2. Analyze Reference (Quiz + DNA)
+          const result = await analyzeTaskReference(imageUrl, form.category);
+          
+          if (!result.quiz || !result.visual_dna) {
+              throw new Error("AI could not extract enough data. Try a clearer image.");
+          }
 
-  const handleRequirementChange = (id: string, val: string) => {
-      setRequirements(requirements.map(r => r.id === id ? { ...r, label: val } : r));
+          setGeneratedData({
+              quiz: result.quiz,
+              dna: result.visual_dna
+          });
+          toast.success("AI Analysis Complete!");
+
+      } catch (e: any) {
+          toast.error("Analysis Failed: " + e.message);
+      } finally {
+          setIsAnalyzing(false);
+      }
   };
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!wallet) return;
-
-      const totalCost = form.totalBudget;
-      if (wallet.deposit_balance < totalCost) {
-          toast.error(`Insufficient Deposit Balance. Need $${totalCost.toFixed(2)}`);
+      
+      const totalBudget = form.quantity * form.pricePerAction;
+      if (wallet.deposit_balance < totalBudget) {
+          toast.error(`Insufficient Deposit Balance. Need $${totalBudget.toFixed(2)}`);
           return;
       }
 
-      if (form.quantity < 1) {
-          toast.error("Quantity must be at least 1");
+      if (!generatedData) {
+          toast.error("Please analyze a screenshot first to generate AI Verification data.");
           return;
       }
 
-      if (requirements.length === 0 && form.timer < 5) {
-          toast.error("Please add requirements or set a timer > 5s");
-          return;
-      }
-
-      if (!await confirm(`Create Campaign for $${totalCost.toFixed(2)}?`)) return;
+      if (!await confirm(`Publish Campaign? Total Cost: $${totalBudget.toFixed(2)}`)) return;
 
       try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) return;
 
-          await updateWallet(session.user.id, totalCost, 'decrement', 'deposit_balance');
-          await createTransaction(session.user.id, 'invest', totalCost, `Ad Campaign: ${form.title}`);
+          await updateWallet(session.user.id, totalBudget, 'decrement', 'deposit_balance');
+          await createTransaction(session.user.id, 'invest', totalBudget, `Ad Campaign: ${form.title}`);
 
           const { error } = await supabase.from('marketplace_tasks').insert({
               creator_id: session.user.id,
               title: form.title,
-              description: form.description,
-              category: form.category,
+              description: form.description || "Visit the link and verify completion.",
+              category: form.category as any,
               target_url: form.url,
               total_quantity: form.quantity,
               remaining_quantity: form.quantity,
               price_per_action: form.pricePerAction, 
               worker_reward: form.pricePerAction * 0.7, 
-              proof_type: requirements.length > 0 ? 'complex' : 'auto',
-              requirements: requirements,
+              proof_type: 'ai_quiz',
+              quiz_config: generatedData.quiz,
+              ai_reference_data: generatedData.dna, // SAVE THE VISUAL DNA
               timer_seconds: form.timer,
               status: 'active'
           });
@@ -184,13 +146,14 @@ const Advertise: React.FC = () => {
 
           toast.success("Campaign Published!");
           setForm({ ...form, title: '', description: '', url: '' });
-          setRequirements([]);
+          setGeneratedData(null);
+          setScreenshot(null);
           setActiveTab('manage');
           fetchData();
 
       } catch (e: any) {
-          if (e.message?.includes('marketplace_tasks_proof_type_check')) {
-             toast.error("Database Update Required: Ask Admin to run 'Task System 2.0 Upgrade'.");
+          if (e.message?.includes('violates check constraint')) {
+             toast.error("Database Update Required: Run 'Factory Reset: Task System V4.1' in Admin.");
           } else {
              toast.error("Error: " + e.message);
           }
@@ -204,42 +167,6 @@ const Advertise: React.FC = () => {
       toast.success("Campaign Deleted");
   };
 
-  const handleToggle = async (task: MarketTask) => {
-      const newStatus = task.status === 'active' ? 'paused' : 'active';
-      await supabase.from('marketplace_tasks').update({ status: newStatus }).eq('id', task.id);
-      fetchData();
-  };
-
-  const handleReviewAction = async (submission: any, action: 'approve' | 'reject') => {
-      try {
-          const { error } = await supabase
-              .from('marketplace_submissions')
-              .update({ status: action === 'approve' ? 'approved' : 'rejected' })
-              .eq('id', submission.id);
-
-          if (error) throw error;
-
-          if (action === 'approve') {
-              // Get reward from submission join
-              const reward = submission.reward || 0;
-              await updateWallet(submission.worker_id, reward, 'increment', 'earning_balance');
-              await updateWallet(submission.worker_id, reward, 'increment', 'total_earning');
-              await updateWallet(submission.worker_id, reward, 'increment', 'today_earning');
-              await createTransaction(submission.worker_id, 'earn', reward, `Task Approved: ${submission.task_title}`);
-              toast.success("Approved & Worker Paid");
-          } 
-          else {
-              await supabase.rpc('increment_task_quantity', { task_id: submission.task_id });
-              toast.info("Rejected. Task slot restored.");
-          }
-
-          setSubmissions(prev => prev.filter(s => s.id !== submission.id));
-
-      } catch (e: any) {
-          toast.error("Action failed: " + e.message);
-      }
-  };
-
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0">
         
@@ -247,9 +174,9 @@ const Advertise: React.FC = () => {
         <div className="flex justify-between items-end pt-4">
             <div>
                 <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                    <Megaphone className="text-purple-500" /> Advertise
+                    <Megaphone className="text-purple-500" /> Advertise AI
                 </h1>
-                <p className="text-gray-400 text-xs">Create tasks & promote your content.</p>
+                <p className="text-gray-400 text-xs">Smart campaigns with Visual Matching & Quiz Verification.</p>
             </div>
             <div className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl text-right">
                 <p className="text-[10px] text-gray-500 font-bold uppercase">Ad Budget</p>
@@ -259,175 +186,167 @@ const Advertise: React.FC = () => {
 
         {/* TABS */}
         <div className="flex bg-[#111] p-1 rounded-xl border border-[#222]">
-            <button 
-                onClick={() => setActiveTab('manage')}
-                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition ${activeTab === 'manage' ? 'bg-[#222] text-white' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-                Campaigns
-            </button>
-            <button 
-                onClick={() => setActiveTab('create')}
-                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition ${activeTab === 'create' ? 'bg-[#222] text-white' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-                Create New
-            </button>
-            <button 
-                onClick={() => setActiveTab('review')}
-                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition flex items-center justify-center gap-2 ${activeTab === 'review' ? 'bg-[#222] text-white' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-                Inbox {submissions.length > 0 && <span className="bg-red-500 text-white text-[9px] px-1.5 rounded-full">{submissions.length}</span>}
-            </button>
+            <button onClick={() => setActiveTab('manage')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition ${activeTab === 'manage' ? 'bg-[#222] text-white' : 'text-gray-500'}`}>My Campaigns</button>
+            <button onClick={() => setActiveTab('create')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition ${activeTab === 'create' ? 'bg-[#222] text-white' : 'text-gray-500'}`}>Create New</button>
         </div>
 
         {/* --- CREATE TAB --- */}
         {activeTab === 'create' && (
             <div className="space-y-6 animate-fade-in">
                 <div className="bg-[#111] border border-[#222] rounded-2xl p-6">
-                    <form onSubmit={handleCreateCampaign} className="space-y-5">
+                    <form onSubmit={handleCreateCampaign} className="space-y-6">
+                        
+                        {/* Step 1: Basic Info */}
                         <div className="space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Campaign Title</label>
-                                <input 
-                                    required 
-                                    type="text" 
-                                    value={form.title} 
-                                    onChange={e => setForm({...form, title: e.target.value})}
-                                    className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none"
-                                    placeholder="e.g. Subscribe to my Channel"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Target URL</label>
-                                <input 
-                                    required 
-                                    type="url" 
-                                    value={form.url} 
-                                    onChange={e => setForm({...form, url: e.target.value})}
-                                    className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none"
-                                    placeholder="https://..."
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-2">Step 1: Campaign Details</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Category</label>
-                                    <select 
-                                        value={form.category} 
-                                        onChange={e => setForm({...form, category: e.target.value})}
-                                        className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none"
-                                    >
-                                        <option value="website">Website Visit</option>
-                                        <option value="video">Watch Video</option>
-                                        <option value="social">Social Media</option>
-                                        <option value="app">App Install</option>
-                                        <option value="review">Review/Rating</option>
-                                    </select>
+                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Title</label>
+                                    <input required type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none" placeholder="e.g. Join My Channel" />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Timer (Sec)</label>
-                                    <input 
-                                        type="number" 
-                                        min="5" 
-                                        max="300"
-                                        value={form.timer} 
-                                        onChange={e => setForm({...form, timer: parseInt(e.target.value)})}
-                                        className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Requirements Builder */}
-                        <div className="border-t border-[#222] pt-4">
-                            <div className="flex justify-between items-center mb-3">
-                                <label className="text-xs font-bold text-white uppercase">Proof Requirements</label>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={() => handleAddRequirement('text')} className="px-3 py-1.5 bg-[#222] text-white text-[10px] font-bold rounded hover:bg-[#333]">+ Question</button>
-                                    <button type="button" onClick={() => handleAddRequirement('image')} className="px-3 py-1.5 bg-[#222] text-white text-[10px] font-bold rounded hover:bg-[#333]">+ Screenshot</button>
+                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Target URL</label>
+                                    <input required type="url" value={form.url} onChange={e => setForm({...form, url: e.target.value})} className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none" placeholder="https://..." />
                                 </div>
                             </div>
                             
-                            <div className="space-y-2 mb-4">
-                                {requirements.map((req, idx) => (
-                                    <div key={req.id} className="flex gap-2 items-center bg-black/30 p-2 rounded-lg border border-[#333]">
-                                        <span className="text-[10px] bg-[#222] text-gray-400 px-2 py-1 rounded uppercase">{req.type}</span>
-                                        <input 
-                                            type="text" 
-                                            value={req.label} 
-                                            onChange={e => handleRequirementChange(req.id, e.target.value)}
-                                            placeholder={req.type === 'text' ? 'e.g. What is your username?' : 'e.g. Upload screenshot of like'}
-                                            className="flex-1 bg-transparent text-xs text-white outline-none"
-                                        />
-                                        <button type="button" onClick={() => handleRemoveRequirement(req.id)} className="text-red-500 p-1"><X size={14}/></button>
-                                    </div>
-                                ))}
-                                {requirements.length === 0 && <p className="text-xs text-gray-500 italic">No proof required (Timer only).</p>}
+                            <div>
+                                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Category (Required for AI)</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['social', 'video', 'app', 'website', 'seo', 'review'].map(cat => (
+                                        <button 
+                                            key={cat}
+                                            type="button"
+                                            onClick={() => setForm({...form, category: cat})}
+                                            className={`py-2 rounded-lg text-xs font-bold capitalize border ${form.category === cat ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black/30 border-[#333] text-gray-500'}`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Workers</label>
+                                    <input required type="number" min="1" value={form.quantity} onChange={e => setForm({...form, quantity: parseInt(e.target.value)})} className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Cost/User</label>
+                                    <input required type="number" step="0.001" value={form.pricePerAction} onChange={e => setForm({...form, pricePerAction: parseFloat(e.target.value)})} className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Timer (s)</label>
+                                    <input required type="number" value={form.timer} onChange={e => setForm({...form, timer: parseInt(e.target.value)})} className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none" />
+                                </div>
                             </div>
                         </div>
 
-                        {/* BUDGET CALCULATOR */}
-                        <div className="bg-[#1a1a1a] p-4 rounded-xl border border-[#333]">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                                    <Calculator size={16}/> Budgeting
-                                </h3>
-                                <div className="flex items-center gap-2 bg-black/30 p-1 rounded-lg">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setUseBudgetMode(false)}
-                                        className={`px-3 py-1 rounded text-[10px] font-bold uppercase ${!useBudgetMode ? 'bg-purple-600 text-white' : 'text-gray-500'}`}
-                                    >
-                                        Fixed Qty
-                                    </button>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setUseBudgetMode(true)}
-                                        className={`px-3 py-1 rounded text-[10px] font-bold uppercase ${useBudgetMode ? 'bg-purple-600 text-white' : 'text-gray-500'}`}
-                                    >
-                                        Total Budget
-                                    </button>
-                                </div>
-                            </div>
+                        {/* Step 2: AI Verification Setup */}
+                        <div className="border-t border-[#222] pt-6">
+                            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2">
+                                <Sparkles className="text-purple-400" size={16}/> Step 2: AI Reference Analysis
+                            </h3>
+                            <p className="text-xs text-gray-400 mb-4">
+                                Upload a "Proof" screenshot (e.g. Subscribed state). The AI will extract a <strong>Visual DNA</strong> profile and a Quiz Question. Workers must match this DNA or answer the quiz.
+                            </p>
 
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">
-                                        {useBudgetMode ? 'Cost Per Worker' : 'Cost Per Worker'}
+                            <div className="flex flex-col md:flex-row gap-6">
+                                {/* Upload Box */}
+                                <div className="md:w-1/3">
+                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[#333] rounded-xl cursor-pointer hover:border-purple-500/50 hover:bg-purple-900/10 transition relative overflow-hidden">
+                                        {screenshot ? (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                                                <p className="text-white text-xs font-bold">{screenshot.name}</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                                <UploadCloud className="text-gray-400 mb-2"/>
+                                                <p className="text-xs text-gray-500">Upload Reference Image</p>
+                                            </div>
+                                        )}
+                                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files && setScreenshot(e.target.files[0])} />
                                     </label>
-                                    <input type="number" step="0.001" value={form.pricePerAction} onChange={e => setForm({...form, pricePerAction: parseFloat(e.target.value)})} className="w-full bg-black border border-[#333] rounded-lg p-2 text-white text-sm" />
+                                    
+                                    <button 
+                                        type="button"
+                                        onClick={handleAnalyzeImage}
+                                        disabled={isAnalyzing || !screenshot}
+                                        className="w-full mt-3 py-2 bg-purple-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 hover:bg-purple-500 disabled:opacity-50"
+                                    >
+                                        {isAnalyzing ? <Loader2 className="animate-spin" size={14}/> : <Bot size={14}/>} Analyze Reference
+                                    </button>
                                 </div>
-                                <div>
-                                    <label className="text-[10px] text-gray-500 uppercase font-bold block mb-1">
-                                        {useBudgetMode ? 'Total Budget ($)' : 'Target Workers'}
-                                    </label>
-                                    {useBudgetMode ? (
-                                        <input type="number" step="1" value={form.totalBudget} onChange={e => setForm({...form, totalBudget: parseFloat(e.target.value)})} className="w-full bg-black border border-[#333] rounded-lg p-2 text-white text-sm" />
+
+                                {/* Preview Data */}
+                                <div className="md:w-2/3 bg-black/20 border border-[#333] rounded-xl p-4 relative">
+                                    {!generatedData ? (
+                                        <div className="flex flex-col items-center justify-center h-full text-gray-600">
+                                            <ImageIcon size={32} className="opacity-20 mb-2"/>
+                                            <p className="text-xs">Analysis results will appear here.</p>
+                                        </div>
                                     ) : (
-                                        <input type="number" step="1" value={form.quantity} onChange={e => setForm({...form, quantity: parseInt(e.target.value)})} className="w-full bg-black border border-[#333] rounded-lg p-2 text-white text-sm" />
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-start">
+                                                <h4 className="text-sm font-bold text-white flex items-center gap-2"><CheckCircle2 className="text-green-400" size={14}/> AI Profile Generated</h4>
+                                                <button type="button" onClick={() => setGeneratedData(null)} className="text-gray-500 hover:text-white"><X size={14}/></button>
+                                            </div>
+                                            
+                                            <div className="bg-black/30 p-2 rounded text-[10px] text-gray-400 font-mono">
+                                                DNA Extracted: {Object.keys(generatedData.dna).length} features (Colors, Text, UI Status).
+                                            </div>
+
+                                            <div className="mt-2">
+                                                <p className="text-xs font-bold text-gray-300 mb-1">Auto-Generated Quiz:</p>
+                                                <input 
+                                                    type="text" 
+                                                    value={generatedData.quiz.question}
+                                                    onChange={e => setGeneratedData({...generatedData, quiz: {...generatedData.quiz, question: e.target.value}})}
+                                                    className="w-full bg-black/40 border border-[#333] rounded-lg p-2 text-xs text-white mb-2"
+                                                />
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {generatedData.quiz.options.map((opt, idx) => (
+                                                        <div key={idx} className={`p-1.5 rounded border text-xs flex items-center gap-2 ${idx === generatedData.quiz.correct_index ? 'border-green-500 bg-green-900/20' : 'border-[#333]'}`}>
+                                                            <input 
+                                                                type="radio" 
+                                                                checked={idx === generatedData.quiz.correct_index}
+                                                                onChange={() => setGeneratedData({...generatedData, quiz: {...generatedData.quiz, correct_index: idx}})}
+                                                                className="accent-green-500"
+                                                            />
+                                                            <input 
+                                                                type="text" 
+                                                                value={opt}
+                                                                onChange={e => {
+                                                                    const newOpts = [...generatedData.quiz.options];
+                                                                    newOpts[idx] = e.target.value;
+                                                                    setGeneratedData({...generatedData, quiz: {...generatedData.quiz, options: newOpts}});
+                                                                }}
+                                                                className="bg-transparent outline-none w-full text-gray-300"
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             </div>
-                            
-                            <div className="flex justify-between items-center pt-2 border-t border-[#333]">
-                                {useBudgetMode ? (
-                                    <>
-                                        <span className="text-gray-400 text-xs font-bold">Est. Workers</span>
-                                        <span className="text-xl font-bold text-white">{form.quantity}</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <span className="text-gray-400 text-xs font-bold">Total Cost</span>
-                                        <span className="text-xl font-bold text-white">${form.totalBudget.toFixed(2)}</span>
-                                    </>
-                                )}
-                            </div>
                         </div>
 
-                        <button 
-                            type="submit" 
-                            className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition shadow-lg"
-                        >
-                            Publish Campaign
-                        </button>
+                        {/* Footer */}
+                        <div className="flex items-center justify-between border-t border-[#222] pt-4">
+                            <div className="text-xs">
+                                <p className="text-gray-400">Total Cost</p>
+                                <p className="text-xl font-bold text-white">${(form.quantity * form.pricePerAction).toFixed(2)}</p>
+                            </div>
+                            <button 
+                                type="submit" 
+                                disabled={!generatedData}
+                                className="px-8 py-3 bg-white text-black font-black rounded-xl hover:bg-gray-200 transition shadow-lg disabled:opacity-50"
+                            >
+                                PUBLISH CAMPAIGN
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -440,7 +359,6 @@ const Advertise: React.FC = () => {
                     <div className="text-center py-12 bg-[#111] rounded-2xl border border-[#222]">
                         <Globe size={32} className="mx-auto text-gray-600 mb-3"/>
                         <p className="text-gray-500 text-sm">No active campaigns.</p>
-                        <button onClick={() => setActiveTab('create')} className="mt-4 text-purple-400 text-xs font-bold hover:underline">Start Advertising</button>
                     </div>
                 ) : (
                     campaigns.map(task => (
@@ -448,7 +366,7 @@ const Advertise: React.FC = () => {
                             <div className="flex justify-between items-start mb-3">
                                 <div>
                                     <h3 className="font-bold text-white text-sm">{task.title}</h3>
-                                    <p className="text-xs text-gray-500 mt-0.5 capitalize">{task.category} • ${task.price_per_action}/user</p>
+                                    <p className="text-xs text-gray-500 mt-0.5 capitalize">{task.category} • {task.proof_type === 'ai_quiz' ? 'AI Auto-Verify' : 'Manual'}</p>
                                 </div>
                                 <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${task.status === 'active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
                                     {task.status}
@@ -457,7 +375,7 @@ const Advertise: React.FC = () => {
 
                             <div className="bg-[#1a1a1a] rounded-lg p-3 mb-4 border border-[#333]">
                                 <div className="flex justify-between text-[10px] text-gray-400 mb-1 uppercase font-bold">
-                                    <span>Progress</span>
+                                    <span>Completed</span>
                                     <span>{task.total_quantity - task.remaining_quantity} / {task.total_quantity}</span>
                                 </div>
                                 <div className="h-1.5 bg-[#333] rounded-full overflow-hidden">
@@ -470,90 +388,10 @@ const Advertise: React.FC = () => {
 
                             <div className="flex gap-2">
                                 <button 
-                                    onClick={() => handleToggle(task)}
-                                    className="flex-1 py-2 bg-[#222] text-white text-xs font-bold rounded hover:bg-[#333] flex items-center justify-center gap-1"
-                                >
-                                    {task.status === 'active' ? <Pause size={12}/> : <Play size={12}/>} {task.status === 'active' ? 'Pause' : 'Resume'}
-                                </button>
-                                <button 
                                     onClick={() => handleDelete(task.id)}
-                                    className="p-2 bg-red-900/20 text-red-400 rounded hover:bg-red-900/30"
+                                    className="p-2 bg-red-900/20 text-red-400 rounded hover:bg-red-900/30 w-full text-xs font-bold flex items-center justify-center gap-2"
                                 >
-                                    <Trash2 size={16}/>
-                                </button>
-                            </div>
-                        </GlassCard>
-                    ))
-                )}
-            </div>
-        )}
-
-        {/* --- REVIEW TAB --- */}
-        {activeTab === 'review' && (
-            <div className="space-y-4 animate-fade-in">
-                
-                <div className="flex justify-between items-center bg-[#111] p-2 rounded-xl border border-[#222]">
-                    <span className="text-xs text-gray-400 ml-2">Pending Reviews: {submissions.length}</span>
-                    <button onClick={fetchSubmissions} className="flex items-center gap-1 px-3 py-1.5 bg-[#222] text-white rounded-lg text-xs font-bold hover:bg-[#333]">
-                        <RefreshCw size={12} /> Refresh
-                    </button>
-                </div>
-
-                {submissionError && (
-                    <div className="p-3 bg-red-900/20 text-red-400 text-xs rounded-xl border border-red-500/20 flex items-center gap-2">
-                        <AlertCircle size={16}/> {submissionError}
-                    </div>
-                )}
-
-                {submissions.length === 0 && !submissionError ? (
-                    <div className="text-center py-12 bg-[#111] rounded-2xl border border-[#222]">
-                        <CheckCircle2 size={32} className="mx-auto text-green-600 mb-3 opacity-50"/>
-                        <p className="text-gray-500 text-sm">All submissions reviewed.</p>
-                        <p className="text-xs text-gray-600 mt-1">Click refresh to check for new ones.</p>
-                    </div>
-                ) : (
-                    submissions.map(sub => (
-                        <GlassCard key={sub.id} className="border border-[#222]">
-                            <div className="flex justify-between items-start mb-4 border-b border-[#222] pb-3">
-                                <div>
-                                    <h4 className="text-white font-bold text-sm">{sub.task_title}</h4>
-                                    <p className="text-xs text-gray-500">Worker: {sub.worker_name}</p>
-                                </div>
-                                <div className="text-[10px] text-yellow-500 bg-yellow-900/20 px-2 py-1 rounded font-bold uppercase">Pending Review</div>
-                            </div>
-
-                            <div className="space-y-3 mb-4">
-                                {Object.entries(sub.submission_data || {}).map(([key, value]: any) => (
-                                    <div key={key} className="bg-[#1a1a1a] p-3 rounded-lg border border-[#333]">
-                                        <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">
-                                            {key.includes('ss') ? 'Screenshot Proof' : 'Answer'}
-                                        </p>
-                                        {value.startsWith('http') && (value.includes('.png') || value.includes('.jpg') || value.includes('.jpeg')) ? (
-                                            <div className="relative group">
-                                                <img src={value} alt="Proof" className="w-full h-32 object-cover rounded border border-[#333]" />
-                                                <a href={value} target="_blank" className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold gap-1">
-                                                    <ExternalLink size={14}/> View Full
-                                                </a>
-                                            </div>
-                                        ) : (
-                                            <p className="text-white text-sm bg-black p-2 rounded">{value}</p>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="flex gap-2">
-                                <button 
-                                    onClick={() => handleReviewAction(sub, 'approve')}
-                                    className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2"
-                                >
-                                    <CheckCircle2 size={16}/> Approve & Pay
-                                </button>
-                                <button 
-                                    onClick={() => handleReviewAction(sub, 'reject')}
-                                    className="flex-1 py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-red-600/30"
-                                >
-                                    <X size={16}/> Reject
+                                    <Trash2 size={16}/> Delete Campaign
                                 </button>
                             </div>
                         </GlassCard>

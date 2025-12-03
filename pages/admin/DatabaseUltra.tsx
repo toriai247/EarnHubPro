@@ -6,10 +6,8 @@ import {
     Database, Download, Server, ShieldCheck, 
     FileJson, Clock, RefreshCw, Loader2, 
     Terminal, Save, Trash2, HardDrive, 
-    Copy, Table, AlertTriangle, Skull, 
-    Settings, GitFork, List, BarChart3, 
-    Search, Eye, Code, Activity, PieChart, 
-    Cpu, HardDriveDownload, AlertOctagon
+    Copy, List, BarChart3, Search, Code, Activity, PieChart, 
+    AlertOctagon, Skull, AlertTriangle, HardDriveDownload, Cpu
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 
@@ -21,28 +19,99 @@ const TABLE_LIST = [
     'deposit_bonuses', 'withdrawal_settings', 'user_withdrawal_methods',
     'crash_game_state', 'crash_bets', 'referral_tiers', 'ludo_cards',
     'spin_items', 'bot_profiles', 'help_requests', 'marketplace_tasks', 'marketplace_submissions',
-    'game_configs'
+    'game_configs', 'task_attempts'
 ];
 
 // SQL Templates Library
 const SQL_TOOLS = {
     setup: [
         {
-            title: 'Enable V1 Compatibility Mode',
-            desc: 'Fixes "No submissions" by making task data accessible to all creators (Simpler RLS).',
+            title: 'Factory Reset: Task System V4.1 (AI Vision)',
+            desc: 'Upgrades Task DB to support AI Visual DNA & Quiz verification.',
             sql: `
--- Simplifies RLS for V1 Style Access
+-- 1. DROP OLD TABLES (CLEAN SLATE)
+DROP TABLE IF EXISTS public.marketplace_submissions CASCADE;
+DROP TABLE IF EXISTS public.task_attempts CASCADE;
+DROP TABLE IF EXISTS public.marketplace_tasks CASCADE;
+
+-- 2. CREATE TASKS TABLE (With Visual DNA)
+CREATE TABLE public.marketplace_tasks (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    creator_id UUID REFERENCES auth.users(id) NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    category TEXT NOT NULL,
+    target_url TEXT NOT NULL,
+    total_quantity INTEGER NOT NULL DEFAULT 0,
+    remaining_quantity INTEGER NOT NULL DEFAULT 0,
+    price_per_action NUMERIC(10, 4) NOT NULL,
+    worker_reward NUMERIC(10, 4) NOT NULL,
+    proof_type TEXT DEFAULT 'ai_quiz', -- 'ai_quiz' or 'manual'
+    quiz_config JSONB DEFAULT '{}'::jsonb, -- { question, options, correct_index }
+    ai_reference_data JSONB DEFAULT '{}'::jsonb, -- Visual DNA features
+    requirements JSONB DEFAULT '[]'::jsonb, -- Legacy support
+    timer_seconds INTEGER DEFAULT 15,
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. CREATE ATTEMPTS TABLE (Anti-Cheat 2-Strike Rule)
+CREATE TABLE public.task_attempts (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    task_id UUID REFERENCES public.marketplace_tasks(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) NOT NULL,
+    attempts_count INTEGER DEFAULT 0,
+    last_attempt_at TIMESTAMPTZ DEFAULT NOW(),
+    is_locked BOOLEAN DEFAULT FALSE,
+    UNIQUE(task_id, user_id)
+);
+
+-- 4. CREATE SUBMISSIONS TABLE (History)
+CREATE TABLE public.marketplace_submissions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    task_id UUID REFERENCES public.marketplace_tasks(id) ON DELETE CASCADE,
+    worker_id UUID REFERENCES auth.users(id) NOT NULL,
+    submission_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT DEFAULT 'approved', -- Mostly approved instantly via AI
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. ENABLE SECURITY
+ALTER TABLE public.marketplace_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.marketplace_submissions ENABLE ROW LEVEL SECURITY;
+
+-- 6. POLICIES (PERMISSIONS)
+-- Tasks: Public read
+DROP POLICY IF EXISTS "Public read tasks" ON public.marketplace_tasks;
+CREATE POLICY "Public read tasks" ON public.marketplace_tasks FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Creators manage tasks" ON public.marketplace_tasks;
+CREATE POLICY "Creators manage tasks" ON public.marketplace_tasks FOR ALL USING (auth.uid() = creator_id);
+
+-- Attempts: Users manage their own
+DROP POLICY IF EXISTS "Users own attempts" ON public.task_attempts;
+CREATE POLICY "Users own attempts" ON public.task_attempts FOR ALL USING (auth.uid() = user_id);
+
+-- Submissions: Workers insert, Creators view
+DROP POLICY IF EXISTS "Workers insert own" ON public.marketplace_submissions;
+CREATE POLICY "Workers insert own" ON public.marketplace_submissions FOR INSERT WITH CHECK (auth.uid() = worker_id);
+DROP POLICY IF EXISTS "Workers view own" ON public.marketplace_submissions;
+CREATE POLICY "Workers view own" ON public.marketplace_submissions FOR SELECT USING (auth.uid() = worker_id);
+DROP POLICY IF EXISTS "Creators view submissions" ON public.marketplace_submissions;
+CREATE POLICY "Creators view submissions" ON public.marketplace_submissions FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.marketplace_tasks WHERE id = task_id AND creator_id = auth.uid())
+);
+`
+        }
+    ],
+    maintenance: [
+        {
+            title: 'Fix Submission Permissions',
+            desc: 'Run this if reviews are not showing up (RLS Fix).',
+            sql: `
 ALTER TABLE marketplace_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketplace_submissions ENABLE ROW LEVEL SECURITY;
 
--- 1. Tasks: Everyone can read, Creators can edit
-DROP POLICY IF EXISTS "Public read tasks" ON marketplace_tasks;
-CREATE POLICY "Public read tasks" ON marketplace_tasks FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Creators full access" ON marketplace_tasks;
-CREATE POLICY "Creators full access" ON marketplace_tasks FOR ALL USING (auth.uid() = creator_id);
-
--- 2. Submissions: Creators see ALL for their tasks, Workers see OWN
 DROP POLICY IF EXISTS "Creators view submissions" ON marketplace_submissions;
 CREATE POLICY "Creators view submissions" ON marketplace_submissions 
 FOR SELECT USING (
@@ -61,80 +130,14 @@ FOR UPDATE USING (
     WHERE marketplace_tasks.id = marketplace_submissions.task_id 
     AND marketplace_tasks.creator_id = auth.uid()
   )
-);
-
-DROP POLICY IF EXISTS "Workers manage own" ON marketplace_submissions;
-CREATE POLICY "Workers manage own" ON marketplace_submissions 
-FOR ALL USING (auth.uid() = worker_id);
-`
-        },
-        {
-            title: 'Factory Reset: Task System v3',
-            desc: 'Wipes old task tables and creates new secure tables.',
-            sql: `
-DROP TABLE IF EXISTS public.marketplace_submissions CASCADE;
-DROP TABLE IF EXISTS public.marketplace_tasks CASCADE;
-
-CREATE TABLE public.marketplace_tasks (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    creator_id UUID REFERENCES auth.users(id) NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    category TEXT NOT NULL,
-    target_url TEXT NOT NULL,
-    total_quantity INTEGER NOT NULL DEFAULT 0,
-    remaining_quantity INTEGER NOT NULL DEFAULT 0,
-    price_per_action NUMERIC(10, 4) NOT NULL,
-    worker_reward NUMERIC(10, 4) NOT NULL,
-    proof_type TEXT DEFAULT 'complex',
-    requirements JSONB DEFAULT '[]'::jsonb,
-    timer_seconds INTEGER DEFAULT 15,
-    status TEXT DEFAULT 'active',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE public.marketplace_submissions (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    task_id UUID REFERENCES public.marketplace_tasks(id) ON DELETE CASCADE,
-    worker_id UUID REFERENCES auth.users(id) NOT NULL,
-    submission_data JSONB NOT NULL DEFAULT '{}'::jsonb,
-    status TEXT DEFAULT 'pending',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE public.marketplace_tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.marketplace_submissions ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Public read tasks" ON public.marketplace_tasks FOR SELECT USING (true);
-CREATE POLICY "Creators all tasks" ON public.marketplace_tasks FOR ALL USING (auth.uid() = creator_id);
-CREATE POLICY "Workers own submissions" ON public.marketplace_submissions FOR ALL USING (auth.uid() = worker_id);
-CREATE POLICY "Creators view submissions" ON public.marketplace_submissions FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.marketplace_tasks WHERE id = task_id AND creator_id = auth.uid())
-);
-CREATE POLICY "Creators update submissions" ON public.marketplace_submissions FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM public.marketplace_tasks WHERE id = task_id AND creator_id = auth.uid())
-);
-`
-        }
-    ],
-    maintenance: [
-        {
-            title: 'Initialize Withdrawal Numbers',
-            desc: 'Adds account_number column to withdraw_requests table.',
-            sql: `ALTER TABLE public.withdraw_requests ADD COLUMN IF NOT EXISTS account_number TEXT;` 
-        },
-        {
-            title: 'Fix Wallet Constraints',
-            desc: 'Ensures wallet balances cannot be negative.',
-            sql: `ALTER TABLE wallets DROP CONSTRAINT IF EXISTS balance_non_negative;
-ALTER TABLE wallets ADD CONSTRAINT balance_non_negative CHECK (balance >= 0);`
+);`
         }
     ],
     danger: [
         {
             title: 'Factory Reset (Data Only)',
             desc: 'Wipes all user data but keeps table structure.',
-            sql: `TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, notifications, marketplace_submissions, user_tasks CASCADE;
+            sql: `TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, notifications, marketplace_submissions, user_tasks, task_attempts CASCADE;
 UPDATE wallets SET balance=0, main_balance=0, deposit=0, withdrawable=0, total_earning=0, deposit_balance=0, game_balance=0, earning_balance=0, bonus_balance=0, referral_balance=0, commission_balance=0, investment_balance=0;
 UPDATE profiles SET level_1=1, xp_1=0;`
         }
@@ -313,7 +316,7 @@ const DatabaseUltra: React.FC = () => {
                         className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-bold transition whitespace-nowrap flex-1 justify-center ${
                             activeTab === tab.id 
                             ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/50' 
-                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            : 'text-gray-400 hover:text-white hover:bg-white/10'
                         }`}
                     >
                         <tab.icon size={16} /> {tab.label}

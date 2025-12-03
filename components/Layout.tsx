@@ -13,6 +13,7 @@ import MaintenanceScreen from './MaintenanceScreen';
 import SuspendedView from './SuspendedView';
 import { useUI } from '../context/UIContext';
 import Logo from './Logo';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Static Alert Banner
 const GlobalAlertBanner = ({ message }: { message: string }) => {
@@ -171,8 +172,19 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         </header>
       )}
 
-      <main className={`flex-1 ${!isVideoPage ? 'pt-4' : ''} w-full max-w-5xl mx-auto sm:px-4 sm:pl-24`}>
-        {children}
+      <main className={`flex-1 ${!isVideoPage ? 'pt-4' : ''} w-full max-w-5xl mx-auto sm:px-4 sm:pl-24 overflow-x-hidden`}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.15, ease: "linear" }}
+            className="w-full h-full"
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* MOBILE NAV */}
@@ -221,10 +233,20 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       </nav>
 
       {/* DRAWER MENU */}
+      <AnimatePresence>
       {isMenuOpen && (
           <div className="fixed inset-0 z-50 flex">
-              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)}></div>
-              <div className="relative w-[80%] max-w-[300px] bg-card h-full border-r border-border-base flex flex-col">
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+                onClick={() => setIsMenuOpen(false)}
+              />
+              <motion.div 
+                initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="relative w-[75%] max-w-[260px] bg-card h-full border-r border-border-base flex flex-col shadow-2xl"
+              >
                   <div className="p-4 border-b border-border-base flex justify-between items-center">
                       <span className="font-bold text-main">Menu</span>
                       <button onClick={() => setIsMenuOpen(false)} className="text-muted hover:text-main"><X size={20}/></button>
@@ -254,9 +276,10 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                           </button>
                       )}
                   </div>
-              </div>
+              </motion.div>
           </div>
       )}
+      </AnimatePresence>
     </div>
   );
 };

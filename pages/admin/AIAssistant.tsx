@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { 
     Bot, Sparkles, Terminal, Activity, Shield, 
-    Users, AlertTriangle, Cpu, Clock, PlayCircle, Loader2, Key, Eye, EyeOff, Save, Trash2, Wifi, Settings, Send
+    Users, AlertTriangle, Cpu, Clock, PlayCircle, Loader2, Key, Eye, EyeOff, Save, Trash2, Wifi, Settings, Send, Eye as VisionEye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../../context/UIContext';
@@ -37,7 +37,7 @@ const AIAssistant: React.FC = () => {
 
     // Chat State
     const [messages, setMessages] = useState<{role: 'user' | 'ai', text: string}[]>([
-        { role: 'ai', text: "DeepSeek Systems online. I am monitoring the deposit queues and user risk profiles. How can I assist you today, Admin?" }
+        { role: 'ai', text: "DeepSeek Systems online. I am monitoring visual verification streams and risk profiles." }
     ]);
     const [input, setInput] = useState('');
     const chatEndRef = useRef<HTMLDivElement>(null);
@@ -45,9 +45,19 @@ const AIAssistant: React.FC = () => {
     // AI Modules Configuration
     const [modules, setModules] = useState<AIModule[]>([
         {
+            id: 'vision_matcher',
+            name: 'Task Vision Matcher (V4)',
+            description: 'Compares worker screenshots with creator DNA for auto-approval.',
+            icon: VisionEye,
+            isActive: true,
+            confidenceThreshold: 80,
+            status: 'processing',
+            lastActive: 'Active Now'
+        },
+        {
             id: 'deposit_bot',
             name: 'Auto-Deposit Time Bot',
-            description: 'Enforces 10-minute payment window & verifies screenshots automatically.',
+            description: 'Enforces 10-minute payment window & verifies screenshots.',
             icon: Clock,
             isActive: true, // Default ON
             confidenceThreshold: 85,
@@ -67,22 +77,12 @@ const AIAssistant: React.FC = () => {
         {
             id: 'risk_engine',
             name: 'Risk Engine',
-            description: 'Detects cheats, win-rate anomalies, and suspicious activity. Can Auto-Suspend.',
+            description: 'Detects cheats, win-rate anomalies, and suspicious activity.',
             icon: AlertTriangle,
             isActive: true,
             confidenceThreshold: 75,
             status: 'learning',
             lastActive: 'Continuous'
-        },
-        {
-            id: 'support_bot',
-            name: 'Support Sentinel',
-            description: 'Auto-replies to common user tickets.',
-            icon: Users,
-            isActive: false,
-            confidenceThreshold: 95,
-            status: 'idle',
-            lastActive: 'Offline'
         }
     ]);
 
@@ -96,8 +96,6 @@ const AIAssistant: React.FC = () => {
             setCustomKey(storedKey);
             await performKeyValidation(storedKey);
         } else {
-            // Check if env key works by trying a ping (optional, or just assume empty if no local storage)
-            // For now, let's assume if no local key, we prompt user
             setApiKeyStatus('empty');
         }
     };
@@ -161,7 +159,7 @@ const AIAssistant: React.FC = () => {
             const context = `
                 You are the AI System Architect for Naxxivo, running on DeepSeek V3.
                 You control: Deposits, KYC, Risk, and Support.
-                Status: Deposit Bot (85%), KYC Bot (90%), Risk Engine (Active).
+                Status: Vision Matcher (Active), Deposit Bot (85%), KYC Bot (90%), Risk Engine (Active).
                 Respond briefly and professionally as a system admin.
             `;
 
@@ -188,7 +186,6 @@ const AIAssistant: React.FC = () => {
         setMessages(prev => [...prev, { role: 'ai', text: "Initiating Risk Scan... Analyzing recent user activity logs for anomalies." }]);
 
         try {
-            // 1. Fetch Users
             const { data: users } = await supabase.from('profiles')
                 .select('id, name_1, created_at, is_suspended')
                 .eq('is_suspended', false)
@@ -205,16 +202,13 @@ const AIAssistant: React.FC = () => {
             let flaggedCount = 0;
 
             for (const user of users) {
-                // 2. Fetch Context Data
                 const [txs, games] = await Promise.all([
                     supabase.from('transactions').select('type, amount, status').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
                     supabase.from('game_history').select('game_name, profit').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20)
                 ]);
 
-                // 3. AI Analysis
                 const analysis = await analyzeUserRisk(user, txs.data || [], games.data || []);
 
-                // 4. Act on Verdict
                 if (analysis.verdict === 'suspend') {
                     await supabase.from('profiles').update({ 
                         is_suspended: true,
