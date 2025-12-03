@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  ArrowDownLeft, ArrowUpRight
+  ArrowDownLeft, ArrowUpRight, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -88,15 +88,139 @@ const Home: React.FC = () => {
 
   if (isGuest) {
       return (
-        <div className="space-y-6 px-4 pt-6">
-            <div className="bg-card border border-border-base p-8 rounded-xl text-center shadow-sm">
-                <h1 className="text-2xl font-bold text-main mb-2">EARNHUB PRO</h1>
-                <p className="text-muted text-sm mb-6">Secure Earning Platform</p>
-                <div className="flex flex-col gap-3 max-w-xs mx-auto">
-                    <Link to="/signup" className="py-3 bg-brand text-white rounded font-bold hover:bg-brand-hover">Start Earning</Link>
-                    <Link to="/login" className="py-3 bg-input border border-border-base text-main rounded font-bold hover:bg-border-highlight">Login</Link>
+        <div className="pb-24 pt-safe min-h-screen bg-void relative overflow-x-hidden font-sans">
+             {/* Background Effects */}
+             <div className="absolute top-0 left-0 right-0 h-[60vh] bg-gradient-to-b from-blue-900/20 to-transparent pointer-events-none" />
+             <div className="absolute top-[-10%] right-[-20%] w-[60%] h-[60%] bg-brand/10 blur-[120px] rounded-full pointer-events-none" />
+             <div className="absolute bottom-[-10%] left-[-20%] w-[60%] h-[60%] bg-purple-900/10 blur-[120px] rounded-full pointer-events-none" />
+
+             <div className="px-6 relative z-10 space-y-16">
+                {/* Hero */}
+                <div className="text-center pt-8 space-y-8">
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+                        <div className="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-6 shadow-glow">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                            <span className="text-[10px] font-bold text-white uppercase tracking-widest">
+                                Live Systems Online
+                            </span>
+                        </div>
+                        
+                        <h1 className="text-5xl sm:text-7xl font-black text-white leading-[0.9] tracking-tighter mb-6">
+                            EARN.<br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand to-cyan-400">PLAY.</span> GROW.
+                        </h1>
+                        
+                        <p className="text-gray-400 text-sm sm:text-lg max-w-md mx-auto leading-relaxed font-medium">
+                            Join the next-generation earning ecosystem. Secure investments, instant tasks, and competitive gaming in one powerful dashboard.
+                        </p>
+                    </motion.div>
+
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }}
+                        className="flex flex-col gap-4 max-w-xs mx-auto"
+                    >
+                        <Link to="/signup" className="group relative w-full py-4 bg-white text-black font-black text-lg rounded-2xl hover:scale-[1.02] transition-all shadow-[0_0_40px_rgba(255,255,255,0.15)] flex items-center justify-center gap-2 overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent translate-x-[-100%] group-hover:animate-shimmer transition-none" />
+                            Start Earning Now <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                        </Link>
+                        <Link to="/login" className="w-full py-4 bg-white/5 border border-white/10 text-white font-bold text-lg rounded-2xl hover:bg-white/10 transition flex items-center justify-center gap-2 backdrop-blur-md">
+                            Login to Account
+                        </Link>
+                    </motion.div>
+                    
+                    <div className="flex justify-center gap-6 text-[10px] text-gray-500 uppercase font-bold tracking-widest pt-2">
+                        <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-green-500" /> SSL Secured</span>
+                        <span className="flex items-center gap-1.5"><Zap size={14} className="text-yellow-500" /> Instant Pay</span>
+                    </div>
                 </div>
-            </div>
+
+                {/* Stats Row */}
+                <div className="grid grid-cols-3 gap-3">
+                    {[
+                        { label: 'Active Users', val: '50K+', icon: Users, color: 'text-blue-400' },
+                        { label: 'Total Paid', val: '$2.4M', icon: TrendingUp, color: 'text-green-400' },
+                        { label: 'Global', val: '120+', icon: Globe, color: 'text-purple-400' },
+                    ].map((stat, i) => (
+                        <GlassCard key={i} className="flex flex-col items-center justify-center p-4 text-center bg-white/5 border-white/5 backdrop-blur-md hover:bg-white/10 transition-colors">
+                            <stat.icon size={24} className={`${stat.color} mb-2`} />
+                            <h3 className="text-xl font-black text-white">{stat.val}</h3>
+                            <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">{stat.label}</p>
+                        </GlassCard>
+                    ))}
+                </div>
+
+                {/* Features Grid */}
+                <div className="space-y-8">
+                    <div className="flex items-center gap-4">
+                        <div className="h-px bg-white/10 flex-1"></div>
+                        <h2 className="text-lg font-bold text-white uppercase tracking-widest">Why Naxxivo?</h2>
+                        <div className="h-px bg-white/10 flex-1"></div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-4">
+                        <div className="p-6 rounded-3xl bg-gradient-to-br from-blue-900/10 to-transparent border border-blue-500/20 relative overflow-hidden group hover:border-blue-500/40 transition-colors">
+                            <div className="absolute right-[-20px] top-[-20px] p-4 opacity-5 group-hover:opacity-10 transition-opacity"><ShieldCheck size={120} /></div>
+                            <div className="relative z-10">
+                                <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center mb-4 text-blue-400">
+                                    <Lock size={24} />
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">Bank-Grade Security</h3>
+                                <p className="text-sm text-gray-400 leading-relaxed">
+                                    Your assets are protected by enterprise AES-256 encryption, biometric passkeys, and 24/7 fraud monitoring systems.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6 rounded-3xl bg-gradient-to-br from-green-900/10 to-transparent border border-green-500/20 relative overflow-hidden group hover:border-green-500/40 transition-colors">
+                            <div className="absolute right-[-20px] top-[-20px] p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Zap size={120} /></div>
+                            <div className="relative z-10">
+                                <div className="w-12 h-12 bg-green-500/20 rounded-2xl flex items-center justify-center mb-4 text-green-400">
+                                    <Zap size={24} />
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">Lightning Fast Payouts</h3>
+                                <p className="text-sm text-gray-400 leading-relaxed">
+                                    No more waiting days for your money. Our automated payment gateway processes withdrawals to local banks and crypto wallets in minutes.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-6 rounded-3xl bg-gradient-to-br from-purple-900/10 to-transparent border border-purple-500/20 relative overflow-hidden group hover:border-purple-500/40 transition-colors">
+                            <div className="absolute right-[-20px] top-[-20px] p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Star size={120} /></div>
+                            <div className="relative z-10">
+                                <div className="w-12 h-12 bg-purple-500/20 rounded-2xl flex items-center justify-center mb-4 text-purple-400">
+                                    <Star size={24} />
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">Zero Risk Earning</h3>
+                                <p className="text-sm text-gray-400 leading-relaxed">
+                                    Start earning immediately without depositing a single cent using our Micro-Task Center and Referral Program.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Trust Footer */}
+                <div className="text-center pb-8 border-t border-white/5 pt-12">
+                    <p className="text-xs text-gray-500 mb-6 uppercase tracking-widest font-bold">Supported Payments</p>
+                    <div className="flex justify-center gap-8 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
+                        {/* Simple text representation for speed */}
+                        <div className="text-xl font-black text-white">BINANCE</div>
+                        <div className="text-xl font-black text-white">BKASH</div>
+                        <div className="text-xl font-black text-white">NAGAD</div>
+                    </div>
+                    <p className="text-[10px] text-gray-600 mt-12">© 2024 Naxxivo Inc. All rights reserved.</p>
+                </div>
+             </div>
+             
+             {/* Sticky CTA */}
+             <div className="fixed bottom-6 left-6 right-6 z-50">
+                 <Link to="/signup" className="w-full py-4 bg-brand text-white font-bold rounded-2xl shadow-[0_10px_40px_rgba(0,85,255,0.4)] flex items-center justify-center gap-2 animate-bounce-subtle border border-white/10 backdrop-blur-xl">
+                    Create Free Account
+                 </Link>
+             </div>
         </div>
       );
   }
