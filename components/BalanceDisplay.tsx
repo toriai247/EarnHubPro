@@ -7,14 +7,15 @@ interface BalanceDisplayProps {
     isHeader?: boolean;
     isNative?: boolean; 
     decimals?: number;
+    compact?: boolean;
 }
 
-const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ amount, className = '', isHeader = false, isNative = false, decimals = 2 }) => {
+const BalanceDisplay: React.FC<BalanceDisplayProps> = ({ amount, className = '', isHeader = false, isNative = false, decimals = 2, compact }) => {
     const { format } = useCurrency();
     const [showFull, setShowFull] = useState(false);
 
     const value = amount || 0;
-    const useCompact = !showFull && value > 10000;
+    const useCompact = !showFull && (compact !== undefined ? compact : value > 10000);
     const formatted = format(value, { compact: useCompact, isNative, decimals });
 
     return (
