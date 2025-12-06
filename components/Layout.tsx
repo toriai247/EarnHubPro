@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Trophy, Menu, X, 
   ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, 
-  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe
+  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import BalanceDisplay from './BalanceDisplay';
@@ -58,13 +58,24 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [level, setLevel] = useState(1);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
+  const [isDealer, setIsDealer] = useState(false); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
   
   const isVideoPage = location.pathname === '/video';
   const isGuest = !session;
 
-  const navItems = [
+  // --- DEALER NAVIGATION ---
+  const dealerNavItems = [
+      { path: '/dealer/dashboard', icon: BarChart3, label: 'DASH' },
+      { path: '/dealer/campaigns', icon: Briefcase, label: 'ADS' },
+      { path: '/dealer/create', icon: PlusCircle, label: 'NEW' },
+      { path: '/dealer/profile', icon: User, label: 'CORP' },
+  ];
+
+  // Normal User Navigation
+  const userNavItems = [
     { path: '/', icon: Home, label: 'HUB', enabled: true },
     { path: '/tasks', icon: Globe, label: 'EARN', enabled: isFeatureEnabled('is_tasks_enabled'), protected: true },
     { path: '/leaderboard', icon: Trophy, label: 'TOP', enabled: true },
@@ -72,8 +83,14 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
     { path: '/profile', icon: User, label: 'ME', enabled: true, protected: true },
   ].filter(i => i.enabled);
 
+  // Determine active nav based on role
+  // If user is dealer and currently in /dealer route, show dealer nav
+  const isDealerRoute = location.pathname.startsWith('/dealer');
+  const activeNavItems = (isDealer && isDealerRoute) ? dealerNavItems : userNavItems;
+
   const menuItems = [
-      ...(isAdmin ? [{ path: '/admin', icon: LayoutDashboard, label: 'Admin Panel', enabled: true }] : []),
+      ...((isAdmin || isModerator) ? [{ path: '/admin/dashboard', icon: LayoutDashboard, label: 'Admin Panel', enabled: true }] : []),
+      ...(isDealer ? [{ path: '/dealer/dashboard', icon: Briefcase, label: 'Dealer Console', enabled: true }] : []),
       { path: '/advertise', icon: Megaphone, label: 'Create Ads', enabled: true, protected: true },
       { path: '/invest', icon: PieChart, label: 'Invest', enabled: isFeatureEnabled('is_invest_enabled'), protected: true },
       { path: '/games', icon: Gamepad2, label: 'Games', enabled: isFeatureEnabled('is_games_enabled'), protected: true },
@@ -92,11 +109,14 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         setUnreadCount(0);
         setLevel(1);
         setIsAdmin(false);
+        setIsModerator(false);
+        setIsDealer(false);
         return;
     }
 
     const fetchData = async () => {
-      const { data: profile } = await supabase.from('profiles').select('level_1, admin_user, is_suspended').eq('id', session.user.id).single();
+      // Use select('*') to prevent errors if specific columns (like 'role') are missing in DB schema
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
       
       if (profile) {
           if (profile.is_suspended) {
@@ -104,9 +124,14 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
               return; 
           }
           setLevel(profile.level_1);
-          setIsAdmin(profile.admin_user || false);
+          // Fallback to admin_user boolean if role is undefined
+          setIsAdmin(profile.admin_user || profile.role === 'admin');
+          setIsModerator(profile.role === 'moderator');
+          setIsDealer(profile.is_dealer || false);
       }
 
+      // Fetch appropriate wallet balance
+      // If Dealer, maybe show Deposit Balance? For now showing Main.
       const [walletRes, notifRes] = await Promise.allSettled([
         supabase.from('wallets').select('balance').eq('user_id', session.user.id).single(),
         supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('is_read', false),
@@ -156,9 +181,21 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 </Link>
             ) : (
                 <>
+                    {/* Switch View Button for Dealers */}
+                    {isDealer && (
+                        <Link 
+                            to={isDealerRoute ? "/" : "/dealer/dashboard"} 
+                            className={`p-2 rounded-lg border transition ${isDealerRoute ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-card border-border-base text-muted'}`}
+                            title={isDealerRoute ? "Exit Dealer Mode" : "Enter Dealer Mode"}
+                        >
+                            <Briefcase size={20} />
+                        </Link>
+                    )}
+
                     <Link to="/search" className="p-2 text-muted hover:text-main transition-colors">
                         <Search size={20} />
                     </Link>
+                    
                     <div className="hidden sm:flex px-2 py-1 bg-card border border-border-base rounded text-xs font-mono text-main transition-colors">
                         <BalanceDisplay amount={balance} isHeader={true} isNative={true} />
                     </div>
@@ -188,16 +225,23 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       </main>
 
       {/* MOBILE NAV */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 sm:hidden bg-card border-t border-border-base pb-safe">
+      <nav className={`fixed bottom-0 left-0 right-0 z-30 sm:hidden border-t border-border-base pb-safe ${isDealerRoute ? 'bg-[#1a1500] border-amber-900/30' : 'bg-card'}`}>
         <div className="flex justify-around items-center h-14">
-          {navItems.map((item) => {
+          {activeNavItems.map((item) => {
             const isActive = location.pathname === item.path;
+            const colorClass = isDealerRoute 
+                ? (isActive ? 'text-amber-400' : 'text-gray-500 hover:text-amber-200')
+                : (isActive ? 'text-brand' : 'text-muted hover:text-main');
+
             return (
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={(e) => { if (item.protected && isGuest) { e.preventDefault(); navigate('/login'); } }}
-                className={`flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-brand' : 'text-muted hover:text-main'}`}
+                onClick={(e) => { 
+                    // @ts-ignore
+                    if (item.protected && isGuest) { e.preventDefault(); navigate('/login'); } 
+                }}
+                className={`flex flex-col items-center justify-center w-full h-full ${colorClass}`}
               >
                 <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
                 <span className="text-[9px] font-bold mt-1 uppercase">{item.label}</span>
@@ -208,21 +252,26 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       </nav>
 
       {/* DESKTOP SIDEBAR */}
-      <nav className="hidden sm:flex fixed left-0 top-0 bottom-0 w-20 bg-card border-r border-border-base flex-col items-center py-6 z-30">
+      <nav className={`hidden sm:flex fixed left-0 top-0 bottom-0 w-20 border-r border-border-base flex-col items-center py-6 z-30 ${isDealerRoute ? 'bg-[#0f0a00] border-amber-900/20' : 'bg-card'}`}>
         <div className="mb-8">
             <Logo size="sm" showText={false} />
         </div>
         <div className="flex flex-col gap-6 w-full px-2">
-          {navItems.map((item) => {
+          {activeNavItems.map((item) => {
              const isActive = location.pathname === item.path;
+             const bgClass = isDealerRoute
+                ? (isActive ? 'bg-amber-500 text-black' : 'text-gray-500 hover:bg-amber-900/20 hover:text-amber-400')
+                : (isActive ? 'bg-brand text-white' : 'text-muted hover:bg-input hover:text-main');
+
              return (
               <Link 
                 key={item.path} 
                 to={item.path} 
-                onClick={(e) => { if (item.protected && isGuest) { e.preventDefault(); navigate('/login'); } }}
-                className={`p-3 rounded-lg mx-auto flex flex-col items-center justify-center transition-colors ${
-                  isActive ? 'bg-brand text-white' : 'text-muted hover:bg-input hover:text-main'
-                }`}
+                onClick={(e) => { 
+                    // @ts-ignore
+                    if (item.protected && isGuest) { e.preventDefault(); navigate('/login'); } 
+                }}
+                className={`p-3 rounded-lg mx-auto flex flex-col items-center justify-center transition-colors ${bgClass}`}
                 title={item.label}
               >
                 <item.icon size={24} />

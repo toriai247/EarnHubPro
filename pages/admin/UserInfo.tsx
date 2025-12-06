@@ -5,7 +5,7 @@ import {
     ArrowLeft, User, Mail, ShieldCheck, AlertTriangle, DollarSign, Save, CreditCard, 
     Gamepad2, Gift, Users, Activity, X, CheckCircle2, Lock, Unlock, RefreshCw, 
     Trophy, Clock, TrendingUp, ArrowDownLeft, ArrowUpRight, Ban, MessageSquare, 
-    Send, StickyNote, ShieldAlert, History, Smartphone, Laptop, MapPin, Globe
+    Send, StickyNote, ShieldAlert, History, Smartphone, Laptop, MapPin, Globe, Briefcase
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { UserProfile, WalletData, Transaction, GameResult } from '../../types';
@@ -122,6 +122,20 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
         await supabase.from('profiles').update({ is_suspended: newVal }).eq('id', profile.id);
         fetchUserData();
         toast.success(newVal ? "User Suspended" : "User Access Restored");
+    };
+
+    const toggleDealer = async () => {
+        if (!profile) return;
+        const newVal = !profile.is_dealer;
+        const confirmed = await confirm(
+            `Are you sure you want to ${newVal ? 'PROMOTE' : 'REVOKE'} Dealer status? \n\nDealers can create ad campaigns and access the Partner Dashboard.`, 
+            newVal ? 'Promote to Dealer' : 'Revoke Dealer'
+        );
+        if (!confirmed) return;
+
+        await supabase.from('profiles').update({ is_dealer: newVal }).eq('id', profile.id);
+        fetchUserData();
+        toast.success(newVal ? "User Promoted to Dealer" : "Dealer Status Revoked");
     };
 
     const toggleBlock = async () => {
@@ -256,6 +270,7 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
                 <div className="flex items-center gap-3">
                     <h2 className="text-2xl font-bold text-white">{profile.name_1}</h2>
                     {profile.is_suspended && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"><Ban size={12}/> BANNED</span>}
+                    {profile.is_dealer && <span className="bg-amber-500 text-black text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"><Briefcase size={12}/> PARTNER</span>}
                 </div>
                 <div className="ml-auto flex gap-2">
                     <button onClick={() => fetchUserData()} className="p-2 bg-white/5 rounded hover:bg-white/10 text-gray-400"><RefreshCw size={18}/></button>
@@ -504,6 +519,18 @@ const UserInfo: React.FC<UserInfoProps> = ({ userId, onBack }) => {
                             >
                                 {profile.is_suspended ? <CheckCircle2 size={16}/> : <Ban size={16}/>}
                                 {profile.is_suspended ? 'RESTORE ACCESS' : 'SUSPEND ACCOUNT'}
+                            </button>
+
+                            <button 
+                                onClick={toggleDealer} 
+                                className={`w-full py-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-2 transition hover:scale-[1.02] ${
+                                    profile.is_dealer 
+                                    ? 'bg-amber-900/50 text-amber-400 border-amber-600 hover:bg-amber-900/70' 
+                                    : 'bg-amber-600 text-black border-amber-500 shadow-lg shadow-amber-900/50'
+                                }`}
+                            >
+                                {profile.is_dealer ? <X size={16}/> : <Briefcase size={16}/>}
+                                {profile.is_dealer ? 'REVOKE DEALER STATUS' : 'PROMOTE TO DEALER'}
                             </button>
 
                             <div className="grid grid-cols-2 gap-3">

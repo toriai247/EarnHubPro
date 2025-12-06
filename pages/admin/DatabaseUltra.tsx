@@ -19,12 +19,70 @@ const TABLE_LIST = [
     'deposit_bonuses', 'withdrawal_settings', 'user_withdrawal_methods',
     'crash_game_state', 'crash_bets', 'referral_tiers', 'ludo_cards',
     'spin_items', 'bot_profiles', 'help_requests', 'marketplace_tasks', 'marketplace_submissions',
-    'game_configs', 'task_attempts'
+    'game_configs', 'task_attempts', 'daily_bonus_config', 'daily_streaks'
 ];
 
 // SQL Templates Library
 const SQL_TOOLS = {
     setup: [
+        {
+            title: 'Fix: Reset Daily Bonus System',
+            desc: 'Drops old policies/tables and recreates Daily Bonus system cleanly.',
+            sql: `
+-- 1. Drop existing policies to prevent conflicts
+DROP POLICY IF EXISTS "Public read config" ON public.daily_bonus_config;
+DROP POLICY IF EXISTS "Admin update config" ON public.daily_bonus_config;
+DROP POLICY IF EXISTS "Users view own streak" ON public.daily_streaks;
+DROP POLICY IF EXISTS "Users update own streak" ON public.daily_streaks;
+DROP POLICY IF EXISTS "Users insert own streak" ON public.daily_streaks;
+
+-- 2. Drop tables to reset schema and data
+DROP TABLE IF EXISTS public.daily_bonus_config;
+DROP TABLE IF EXISTS public.daily_streaks;
+
+-- 3. Create Configuration Table
+CREATE TABLE public.daily_bonus_config (
+    day INTEGER PRIMARY KEY,
+    reward_amount NUMERIC(10, 2) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Create User Streaks Table
+CREATE TABLE public.daily_streaks (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    current_streak INTEGER DEFAULT 1,
+    last_claimed_at TIMESTAMPTZ DEFAULT NOW(),
+    total_claimed NUMERIC(10, 2) DEFAULT 0
+);
+
+-- 5. Enable RLS
+ALTER TABLE public.daily_bonus_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_streaks ENABLE ROW LEVEL SECURITY;
+
+-- 6. Create Policies
+CREATE POLICY "Public read config" ON public.daily_bonus_config FOR SELECT USING (true);
+CREATE POLICY "Admin update config" ON public.daily_bonus_config FOR ALL USING (true); 
+
+CREATE POLICY "Users view own streak" ON public.daily_streaks FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users update own streak" ON public.daily_streaks FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users insert own streak" ON public.daily_streaks FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- 7. Insert Default Data
+INSERT INTO public.daily_bonus_config (day, reward_amount) VALUES
+(1, 0.10), (2, 0.20), (3, 0.30), (4, 0.40), (5, 0.50), (6, 0.75), (7, 2.00);
+
+-- 8. Admin Reset Function
+CREATE OR REPLACE FUNCTION admin_reset_all_streaks()
+RETURNS void AS $$
+BEGIN
+  UPDATE public.daily_streaks 
+  SET current_streak = 1, 
+      last_claimed_at = NOW() - INTERVAL '48 hours';
+END;
+$$ LANGUAGE plpgsql;
+`
+        },
         {
             title: 'Factory Reset: Task System V4.1 (AI Vision)',
             desc: 'Upgrades Task DB to support AI Visual DNA & Quiz verification.',
@@ -137,7 +195,7 @@ FOR UPDATE USING (
         {
             title: 'Factory Reset (Data Only)',
             desc: 'Wipes all user data but keeps table structure.',
-            sql: `TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, notifications, marketplace_submissions, user_tasks, task_attempts CASCADE;
+            sql: `TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, notifications, marketplace_submissions, user_tasks, task_attempts, daily_streaks CASCADE;
 UPDATE wallets SET balance=0, main_balance=0, deposit=0, withdrawable=0, total_earning=0, deposit_balance=0, game_balance=0, earning_balance=0, bonus_balance=0, referral_balance=0, commission_balance=0, investment_balance=0;
 UPDATE profiles SET level_1=1, xp_1=0;`
         }
@@ -290,7 +348,7 @@ const DatabaseUltra: React.FC = () => {
                         <Database className="text-white" size={32} /> DATABASE ULTRA
                     </h2>
                     <p className="text-gray-400 text-sm mt-1">
-                        Advanced Admin Console • v4.5.0
+                        Advanced Admin Console • v4.6.0
                     </p>
                 </div>
                 <div className="flex items-center gap-2 bg-black/40 border border-white/10 px-3 py-1.5 rounded-lg">

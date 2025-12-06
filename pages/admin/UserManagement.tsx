@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Search, RefreshCw, AlertCircle, ArrowRight, Copy, 
-  ShieldCheck, Lock, Users, Filter, UserX, CheckCircle2, MoreVertical, Ban, ShieldAlert, BadgeAlert, StickyNote 
+  ShieldCheck, Lock, Users, Filter, UserX, CheckCircle2, MoreVertical, Ban, ShieldAlert, BadgeAlert, StickyNote, Briefcase, Eye
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
@@ -22,9 +22,27 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'verified' | 'blocked' | 'suspended'>('all');
+  const [currentUserRole, setCurrentUserRole] = useState<'admin' | 'moderator' | 'user'>('user');
 
   // Stats
   const [stats, setStats] = useState({ total: 0, verified: 0, blocked: 0, suspended: 0 });
+
+  useEffect(() => {
+    fetchUsers();
+    checkRole();
+  }, []);
+
+  const checkRole = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+          // Safer to select * incase 'role' missing
+          const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+          if (data) {
+              if (data.admin_user || data.role === 'admin') setCurrentUserRole('admin');
+              else if (data.role === 'moderator') setCurrentUserRole('moderator');
+          }
+      }
+  };
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -51,10 +69,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
         setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
 
   const handleCopyId = (id: string) => {
       navigator.clipboard.writeText(id);
@@ -250,6 +264,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
                                             {u.admin_user && (
                                                 <span className="bg-purple-500/20 text-purple-400 text-[10px] font-bold px-2 py-0.5 rounded border border-purple-500/30">ADMIN</span>
                                             )}
+                                            {u.is_dealer && (
+                                                <span className="bg-amber-500/20 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
+                                                    <Briefcase size={8} /> DEALER
+                                                </span>
+                                            )}
                                             {u.is_suspended ? (
                                                 <span className="bg-red-500 text-black text-[10px] font-bold px-2 py-0.5 rounded border border-red-600 shadow-sm flex items-center gap-1">
                                                     <Ban size={10}/> BANNED
@@ -289,12 +308,18 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
                                     )}
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <button 
-                                        onClick={() => onSelectUser && onSelectUser(u.id)}
-                                        className="bg-white/5 hover:bg-royal-600 hover:text-white text-royal-400 border border-royal-500/30 hover:border-royal-500 px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ml-auto shadow-sm active:scale-95 group-hover:bg-white/10"
-                                    >
-                                        Manage <ArrowRight size={14}/>
-                                    </button>
+                                    {currentUserRole === 'admin' ? (
+                                        <button 
+                                            onClick={() => onSelectUser && onSelectUser(u.id)}
+                                            className="bg-white/5 hover:bg-royal-600 hover:text-white text-royal-400 border border-royal-500/30 hover:border-royal-500 px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ml-auto shadow-sm active:scale-95 group-hover:bg-white/10"
+                                        >
+                                            Manage <ArrowRight size={14}/>
+                                        </button>
+                                    ) : (
+                                        <div className="flex items-center justify-end gap-1 text-gray-500 text-xs">
+                                            <Eye size={14}/> <span className="text-[10px] uppercase font-bold">Read Only</span>
+                                        </div>
+                                    )}
                                 </td>
                             </motion.tr>
                         ))}

@@ -19,7 +19,7 @@ import Withdraw from './pages/Withdraw';
 import Transfer from './pages/Transfer';
 import SendMoney from './pages/SendMoney'; 
 import Exchange from './pages/Exchange'; 
-import Advertise from './pages/Advertise'; // Imported
+import Advertise from './pages/Advertise'; 
 import Profile from './pages/Profile';
 import PublicProfile from './pages/PublicProfile';
 import SearchUsers from './pages/SearchUsers'; 
@@ -36,8 +36,15 @@ import FeatureAccessBlock from './components/FeatureAccessBlock';
 import { supabase } from './integrations/supabase/client';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { UIProvider } from './context/UIContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { SystemProvider, useSystem } from './context/SystemContext';
-import InstallPWA from './components/InstallPWA'; // Added
+import InstallPWA from './components/InstallPWA'; 
+
+// Import Dealer Pages
+import DealerDashboard from './pages/dealer/DealerDashboard';
+import CreateCampaign from './pages/dealer/CreateCampaign';
+import ManageCampaigns from './pages/dealer/ManageCampaigns';
+import DealerProfile from './pages/dealer/DealerProfile';
 
 // --- ROUTE GUARD COMPONENT ---
 const FeatureGuard = ({ feature, children }: { feature: string, children?: React.ReactNode }) => {
@@ -62,6 +69,26 @@ const RequireAuth: React.FC<{ session: any; children: React.ReactNode }> = ({ se
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
+};
+
+// Dealer Route Guard
+const RequireDealer: React.FC<{ session: any; children: React.ReactNode }> = ({ session, children }) => {
+    const [isDealer, setIsDealer] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        const check = async () => {
+            if (!session) { setIsDealer(false); return; }
+            const { data } = await supabase.from('profiles').select('is_dealer').eq('id', session.user.id).single();
+            setIsDealer(!!data?.is_dealer);
+        };
+        check();
+    }, [session]);
+
+    if (!session) return <Navigate to="/login" replace />;
+    if (isDealer === null) return <div className="p-20 text-center text-gray-500">Verifying Partner Status...</div>;
+    if (isDealer === false) return <Navigate to="/" replace />; // Redirect non-dealers home
+
+    return <>{children}</>;
 };
 
 const AppContent: React.FC = () => {
@@ -126,7 +153,13 @@ const AppContent: React.FC = () => {
           <Route path="/terms" element={<Terms />} />
           <Route path="/support" element={<Support />} />
 
-          {/* Protected Routes */}
+          {/* DEALER ROUTES (Protected) */}
+          <Route path="/dealer/dashboard" element={<RequireDealer session={session}><DealerDashboard /></RequireDealer>} />
+          <Route path="/dealer/create" element={<RequireDealer session={session}><CreateCampaign /></RequireDealer>} />
+          <Route path="/dealer/campaigns" element={<RequireDealer session={session}><ManageCampaigns /></RequireDealer>} />
+          <Route path="/dealer/profile" element={<RequireDealer session={session}><DealerProfile /></RequireDealer>} />
+
+          {/* User Protected Routes */}
           <Route path="/invest" element={<RequireAuth session={session}><FeatureGuard feature="invest"><Invest /></FeatureGuard></RequireAuth>} />
           <Route path="/tasks" element={<RequireAuth session={session}><FeatureGuard feature="tasks"><Tasks /></FeatureGuard></RequireAuth>} />
           <Route path="/advertise" element={<RequireAuth session={session}><Advertise /></RequireAuth>} /> 
@@ -159,15 +192,17 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <UIProvider>
-      <CurrencyProvider>
-        <Router>
-          <SystemProvider>
-              <AppContent />
-          </SystemProvider>
-        </Router>
-      </CurrencyProvider>
-    </UIProvider>
+    <ThemeProvider>
+      <UIProvider>
+        <CurrencyProvider>
+          <Router>
+            <SystemProvider>
+                <AppContent />
+            </SystemProvider>
+          </Router>
+        </CurrencyProvider>
+      </UIProvider>
+    </ThemeProvider>
   );
 };
 

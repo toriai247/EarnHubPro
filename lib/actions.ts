@@ -46,12 +46,46 @@ export const createTransaction = async (userId: string, type: string, amount: nu
   }
 };
 
-// Updated to support dynamic columns
+/**
+ * CRITICAL FIX: Recalculates the aggregated Total Balance based on all sub-wallets.
+ * This ensures the 'balance' field is always the sum of its parts.
+ */
+export const syncWalletTotals = async (userId: string) => {
+    if (!isValidUUID(userId)) return;
+
+    // 1. Get latest values
+    const { data: w, error } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
+    if (error || !w) return;
+
+    // 2. Calculate Total Assets
+    // Note: We exclude 'balance' and 'withdrawable' from the sum as they are aggregate fields
+    const totalAssets = (w.main_balance || 0) + 
+                        (w.deposit_balance || 0) + 
+                        (w.game_balance || 0) + 
+                        (w.earning_balance || 0) + 
+                        (w.investment_balance || 0) + 
+                        (w.referral_balance || 0) + 
+                        (w.commission_balance || 0) + 
+                        (w.bonus_balance || 0);
+
+    // 3. Main Balance represents Withdrawable
+    // Pending withdraws are deducted visually in the UI, but here we just ensure consistency
+    const withdrawable = w.main_balance;
+
+    // 4. Update the aggregate fields
+    await supabase.from('wallets').update({
+        balance: totalAssets,
+        withdrawable: withdrawable,
+        deposit: w.deposit_balance // Sync legacy deposit field
+    }).eq('user_id', userId);
+};
+
+// Updated to support dynamic columns with Auto-Sync
 export const updateWallet = async (
     userId: string, 
     amount: number, 
     type: 'increment' | 'decrement', 
-    field: string = 'main_balance' // Default to main_balance
+    field: string = 'main_balance' 
 ) => {
   if (!isValidUUID(userId)) {
       console.error("Invalid userId passed to updateWallet:", userId);
@@ -61,7 +95,6 @@ export const updateWallet = async (
   const { data: wallet, error: fetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
   
   if (fetchError || !wallet) {
-      console.error("Wallet fetch error in updateWallet:", JSON.stringify(fetchError));
       throw new Error("Wallet not found");
   }
 
@@ -74,19 +107,15 @@ export const updateWallet = async (
   } else {
       updates[field] = Math.max(0, currentVal - amount);
   }
-
-  // Legacy sync for backward compatibility (optional)
-  if (field === 'main_balance') {
-      updates.balance = updates[field];
-      updates.withdrawable = Math.max(0, updates.balance - (wallet.pending_withdraw || 0));
-  }
   
   const { error: updateError } = await supabase.from('wallets').update(updates).eq('user_id', userId);
   
   if (updateError) {
-      console.error("Wallet update error:", JSON.stringify(updateError));
       throw new Error("Failed to update wallet balance");
   }
+
+  // FORCE SYNC TOTALS AFTER UPDATE
+  await syncWalletTotals(userId);
 };
 
 export const createUserProfile = async (userId: string, email: string, fullName: string, referralCode?: string, currency: string = 'USD') => {
@@ -115,8 +144,7 @@ export const createUserProfile = async (userId: string, email: string, fullName:
       }
   }
 
-  // 1. Create Profile - Trigger will handle user_uid
-  // Remove ignoreDuplicates to ensure fields are updated if row exists (e.g. from trigger)
+  // 1. Create Profile
   const { error: profileError } = await supabase.from('profiles').upsert({
     id: userId,
     email_1: email,
@@ -128,26 +156,24 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   }, { onConflict: 'id' });
 
   if (profileError) {
-    console.error("Profile create error:", JSON.stringify(profileError));
     if (profileError.code === '42P17') {
         throw new Error("Database Policy Error: Infinite Recursion. Please run the fix SQL script.");
     }
   }
 
-  // 2. Create Wallet safely with Selected Currency
-  // Remove ignoreDuplicates to ensure CURRENCY is saved even if trigger created the row
+  // 2. Create Wallet
   const { error: walletError } = await supabase.from('wallets').upsert({
     user_id: userId,
-    currency: currency, // STORE THE CHOSEN CURRENCY
+    currency: currency, 
     main_balance: 0,
-    bonus_balance: welcomeBonus, // Stored in USD equivalent
+    bonus_balance: welcomeBonus, 
     deposit_balance: 0,
     game_balance: 0,
     earning_balance: 0,
     investment_balance: 0,
     referral_balance: 0,
     commission_balance: 0,
-    balance: 0,
+    balance: welcomeBonus, // Init total
     deposit: 0,
     withdrawable: 0, 
     total_earning: 0,
@@ -157,7 +183,6 @@ export const createUserProfile = async (userId: string, email: string, fullName:
   }, { onConflict: 'user_id' });
 
   if (walletError) {
-      console.error("Wallet create error:", JSON.stringify(walletError));
       if (walletError.code === '42P17') {
           throw new Error("Database Policy Error: Infinite Recursion on Wallet. Run fix SQL.");
       }
@@ -172,7 +197,6 @@ export const createUserProfile = async (userId: string, email: string, fullName:
         .eq('description', 'Welcome Bonus');
 
       if (!txCount) {
-          // Log transaction
           await createTransaction(userId, 'bonus', welcomeBonus, `Welcome Bonus`);
           await createNotification(userId, 'Welcome! 🎁', `You received a welcome bonus of $${welcomeBonus.toFixed(2)}`, 'success');
           
@@ -183,14 +207,12 @@ export const createUserProfile = async (userId: string, email: string, fullName:
                 .ilike('description', 'Referral Bonus%');
 
               if (!refTxCount) {
-                  const { error: refError } = await supabase.from('referrals').upsert({
+                  await supabase.from('referrals').upsert({
                       referrer_id: referrerId,
                       referred_id: userId,
                       status: 'completed',
                       earned: 0
                   }, { onConflict: 'referred_id', ignoreDuplicates: true });
-                  
-                  // DB Trigger `notify_new_referral` handles notification now
               }
           }
       }
@@ -201,17 +223,12 @@ export const createUserProfile = async (userId: string, email: string, fullName:
 const distributeReferralReward = async (userId: string, earningAmount: number) => {
     if (earningAmount <= 0) return;
 
-    // Get the User who earned money
     const { data: userProfile } = await supabase.from('profiles').select('referred_by, name_1').eq('id', userId).single();
     if (!userProfile || !userProfile.referred_by) return;
 
-    // Get the Referrer
     const { data: referrerProfile } = await supabase.from('profiles').select('id').eq('ref_code_1', userProfile.referred_by).maybeSingle();
     if (!referrerProfile) return;
 
-    // NEW: Fetch Dynamic Commission Rules
-    // We specifically look for Level 1, Type 'earning' (since this function is called on game/task wins)
-    // If you need it for deposit, similar logic applies in deposit processing (though that's usually admin manual)
     const { data: tierConfig } = await supabase
         .from('referral_tiers')
         .select('commission_percent')
@@ -220,7 +237,6 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
         .eq('is_active', true)
         .maybeSingle();
 
-    // Default to 5% if no config found or config fails
     const percent = tierConfig ? tierConfig.commission_percent : 5.0;
     const commission = Number((earningAmount * (percent / 100)).toFixed(4));
         
@@ -248,6 +264,9 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
         }
 
         await createNotification(referrerProfile.id, 'Commission Earned! 💸', `You earned ${commission.toFixed(2)} (${percent}%) commission.`, 'success');
+        
+        // Sync
+        await syncWalletTotals(referrerProfile.id);
     }
 };
 
@@ -288,7 +307,6 @@ export const processGameResult = async (userId: string, gameId: string, gameName
              }
         }
         
-        // Trigger Commission on Profit
         if (finalProfit > 0) {
             await distributeReferralReward(userId, finalProfit);
         }
@@ -296,10 +314,11 @@ export const processGameResult = async (userId: string, gameId: string, gameName
 
     await createTransaction(userId, finalProfit > 0 ? 'game_win' : 'game_loss', Math.abs(finalProfit), details);
     
-    // Notify on BIG wins only (> $50)
     if (finalProfit > 50) {
         await createNotification(userId, 'Big Win! 🏆', `You won $${finalProfit.toFixed(2)} in ${gameName}!`, 'success');
     }
+    
+    await syncWalletTotals(userId);
 };
 
 export const claimTask = async (userId: string, task: Task) => {
@@ -331,6 +350,7 @@ export const claimTask = async (userId: string, task: Task) => {
 
     await createTransaction(userId, 'earn', reward, `Task Completed: ${task.title}`);
     await distributeReferralReward(userId, reward);
+    await syncWalletTotals(userId);
     
     return true;
 }
@@ -368,7 +388,6 @@ export const claimInvestmentReturn = async (userId: string, investment: ActiveIn
         await updateWallet(userId, investment.amount, 'increment', 'main_balance');
         await createTransaction(userId, 'earn', investment.amount, `Capital Return: ${investment.plan_name}`);
         await supabase.from('investments').update({ status: 'completed' }).eq('id', investment.id);
-        // DB Trigger `notify_investment_complete` handles notification
     }
 };
 
@@ -424,7 +443,8 @@ export const requestWithdrawal = async (userId: string, amount: number, method: 
     if (data && data.success === false) {
         throw new Error(data.message);
     }
-
+    
+    await syncWalletTotals(userId);
     return data;
 };
 
@@ -453,45 +473,90 @@ export const processMonthlyPayment = async (userId: string, balance: number, met
         status: 'approved',
         processed_at: new Date().toISOString()
     });
-
-    // Notification is handled by the new database trigger on withdraw_requests table
 };
 
-// --- DAILY BONUS LOGIC ---
 export const checkDailyBonus = async (userId: string) => {
-    const today = new Date().toDateString();
-    
-    // Check if a bonus transaction exists for today
-    const { data: tx } = await supabase.from('transactions')
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const { data: streak } = await supabase
+        .from('daily_streaks')
         .select('*')
         .eq('user_id', userId)
-        .eq('type', 'bonus')
-        .ilike('description', 'Daily Login Bonus%')
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .maybeSingle();
 
-    if (tx && tx.length > 0) {
-        const lastBonusDate = new Date(tx[0].created_at).toDateString();
-        if (lastBonusDate === today) {
-            return { canClaim: false, streak: 0 }; // Already claimed today
-        }
+    if (!streak) {
+        return { canClaim: true, streak: 1 };
     }
-    
-    // Check streak (This logic is simplified for frontend demo, ideal would be DB column)
-    return { canClaim: true };
+
+    const lastClaim = new Date(streak.last_claimed_at);
+    lastClaim.setHours(0,0,0,0);
+
+    if (lastClaim.getTime() === today.getTime()) {
+        return { canClaim: false, streak: streak.current_streak };
+    }
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0,0,0,0);
+
+    if (lastClaim.getTime() < yesterday.getTime()) {
+        // Missed a day? Check logic. 
+        // If last claim was before yesterday, streak resets.
+        return { canClaim: true, streak: 1 };
+    }
+
+    return { canClaim: true, streak: streak.current_streak + 1 };
 };
 
 export const claimDailyBonus = async (userId: string, day: number) => {
     if (!isValidUUID(userId)) throw new Error("Invalid User");
 
-    const rewards = [0.10, 0.20, 0.30, 0.40, 0.50, 0.75, 1.00]; // 7 Days rewards
-    const amount = rewards[day - 1] || 0.10;
+    const { data: configs } = await supabase.from('daily_bonus_config').select('*').order('day');
+    
+    let rewards = [0.10, 0.20, 0.30, 0.40, 0.50, 0.75, 1.00]; 
+    
+    if (configs && configs.length > 0) {
+        rewards = Array(7).fill(0.10);
+        configs.forEach((c: any) => {
+            if (c.day >= 1 && c.day <= 7) rewards[c.day - 1] = c.reward_amount;
+        });
+    }
+
+    const index = (day - 1) % 7; 
+    const amount = rewards[index] || 0.10;
 
     await updateWallet(userId, amount, 'increment', 'bonus_balance');
     await createTransaction(userId, 'bonus', amount, `Daily Login Bonus (Day ${day})`);
     
-    // Trigger update
+    const { data: existing } = await supabase.from('daily_streaks').select('*').eq('user_id', userId).maybeSingle();
+    
+    if (existing) {
+        await supabase.from('daily_streaks').update({
+            current_streak: day,
+            last_claimed_at: new Date().toISOString(),
+            total_claimed: (existing.total_claimed || 0) + amount
+        }).eq('user_id', userId);
+    } else {
+        await supabase.from('daily_streaks').insert({
+            user_id: userId,
+            current_streak: 1,
+            last_claimed_at: new Date().toISOString(),
+            total_claimed: amount
+        });
+    }
+
     window.dispatchEvent(new Event('wallet_updated'));
     
     return amount;
+};
+
+export const resetAllDailyStreaks = async () => {
+    const { error } = await supabase.rpc('admin_reset_all_streaks');
+    if (error) {
+        // If RPC is missing, fallback to creating table query if possible, 
+        // but since we can't run raw SQL here, we throw error asking user to run the tool.
+        throw new Error("RPC 'admin_reset_all_streaks' missing. Run SQL in Database Ultra.");
+    }
+    return true;
 };

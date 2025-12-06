@@ -1,4 +1,10 @@
 
+export interface DailyBonusConfig {
+    day: number;
+    reward_amount: number;
+    is_active: boolean;
+}
+
 export interface InvestmentPlan {
   id: string;
   name: string;
@@ -112,6 +118,8 @@ export interface UserProfile {
   is_withdraw_blocked?: boolean;
   is_suspended?: boolean;
   is_account_active?: boolean;
+  is_dealer?: boolean; // NEW: Dealer/Partner Role
+  role?: 'admin' | 'moderator' | 'user'; // NEW: Granular Admin Role
   admin_notes?: string;
   risk_score?: number;
   rank_1?: string;
