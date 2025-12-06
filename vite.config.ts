@@ -10,6 +10,15 @@ export default defineConfig({
       // Removed "@" alias to prevent resolution conflicts in web container environment
     },
   },
+  server: {
+    proxy: {
+      '/api/deepseek': {
+        target: 'https://api.deepseek.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/deepseek/, ''),
+      },
+    },
+  },
   build: {
     outDir: 'dist',
   }

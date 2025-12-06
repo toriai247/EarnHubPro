@@ -1,5 +1,6 @@
 
-const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
+
+const DEEPSEEK_API_URL = "/api/deepseek/chat/completions";
 
 // Default Key provided by configuration
 const DEFAULT_KEY = "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";
