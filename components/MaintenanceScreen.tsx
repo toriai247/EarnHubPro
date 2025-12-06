@@ -69,7 +69,7 @@ const MaintenanceScreen: React.FC = () => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const { error } = await supabase.from('help_requests').insert({
-                user_id: session?.user?.id,
+                user_id: session?.user?.id || null, // FIX: Ensure null if undefined
                 email: email || session?.user?.email || 'anonymous@user',
                 message: message,
                 status: 'pending'

@@ -14,6 +14,7 @@ import SuspendedView from './SuspendedView';
 import { useUI } from '../context/UIContext';
 import Logo from './Logo';
 import { motion, AnimatePresence } from 'framer-motion';
+import { UserProfile } from '../types';
 
 // Static Alert Banner
 const GlobalAlertBanner = ({ message }: { message: string }) => {
@@ -115,8 +116,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
     }
 
     const fetchData = async () => {
-      // Use select('*') to prevent errors if specific columns (like 'role') are missing in DB schema
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+      // Explicitly cast the returned data
+      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+      const profile = data as UserProfile | null;
       
       if (profile) {
           if (profile.is_suspended) {
@@ -137,8 +139,13 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('is_read', false),
       ]);
 
-      if (walletRes.status === 'fulfilled' && walletRes.value.data) setBalance(walletRes.value.data.balance);
-      if (notifRes.status === 'fulfilled') setUnreadCount(notifRes.value.count || 0);
+      if (walletRes.status === 'fulfilled' && walletRes.value.data) {
+          setBalance(walletRes.value.data.balance);
+      }
+      if (notifRes.status === 'fulfilled') {
+          // @ts-ignore
+          setUnreadCount(notifRes.value.count || 0);
+      }
     };
 
     fetchData();
