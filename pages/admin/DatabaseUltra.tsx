@@ -35,19 +35,40 @@ ALTER TABLE public.published_sites ADD COLUMN IF NOT EXISTS source_type TEXT DEF
 
 -- 2. Create Storage Bucket
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
-VALUES ('hosted-sites', 'hosted-sites', true, 5242880, ARRAY['text/html'])
+VALUES ('hosted-sites', 'hosted-sites', true, 10485760, ARRAY['text/html'])
 ON CONFLICT (id) DO UPDATE SET public = true;
 
--- 3. Storage Policies
-DROP POLICY IF EXISTS "Public Read Sites" ON storage.objects;
-CREATE POLICY "Public Read Sites" ON storage.objects FOR SELECT USING (bucket_id = 'hosted-sites');
+-- 3. Storage Policies (Safe Mode)
+-- We use DO blocks to avoid errors if policies already exist
 
-DROP POLICY IF EXISTS "Admin Upload Sites" ON storage.objects;
-CREATE POLICY "Admin Upload Sites" ON storage.objects FOR INSERT WITH CHECK (
-    bucket_id = 'hosted-sites' AND (
-        EXISTS (SELECT 1 FROM auth.users WHERE id = auth.uid()) 
-    )
-);
+DO $$
+BEGIN
+    -- Public Read
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public Read Hosted Sites') THEN
+        CREATE POLICY "Public Read Hosted Sites" ON storage.objects FOR SELECT USING (bucket_id = 'hosted-sites');
+    END IF;
+
+    -- Admin Upload
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Upload Hosted Sites') THEN
+        CREATE POLICY "Admin Upload Hosted Sites" ON storage.objects FOR INSERT WITH CHECK (
+            bucket_id = 'hosted-sites' AND auth.role() = 'authenticated'
+        );
+    END IF;
+
+    -- Admin Update
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Update Hosted Sites') THEN
+        CREATE POLICY "Admin Update Hosted Sites" ON storage.objects FOR UPDATE USING (
+            bucket_id = 'hosted-sites' AND auth.role() = 'authenticated'
+        );
+    END IF;
+
+    -- Admin Delete
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Delete Hosted Sites') THEN
+        CREATE POLICY "Admin Delete Hosted Sites" ON storage.objects FOR DELETE USING (
+            bucket_id = 'hosted-sites' AND auth.role() = 'authenticated'
+        );
+    END IF;
+END $$;
 `
         },
         {
@@ -138,145 +159,52 @@ INSERT INTO public.influencer_campaigns (title, platform, media_link, requiremen
 ('Create YouTube Review', 'youtube', 'https://naxxivo.com', 'Create a 3min review video. Min 1k views.', 150.00),
 ('Instagram Story Shoutout', 'instagram', 'https://instagram.com/naxxivo', 'Tag @naxxivo in story. 24h active.', 25.00);
 `
-        },
-        {
-            title: 'Fix: Reset Daily Bonus System',
-            desc: 'Drops old policies/tables and recreates Daily Bonus system cleanly.',
-            sql: `
--- 1. Drop existing policies to prevent conflicts
-DROP POLICY IF EXISTS "Public read config" ON public.daily_bonus_config;
-DROP POLICY IF EXISTS "Admin update config" ON public.daily_bonus_config;
-DROP POLICY IF EXISTS "Users view own streak" ON public.daily_streaks;
-DROP POLICY IF EXISTS "Users update own streak" ON public.daily_streaks;
-DROP POLICY IF EXISTS "Users insert own streak" ON public.daily_streaks;
-
--- 2. Drop tables to reset schema and data
-DROP TABLE IF EXISTS public.daily_bonus_config;
-DROP TABLE IF EXISTS public.daily_streaks;
-
--- 3. Create Configuration Table
-CREATE TABLE public.daily_bonus_config (
-    day INTEGER PRIMARY KEY,
-    reward_amount NUMERIC(10, 2) NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 4. Create User Streaks Table
-CREATE TABLE public.daily_streaks (
-    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    current_streak INTEGER DEFAULT 1,
-    last_claimed_at TIMESTAMPTZ DEFAULT NOW(),
-    total_claimed NUMERIC(10, 2) DEFAULT 0
-);
-
--- 5. Enable RLS
-ALTER TABLE public.daily_bonus_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.daily_streaks ENABLE ROW LEVEL SECURITY;
-
--- 6. Create Policies
-CREATE POLICY "Public read config" ON public.daily_bonus_config FOR SELECT USING (true);
-CREATE POLICY "Admin update config" ON public.daily_bonus_config FOR ALL USING (true); 
-
-CREATE POLICY "Users view own streak" ON public.daily_streaks FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users update own streak" ON public.daily_streaks FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users insert own streak" ON public.daily_streaks FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- 7. Insert Default Data
-INSERT INTO public.daily_bonus_config (day, reward_amount) VALUES
-(1, 0.10), (2, 0.20), (3, 0.30), (4, 0.40), (5, 0.50), (6, 0.75), (7, 2.00);
-
--- 8. Admin Reset Function
-CREATE OR REPLACE FUNCTION admin_reset_all_streaks()
-RETURNS void AS $$
-BEGIN
-  UPDATE public.daily_streaks 
-  SET current_streak = 1, 
-      last_claimed_at = NOW() - INTERVAL '48 hours';
-END;
-$$ LANGUAGE plpgsql;
-`
-        },
-        {
-            title: 'Factory Reset: Task System V4.1 (AI Vision)',
-            desc: 'Upgrades Task DB to support AI Visual DNA & Quiz verification.',
-            sql: `
--- 1. DROP OLD TABLES (CLEAN SLATE)
-DROP TABLE IF EXISTS public.marketplace_submissions CASCADE;
-DROP TABLE IF EXISTS public.task_attempts CASCADE;
-DROP TABLE IF EXISTS public.marketplace_tasks CASCADE;
-
--- 2. CREATE TASKS TABLE (With Visual DNA)
-CREATE TABLE public.marketplace_tasks (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    creator_id UUID REFERENCES auth.users(id) NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    category TEXT NOT NULL,
-    target_url TEXT NOT NULL,
-    total_quantity INTEGER NOT NULL DEFAULT 0,
-    remaining_quantity INTEGER NOT NULL DEFAULT 0,
-    price_per_action NUMERIC(10, 4) NOT NULL,
-    worker_reward NUMERIC(10, 4) NOT NULL,
-    proof_type TEXT DEFAULT 'ai_quiz', -- 'ai_quiz' or 'manual'
-    quiz_config JSONB DEFAULT '{}'::jsonb, -- { question, options, correct_index }
-    ai_reference_data JSONB DEFAULT '{}'::jsonb, -- Visual DNA features
-    requirements JSONB DEFAULT '[]'::jsonb, -- Legacy support
-    timer_seconds INTEGER DEFAULT 15,
-    status TEXT DEFAULT 'active',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 3. CREATE ATTEMPTS TABLE (Anti-Cheat 2-Strike Rule)
-CREATE TABLE public.task_attempts (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    task_id UUID REFERENCES public.marketplace_tasks(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES auth.users(id) NOT NULL,
-    attempts_count INTEGER DEFAULT 0,
-    last_attempt_at TIMESTAMPTZ DEFAULT NOW(),
-    is_locked BOOLEAN DEFAULT FALSE,
-    UNIQUE(task_id, user_id)
-);
-
--- 4. CREATE SUBMISSIONS TABLE (History)
-CREATE TABLE public.marketplace_submissions (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    task_id UUID REFERENCES public.marketplace_tasks(id) ON DELETE CASCADE,
-    worker_id UUID REFERENCES auth.users(id) NOT NULL,
-    submission_data JSONB NOT NULL DEFAULT '{}'::jsonb,
-    status TEXT DEFAULT 'approved', -- Mostly approved instantly via AI
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 5. ENABLE SECURITY
-ALTER TABLE public.marketplace_tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.task_attempts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.marketplace_submissions ENABLE ROW LEVEL SECURITY;
-
--- 6. POLICIES (PERMISSIONS)
--- Tasks: Public read
-DROP POLICY IF EXISTS "Public read tasks" ON public.marketplace_tasks;
-CREATE POLICY "Public read tasks" ON public.marketplace_tasks FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Creators manage tasks" ON public.marketplace_tasks;
-CREATE POLICY "Creators manage tasks" ON public.marketplace_tasks FOR ALL USING (auth.uid() = creator_id);
-
--- Attempts: Users manage their own
-DROP POLICY IF EXISTS "Users own attempts" ON public.task_attempts;
-CREATE POLICY "Users own attempts" ON public.task_attempts FOR ALL USING (auth.uid() = user_id);
-
--- Submissions: Workers insert, Creators view
-DROP POLICY IF EXISTS "Workers insert own" ON public.marketplace_submissions;
-CREATE POLICY "Workers insert own" ON public.marketplace_submissions FOR INSERT WITH CHECK (auth.uid() = worker_id);
-DROP POLICY IF EXISTS "Workers view own" ON public.marketplace_submissions;
-CREATE POLICY "Workers view own" ON public.marketplace_submissions FOR SELECT USING (auth.uid() = worker_id);
-DROP POLICY IF EXISTS "Creators view submissions" ON public.marketplace_submissions;
-CREATE POLICY "Creators view submissions" ON public.marketplace_submissions FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.marketplace_tasks WHERE id = task_id AND creator_id = auth.uid())
-);
-`
         }
     ],
     maintenance: [
+        {
+            title: 'Fix: Storage Permissions (Safe Mode)',
+            desc: 'Use this to fix upload errors. Avoids 42501 ownership error.',
+            sql: `
+-- 1. Ensure Bucket Exists
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
+VALUES ('hosted-sites', 'hosted-sites', true, 10485760, ARRAY['text/html'])
+ON CONFLICT (id) DO UPDATE SET 
+    public = true,
+    file_size_limit = 10485760,
+    allowed_mime_types = ARRAY['text/html'];
+
+-- 2. Create Policies Safely
+DO $$
+BEGIN
+    -- Public Read
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public Read Hosted Sites') THEN
+        CREATE POLICY "Public Read Hosted Sites" ON storage.objects FOR SELECT USING (bucket_id = 'hosted-sites');
+    END IF;
+
+    -- Admin Upload
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Upload Hosted Sites') THEN
+        CREATE POLICY "Admin Upload Hosted Sites" ON storage.objects FOR INSERT WITH CHECK (
+            bucket_id = 'hosted-sites' AND auth.role() = 'authenticated'
+        );
+    END IF;
+
+    -- Admin Update
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Update Hosted Sites') THEN
+        CREATE POLICY "Admin Update Hosted Sites" ON storage.objects FOR UPDATE USING (
+            bucket_id = 'hosted-sites' AND auth.role() = 'authenticated'
+        );
+    END IF;
+
+    -- Admin Delete
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Delete Hosted Sites') THEN
+        CREATE POLICY "Admin Delete Hosted Sites" ON storage.objects FOR DELETE USING (
+            bucket_id = 'hosted-sites' AND auth.role() = 'authenticated'
+        );
+    END IF;
+END $$;
+`
+        },
         {
             title: 'Fix Submission Permissions',
             desc: 'Run this if reviews are not showing up (RLS Fix).',
@@ -308,7 +236,7 @@ FOR UPDATE USING (
     danger: [
         {
             title: 'MASTER ADMIN POLICY (GOD MODE)',
-            desc: 'Unrestricted Admin Access to ALL 39+ Tables. Run in Supabase SQL Editor.',
+            desc: 'Unrestricted Admin Access to ALL Tables. Run in Supabase SQL Editor.',
             sql: `
 -- 1. Create Secure Admin Check Function (Prevents Infinite Recursion)
 CREATE OR REPLACE FUNCTION public.check_is_admin()
@@ -355,13 +283,6 @@ END $$;
 DROP POLICY IF EXISTS "Admin Storage Full Access" ON storage.objects;
 CREATE POLICY "Admin Storage Full Access" ON storage.objects FOR ALL USING (public.check_is_admin()) WITH CHECK (public.check_is_admin());
 `
-        },
-        {
-            title: 'Factory Reset (Data Only)',
-            desc: 'Wipes all user data but keeps table structure.',
-            sql: `TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, notifications, marketplace_submissions, user_tasks, task_attempts, daily_streaks, influencer_submissions CASCADE;
-UPDATE wallets SET balance=0, main_balance=0, deposit=0, withdrawable=0, total_earning=0, deposit_balance=0, game_balance=0, earning_balance=0, bonus_balance=0, referral_balance=0, commission_balance=0, investment_balance=0;
-UPDATE profiles SET level_1=1, xp_1=0;`
         }
     ]
 };
