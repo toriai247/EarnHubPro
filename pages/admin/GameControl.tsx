@@ -47,7 +47,7 @@ const GameControl: React.FC = () => {
       const { data } = await supabase.from('game_history').select('*').eq('game_id', 'crash').order('created_at', {ascending: false}).limit(100);
       if (data && data.length > 0) {
           const bets = data.length;
-          const wins = data.filter(d => d.profit > 0).length;
+          const wins = data.filter((d: any) => d.profit > 0).length;
           const totalBet = data.reduce((sum: number, d: any) => sum + d.bet, 0);
           const totalPay = data.reduce((sum: number, d: any) => sum + d.payout, 0);
           const profit = totalBet - totalPay;
