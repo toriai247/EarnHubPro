@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Trophy, Menu, X, 
   ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, 
-  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle, Users
+  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle, Users, Palette
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import BalanceDisplay from './BalanceDisplay';
@@ -106,6 +106,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       { path: '/send-money', icon: Send, label: 'Send Money', enabled: true, protected: true },
       { path: '/transfer', icon: ArrowRightLeft, label: 'Transfer Funds', enabled: true, protected: true },
       { path: '/biometric-setup', icon: Fingerprint, label: 'Security Setup', enabled: true, protected: true },
+      { path: '/themes', icon: Palette, label: 'Themes', enabled: true },
       { path: '/support', icon: Headphones, label: 'Support', enabled: true },
       { path: '/faq', icon: HelpCircle, label: 'FAQ', enabled: true },
       { path: '/terms', icon: FileText, label: 'Terms', enabled: true },
@@ -172,12 +173,12 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   if (config?.maintenance_mode && !isAdmin) return <MaintenanceScreen />;
 
   return (
-    <div className="min-h-screen flex flex-col bg-void text-main font-sans">
+    <div className="min-h-screen flex flex-col bg-void text-main font-sans transition-colors duration-500">
       
       {config?.global_alert && <GlobalAlertBanner message={config.global_alert} />}
 
       {!isVideoPage && (
-        <header className="sticky top-0 z-40 bg-void/90 backdrop-blur-md border-b border-border-base px-4 py-3 flex justify-between items-center">
+        <header className="sticky top-0 z-40 bg-void/90 backdrop-blur-md border-b border-border-base px-4 py-3 flex justify-between items-center transition-colors duration-500">
           <div className="flex items-center gap-3">
             <button 
                 onClick={() => setIsMenuOpen(true)}
@@ -241,7 +242,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       </main>
 
       {/* MOBILE NAV */}
-      <nav className={`fixed bottom-0 left-0 right-0 z-30 sm:hidden border-t border-border-base pb-safe ${isDealerRoute ? 'bg-[#1a1500] border-amber-900/30' : 'bg-card'}`}>
+      <nav className={`fixed bottom-0 left-0 right-0 z-30 sm:hidden border-t border-border-base pb-safe transition-colors duration-500 ${isDealerRoute ? 'bg-[#1a1500] border-amber-900/30' : 'bg-card'}`}>
         <div className="flex justify-around items-center h-14">
           {activeNavItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -268,7 +269,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       </nav>
 
       {/* DESKTOP SIDEBAR */}
-      <nav className={`hidden sm:flex fixed left-0 top-0 bottom-0 w-20 border-r border-border-base flex-col items-center py-6 z-30 ${isDealerRoute ? 'bg-[#0f0a00] border-amber-900/20' : 'bg-card'}`}>
+      <nav className={`hidden sm:flex fixed left-0 top-0 bottom-0 w-20 border-r border-border-base flex-col items-center py-6 z-30 transition-colors duration-500 ${isDealerRoute ? 'bg-[#0f0a00] border-amber-900/20' : 'bg-card'}`}>
         <div className="mb-8">
             <Logo size="sm" showText={false} />
         </div>

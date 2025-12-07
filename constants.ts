@@ -1,14 +1,13 @@
 
-
 import { InvestmentPlan, Task, Transaction, Game, VideoShort, Activity } from './types';
 
-// Currency Configuration
+// Currency Configuration - BASE CURRENCY IS BDT (Rate = 1)
 export const CURRENCY_CONFIG = {
-    USD: { code: 'USD', name: 'US Dollar', symbol: '$', rate: 1, flag: '🇺🇸', signup_bonus: 1.00 },
-    BDT: { code: 'BDT', name: 'Bangladeshi Taka', symbol: '৳', rate: 120, flag: '🇧🇩', signup_bonus: 120.00 },
-    EUR: { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.92, flag: '🇪🇺', signup_bonus: 0.90 },
-    INR: { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 84, flag: '🇮🇳', signup_bonus: 85.00 },
-    GBP: { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.79, flag: '🇬🇧', signup_bonus: 0.80 },
+    BDT: { code: 'BDT', name: 'Bangladeshi Taka', symbol: '৳', rate: 1, flag: '🇧🇩', signup_bonus: 50.00 }, // BASE
+    USD: { code: 'USD', name: 'US Dollar', symbol: '$', rate: 0.008333, flag: '🇺🇸', signup_bonus: 0.42 }, // ~120 BDT
+    EUR: { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.007692, flag: '🇪🇺', signup_bonus: 0.38 }, // ~130 BDT
+    INR: { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 0.7142, flag: '🇮🇳', signup_bonus: 35.00 }, // ~1.4 BDT
+    GBP: { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.006666, flag: '🇬🇧', signup_bonus: 0.33 }, // ~150 BDT
 };
 
 export const PLANS: InvestmentPlan[] = [
@@ -17,7 +16,7 @@ export const PLANS: InvestmentPlan[] = [
     name: 'Starter Pack',
     daily_return: 2.5,
     duration: 7,
-    min_invest: 50,
+    min_invest: 500, // BDT
     total_roi: 117.5,
   },
   {
@@ -25,7 +24,7 @@ export const PLANS: InvestmentPlan[] = [
     name: 'Golden Growth',
     daily_return: 3.2,
     duration: 15,
-    min_invest: 200,
+    min_invest: 2000, // BDT
     total_roi: 148,
     badge_tag: 'POPULAR'
   },
@@ -34,7 +33,7 @@ export const PLANS: InvestmentPlan[] = [
     name: 'Royal Estate',
     daily_return: 4.5,
     duration: 30,
-    min_invest: 1000,
+    min_invest: 10000, // BDT
     total_roi: 235,
   }
 ];
@@ -59,7 +58,7 @@ export const TRANSACTIONS: Transaction[] = [
 ];
 
 export const VIDEOS: VideoShort[] = [
-  { id: '1', username: '@crypto_king', description: 'How I made $500 today! 🚀 #earning #crypto', likes: '12K', comments: '450', videoUrl: '#1e3a8a' },
+  { id: '1', username: '@crypto_king', description: 'How I made 5000 TK today! 🚀 #earning #crypto', likes: '12K', comments: '450', videoUrl: '#1e3a8a' },
   { id: '2', username: '@invest_daily', description: 'Don\'t miss this opportunity! 🔥', likes: '8.5K', comments: '210', videoUrl: '#10b981' },
   { id: '3', username: '@lucky_spinner', description: 'Jackpot winner! 🎰', likes: '22K', comments: '1.2K', videoUrl: '#7c3aed' },
 ];
@@ -73,7 +72,7 @@ export const RECENT_ACTIVITIES: Activity[] = [
 
 export const BADGES = [
   { id: 'early_adopter', name: 'Early Adopter', icon: '🚀', description: 'Joined in the first month.' },
-  { id: 'high_roller', name: 'High Roller', icon: '💎', description: 'Deposited over $1000.' },
+  { id: 'high_roller', name: 'High Roller', icon: '💎', description: 'Deposited over 10,000 TK.' },
   { id: 'top_inviter', name: 'Influencer', icon: '👑', description: 'Invited 50+ active users.' },
   { id: 'verified', name: 'KYC Verified', icon: '🛡️', description: 'Identity verified successfully.' },
 ];

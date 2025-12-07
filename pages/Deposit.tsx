@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, UploadCloud, CheckCircle, Loader2, Info, X, Calculator, ShieldCheck, Banknote, DollarSign } from 'lucide-react';
+import { ArrowLeft, UploadCloud, CheckCircle, Loader2, Calculator, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { PaymentMethod } from '../types';
@@ -11,7 +11,7 @@ import { useCurrency } from '../context/CurrencyContext';
 
 const Deposit: React.FC = () => {
   const { toast } = useUI();
-  const { rate, symbol, currency, amountToUSD } = useCurrency();
+  const { symbol } = useCurrency();
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [amount, setAmount] = useState(''); 
@@ -36,8 +36,7 @@ const Deposit: React.FC = () => {
       if (!amount || parseFloat(amount) <= 0) { toast.error("Invalid amount"); return; }
       if (!transactionId) { toast.error("Transaction ID is required"); return; }
       
-      // Convert Local Input to USD
-      const usdAmount = amountToUSD(parseFloat(amount));
+      const bdtAmount = parseFloat(amount);
 
       setLoading(true);
 
@@ -47,7 +46,6 @@ const Deposit: React.FC = () => {
 
           let screenshotUrl = null;
 
-          // 1. Upload Image (Optional but recommended)
           if (screenshot) {
               const fileExt = screenshot.name.split('.').pop();
               const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
@@ -59,11 +57,10 @@ const Deposit: React.FC = () => {
               }
           }
 
-          // 2. Insert Record
           const { error: insertError } = await supabase.from('deposit_requests').insert({
               user_id: session.user.id,
               method_name: selectedMethod.name,
-              amount: usdAmount,
+              amount: bdtAmount, // Store directly as BDT
               transaction_id: transactionId,
               sender_number: senderNumber,
               screenshot_url: screenshotUrl,
@@ -85,8 +82,6 @@ const Deposit: React.FC = () => {
           setLoading(false);
       }
   };
-
-  const usdPreview = amountToUSD(parseFloat(amount) || 0);
 
   if (status === 'success') {
       return (
@@ -117,7 +112,6 @@ const Deposit: React.FC = () => {
        <AnimatePresence mode="wait">
        {!selectedMethod ? (
            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-               
                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Select Method</h3>
                <div className="grid grid-cols-2 gap-4">
                    {methods.map(method => (
@@ -126,7 +120,7 @@ const Deposit: React.FC = () => {
                                 {method.name.charAt(0)}
                             </div>
                             <h3 className="font-bold text-white">{method.name}</h3>
-                            <p className="text-[10px] text-gray-500 uppercase mt-1">{method.type === 'crypto' ? 'USDT / Crypto' : 'Mobile Banking'}</p>
+                            <p className="text-[10px] text-gray-500 uppercase mt-1">{method.type === 'crypto' ? 'Crypto' : 'Mobile Banking'}</p>
                        </GlassCard>
                    ))}
                </div>
@@ -134,38 +128,7 @@ const Deposit: React.FC = () => {
        ) : (
            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6">
                
-               {/* CONVERSION CARD */}
-               <GlassCard className="bg-blue-900/10 border-blue-500/30 relative">
-                   <div className="flex justify-between items-center mb-4">
-                       <h3 className="text-sm font-bold text-blue-300 uppercase flex items-center gap-2">
-                           <Calculator size={16}/> Payment Calculator
-                       </h3>
-                       <span className="text-[10px] bg-black/30 px-2 py-1 rounded text-gray-400">Rate: 1 USD = {rate} {currency}</span>
-                   </div>
-                   
-                   <div className="grid grid-cols-2 gap-4 items-end">
-                       <div>
-                           <label className="text-xs text-gray-400 font-bold mb-1 block">Deposit ({currency})</label>
-                           <input 
-                             type="number" 
-                             value={amount}
-                             onChange={e => setAmount(e.target.value)}
-                             className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-mono font-bold text-xl focus:border-neon-green outline-none"
-                             placeholder="500"
-                           />
-                       </div>
-                       <div>
-                           <label className="text-xs text-neon-green font-bold mb-1 block">Credit Value (USD)</label>
-                           <div className="w-full bg-neon-green/10 border border-neon-green/30 rounded-xl p-3 text-neon-green font-mono font-bold text-xl flex items-center gap-1">
-                               $ {usdPreview.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                           </div>
-                       </div>
-                   </div>
-                   <p className="text-[10px] text-gray-500 mt-2 italic">
-                       * Send exactly <span className="text-white font-bold">{symbol}{parseFloat(amount || '0').toLocaleString()}</span> to the number below.
-                   </p>
-               </GlassCard>
-
+               {/* PAYMENT INFO */}
                <div className="bg-black/30 p-5 rounded-2xl border border-white/10 text-center relative overflow-hidden">
                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-neon-green via-white to-neon-green animate-shimmer"></div>
                    <p className="text-xs text-gray-400 uppercase mb-2">Send Money To</p>
@@ -176,6 +139,24 @@ const Deposit: React.FC = () => {
                </div>
 
                <form onSubmit={handleSubmit} className="space-y-5">
+                   {/* Amount Input */}
+                   <div className="bg-blue-900/10 border border-blue-500/30 rounded-2xl p-5">
+                       <label className="text-xs text-gray-400 font-bold mb-1 block uppercase">Enter Amount (BDT)</label>
+                       <div className="relative">
+                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white font-bold">৳</span>
+                           <input 
+                             type="number" 
+                             value={amount}
+                             onChange={e => setAmount(e.target.value)}
+                             className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-white font-mono font-bold text-xl focus:border-neon-green outline-none"
+                             placeholder="500"
+                           />
+                       </div>
+                       <p className="text-[10px] text-gray-500 mt-2 italic">
+                           * Ensure you send exactly ৳{amount || '0'}
+                       </p>
+                   </div>
+
                    <div>
                        <label className="text-xs font-bold text-gray-400 mb-1 block uppercase">Transaction ID</label>
                        <input 

@@ -127,7 +127,7 @@ const InvestmentSetup: React.FC = () => {
                              </div>
                              <div className="bg-black/30 p-2 rounded text-center">
                                  <p className="text-[10px] text-gray-400 uppercase">Min Invest</p>
-                                 <p className="text-white font-bold">${plan.min_invest}</p>
+                                 <p className="text-white font-bold">৳{plan.min_invest}</p>
                              </div>
                              <div className="bg-black/30 p-2 rounded text-center">
                                  <p className="text-[10px] text-gray-400 uppercase">Total Return</p>
@@ -182,7 +182,7 @@ const InvestmentSetup: React.FC = () => {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1 flex items-center gap-1"><DollarSign size={12}/> Min Invest ($)</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1 flex items-center gap-1"><DollarSign size={12}/> Min Invest (BDT)</label>
                                     <input required type="number" step="1" value={formData.min_invest} onChange={e => setFormData({...formData, min_invest: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" />
                                 </div>
                                 <div>

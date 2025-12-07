@@ -1,5 +1,6 @@
+
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="default">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
@@ -28,8 +29,7 @@
               'card': 'var(--bg-card)',
               'panel': 'var(--bg-panel)',
               'input': 'var(--bg-input)',
-              'surface': 'var(--bg-card)', // Alias for compatibility
-              'surface-hover': 'var(--bg-input)', // Alias for compatibility
+              'surface': 'var(--bg-card)', 
 
               // Semantic Text
               'main': 'var(--text-main)',
@@ -42,8 +42,8 @@
 
               // Functional Colors
               'brand': {
-                DEFAULT: '#0055FF',
-                hover: '#0044CC',
+                DEFAULT: 'var(--color-brand)',
+                hover: 'var(--color-brand-hover)',
               },
               'success': '#10B981',
               'danger': '#EF4444',
@@ -64,10 +64,14 @@
             },
             boxShadow: {
               'none': 'none',
-              'card': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-              'glow': '0 0 15px rgba(0, 85, 255, 0.3)',
+              'card': 'var(--shadow-card)',
+              'glow': 'var(--shadow-glow)',
               'neo-sm': '4px 4px 0px 0px rgba(0,0,0,0.3)',
               'neo-lg': '8px 8px 0px 0px rgba(0,0,0,0.3)',
+            },
+            borderRadius: {
+              'xl': 'var(--radius-xl)',
+              '2xl': 'var(--radius-2xl)',
             },
             animation: {
                 'bounce-subtle': 'bounce-subtle 2s infinite',
@@ -75,6 +79,8 @@
                 'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                 'scanline': 'scanline 8s linear infinite',
                 'spin-slow': 'spin 12s linear infinite',
+                'float': 'float 6s ease-in-out infinite',
+                'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
             },
             keyframes: {
                 'bounce-subtle': {
@@ -88,6 +94,14 @@
                 scanline: {
                     '0%': { transform: 'translateY(-100%)' },
                     '100%': { transform: 'translateY(100vh)' }
+                },
+                float: {
+                    '0%, 100%': { transform: 'translateY(0)' },
+                    '50%': { transform: 'translateY(-10px)' },
+                },
+                fadeInUp: {
+                    '0%': { opacity: '0', transform: 'translateY(20px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
                 }
             }
           }
@@ -96,7 +110,13 @@
     </script>
     <style>
       :root {
-        /* PERMANENT DARK MODE VARIABLES */
+        /* GLOBAL DEFAULTS */
+        --radius-xl: 0.75rem;
+        --radius-2xl: 1rem;
+      }
+
+      /* === THEME 1: DARK BLUE (DEFAULT) === */
+      .default {
         --bg-void: #050505;
         --bg-card: #111111;
         --bg-panel: #0A0A0A;
@@ -108,20 +128,65 @@
 
         --border-base: #262626;
         --border-highlight: #404040;
+
+        --color-brand: #0055FF;
+        --color-brand-hover: #0044CC;
+
+        --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-glow: 0 0 15px rgba(0, 85, 255, 0.3);
+      }
+
+      /* === THEME 2: PREMIUM PURPLE (FUTURISTIC) === */
+      .premium {
+        --bg-void: #1a0b2e; /* Fallback color */
+        --bg-card: rgba(255, 255, 255, 0.07); /* Glassmorphism */
+        --bg-panel: rgba(20, 10, 40, 0.6);
+        --bg-input: rgba(0, 0, 0, 0.2);
+
+        --text-main: #FFFFFF;
+        --text-muted: #d4c4ed; /* Soft Purple Grey */
+        --text-highlight: #FFFFFF;
+
+        --border-base: rgba(141, 77, 255, 0.2); /* Accent Low Opacity */
+        --border-highlight: rgba(141, 77, 255, 0.5);
+
+        --color-brand: #8D4DFF; /* Accent Color */
+        --color-brand-hover: #6A30D9; /* Secondary */
+
+        --shadow-card: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        --shadow-glow: 0 0 25px rgba(141, 77, 255, 0.5);
+        
+        --radius-xl: 1.5rem; /* Rounder corners */
+        --radius-2xl: 2rem;
       }
 
       body {
         background-color: var(--bg-void);
         color: var(--text-main);
         -webkit-font-smoothing: antialiased;
+        transition: background 0.5s ease, color 0.5s ease;
+      }
+
+      /* Premium Gradient Background */
+      .premium body {
+        background: linear-gradient(135deg, #1a0b2e 0%, #3B2CC9 50%, #0f0518 100%);
+        background-attachment: fixed;
       }
       
+      /* Premium Glass Effect */
+      .premium .bg-card {
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+      }
+
       /* Eliminate Scrollbar for cleaner look */
       ::-webkit-scrollbar {
         width: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: var(--bg-void);
+        background: transparent;
       }
       ::-webkit-scrollbar-thumb {
         background: var(--border-highlight);
@@ -165,7 +230,8 @@
     "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
     "path": "https://aistudiocdn.com/path@^0.12.7",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
-    "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4"
+    "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4",
+    "recharts": "https://aistudiocdn.com/recharts@^2.15.0"
   }
 }
 </script>

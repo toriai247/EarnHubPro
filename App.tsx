@@ -19,7 +19,7 @@ import Withdraw from './pages/Withdraw';
 import Transfer from './pages/Transfer';
 import SendMoney from './pages/SendMoney'; 
 import Exchange from './pages/Exchange'; 
-import Advertise from './pages/Advertise'; // Imported
+import Advertise from './pages/Advertise'; 
 import Profile from './pages/Profile';
 import PublicProfile from './pages/PublicProfile';
 import SearchUsers from './pages/SearchUsers'; 
@@ -31,20 +31,21 @@ import FAQ from './pages/FAQ';
 import Terms from './pages/Terms';
 import Leaderboard from './pages/Leaderboard';
 import BiometricSetup from './pages/BiometricSetup';
+import Themes from './pages/Themes'; // Added
 import Admin from './pages/admin/Admin';
 import FeatureAccessBlock from './components/FeatureAccessBlock';
 import DealerDashboard from './pages/dealer/DealerDashboard';
 import CreateCampaign from './pages/dealer/CreateCampaign';
 import ManageCampaigns from './pages/dealer/ManageCampaigns';
 import DealerProfile from './pages/dealer/DealerProfile';
-import StaffDashboard from './pages/staff/StaffDashboard'; // Imported
-import SiteViewer from './pages/SiteViewer'; // Added
+import StaffDashboard from './pages/staff/StaffDashboard';
+import SiteViewer from './pages/SiteViewer'; 
 import { supabase } from './integrations/supabase/client';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { UIProvider } from './context/UIContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SystemProvider, useSystem } from './context/SystemContext';
-import InstallPWA from './components/InstallPWA'; // Added
+import InstallPWA from './components/InstallPWA'; 
 
 // --- ROUTE GUARD COMPONENT ---
 const FeatureGuard = ({ feature, children }: { feature: string, children?: React.ReactNode }) => {
@@ -86,7 +87,7 @@ const RequireDealer: React.FC<{ session: any; children: React.ReactNode }> = ({ 
 
     if (!session) return <Navigate to="/login" replace />;
     if (isDealer === null) return <div className="p-20 text-center text-gray-500">Verifying Partner Status...</div>;
-    if (isDealer === false) return <Navigate to="/" replace />; // Redirect non-dealers home
+    if (isDealer === false) return <Navigate to="/" replace />; 
 
     return <>{children}</>;
 };
@@ -121,7 +122,6 @@ const AppContent: React.FC = () => {
         const { data, error } = await supabase.auth.getSession();
         setSession(data.session);
         
-        // Request Notification Permission on successful session check
         if (data.session && Notification.permission === 'default') {
             Notification.requestPermission();
         }
@@ -146,16 +146,16 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-neon-green p-4">
-        <div className="w-12 h-12 border-4 border-royal-600 border-t-neon-green rounded-full animate-spin mb-4"></div>
-        <div className="font-display font-bold tracking-wider text-lg">NAXXIVO</div>
+      <div className="min-h-screen bg-void flex flex-col items-center justify-center text-brand p-4">
+        <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mb-4"></div>
+        <div className="font-display font-bold tracking-wider text-lg text-main">NAXXIVO</div>
       </div>
     );
   }
 
   return (
     <>
-      <InstallPWA /> {/* GLOBAL PWA PROMPT */}
+      <InstallPWA /> 
       <Routes>
         <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
         <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
@@ -175,6 +175,7 @@ const AppContent: React.FC = () => {
           <Route path="/faq" element={<FAQ />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/support" element={<Support />} />
+          <Route path="/themes" element={<Themes />} />
 
           {/* DEALER ROUTES (Protected) */}
           <Route path="/dealer/dashboard" element={<RequireDealer session={session}><DealerDashboard /></RequireDealer>} />

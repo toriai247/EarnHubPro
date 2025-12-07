@@ -23,16 +23,10 @@ export const createNotification = async (userId: string, title: string, message:
 };
 
 export const createTransaction = async (userId: string, type: string, amount: number, description: string) => {
-  if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      console.warn(`Skipping transaction log: Invalid userId "${userId}"`);
-      return;
-  }
-  
-  if (!isValidUUID(userId)) { 
-      console.warn("Skipping invalid UUID transaction for ID:", userId); 
-      return; 
-  }
+  if (!userId || typeof userId !== 'string' || userId.trim() === '') return;
+  if (!isValidUUID(userId)) return;
 
+  // Amount stored is always BDT
   const { error } = await supabase.from('transactions').insert({
     user_id: userId,
     type: type as any,
@@ -41,24 +35,20 @@ export const createTransaction = async (userId: string, type: string, amount: nu
     description
   });
   
-  if (error) {
-    console.error("Failed to create transaction log:", JSON.stringify(error));
-  }
+  if (error) console.error("Failed to create transaction log:", JSON.stringify(error));
 };
 
 /**
- * CRITICAL FIX: Recalculates the aggregated Total Balance based on all sub-wallets.
- * This ensures the 'balance' field is always the sum of its parts.
+ * Recalculates the aggregated Total Balance based on all sub-wallets.
+ * ALL VALUES ARE IN BDT.
  */
 export const syncWalletTotals = async (userId: string) => {
     if (!isValidUUID(userId)) return;
 
-    // 1. Get latest values
     const { data: w, error } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
     if (error || !w) return;
 
-    // 2. Calculate Total Assets
-    // Note: We exclude 'balance' and 'withdrawable' from the sum as they are aggregate fields
+    // Calculate Total Assets (Sum of all BDT pockets)
     const totalAssets = (w.main_balance || 0) + 
                         (w.deposit_balance || 0) + 
                         (w.game_balance || 0) + 
@@ -68,15 +58,13 @@ export const syncWalletTotals = async (userId: string) => {
                         (w.commission_balance || 0) + 
                         (w.bonus_balance || 0);
 
-    // 3. Main Balance represents Withdrawable
-    // Pending withdraws are deducted visually in the UI, but here we just ensure consistency
+    // Main Balance is the primary "Withdrawable" source
     const withdrawable = w.main_balance;
 
-    // 4. Update the aggregate fields
     await supabase.from('wallets').update({
         balance: totalAssets,
         withdrawable: withdrawable,
-        deposit: w.deposit_balance // Sync legacy deposit field
+        deposit: w.deposit_balance
     }).eq('user_id', userId);
 };
 
@@ -87,16 +75,11 @@ export const updateWallet = async (
     type: 'increment' | 'decrement', 
     field: string = 'main_balance' 
 ) => {
-  if (!isValidUUID(userId)) {
-      console.error("Invalid userId passed to updateWallet:", userId);
-      throw new Error("Invalid User ID");
-  }
+  if (!isValidUUID(userId)) throw new Error("Invalid User ID");
 
   const { data: wallet, error: fetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
   
-  if (fetchError || !wallet) {
-      throw new Error("Wallet not found");
-  }
+  if (fetchError || !wallet) throw new Error("Wallet not found");
 
   const updates: any = {};
   // @ts-ignore
@@ -110,26 +93,21 @@ export const updateWallet = async (
   
   const { error: updateError } = await supabase.from('wallets').update(updates).eq('user_id', userId);
   
-  if (updateError) {
-      throw new Error("Failed to update wallet balance");
-  }
+  if (updateError) throw new Error("Failed to update wallet balance");
 
   // FORCE SYNC TOTALS AFTER UPDATE
   await syncWalletTotals(userId);
 };
 
-export const createUserProfile = async (userId: string, email: string, fullName: string, referralCode?: string, currency: string = 'USD') => {
-  if (!userId || !isValidUUID(userId)) {
-      console.error("Invalid userId for createUserProfile");
-      return;
-  }
+export const createUserProfile = async (userId: string, email: string, fullName: string, referralCode?: string, currency: string = 'BDT') => {
+  if (!userId || !isValidUUID(userId)) return;
 
   const myRefCode = generateReferralCode();
   let referredBy = null;
   
-  // LOGIC FIX: Normalize Bonus to USD Base
-  const config = CURRENCY_CONFIG[currency as keyof typeof CURRENCY_CONFIG] || CURRENCY_CONFIG.USD;
-  let welcomeBonus = config.signup_bonus / config.rate; 
+  // Welcome Bonus (Stored in BDT)
+  // If currency passed is 'USD', config returns 100. We store 100 BDT.
+  let welcomeBonus = CURRENCY_CONFIG.BDT.signup_bonus; 
   
   let referrerId = null;
   
@@ -139,7 +117,7 @@ export const createUserProfile = async (userId: string, email: string, fullName:
       if (referrer) {
           referredBy = referralCode; 
           referrerId = referrer.id;
-          // Add extra bonus? 25% of welcome bonus
+          // Referral Bonus Addition (e.g. 25% extra)
           welcomeBonus += (welcomeBonus * 0.25); 
       }
   }
@@ -155,25 +133,21 @@ export const createUserProfile = async (userId: string, email: string, fullName:
     is_kyc_1: false
   }, { onConflict: 'id' });
 
-  if (profileError) {
-    if (profileError.code === '42P17') {
-        throw new Error("Database Policy Error: Infinite Recursion. Please run the fix SQL script.");
-    }
-  }
+  if (profileError) throw profileError;
 
-  // 2. Create Wallet
+  // 2. Create Wallet (Base Currency BDT)
   const { error: walletError } = await supabase.from('wallets').upsert({
     user_id: userId,
-    currency: currency, 
+    currency: currency, // Preferred display currency
     main_balance: 0,
-    bonus_balance: welcomeBonus, 
+    bonus_balance: welcomeBonus, // BDT
     deposit_balance: 0,
     game_balance: 0,
     earning_balance: 0,
     investment_balance: 0,
     referral_balance: 0,
     commission_balance: 0,
-    balance: welcomeBonus, // Init total
+    balance: welcomeBonus,
     deposit: 0,
     withdrawable: 0, 
     total_earning: 0,
@@ -182,14 +156,9 @@ export const createUserProfile = async (userId: string, email: string, fullName:
     referral_earnings: 0
   }, { onConflict: 'user_id' });
 
-  if (walletError) {
-      if (walletError.code === '42P17') {
-          throw new Error("Database Policy Error: Infinite Recursion on Wallet. Run fix SQL.");
-      }
-      throw walletError;
-  }
+  if (walletError) throw walletError;
 
-  // 3. Check and Create Transactions (Prevent Duplicates)
+  // 3. Create Transaction Log
   if (userId) {
       const { count: txCount } = await supabase.from('transactions')
         .select('*', { count: 'exact', head: true })
@@ -198,22 +167,15 @@ export const createUserProfile = async (userId: string, email: string, fullName:
 
       if (!txCount) {
           await createTransaction(userId, 'bonus', welcomeBonus, `Welcome Bonus`);
-          await createNotification(userId, 'Welcome! 🎁', `You received a welcome bonus of $${welcomeBonus.toFixed(2)}`, 'success');
+          await createNotification(userId, 'Welcome! 🎁', `You received a welcome bonus of ৳${welcomeBonus.toFixed(2)}`, 'success');
           
           if (referrerId && isValidUUID(referrerId)) {
-              const { count: refTxCount } = await supabase.from('transactions')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', userId)
-                .ilike('description', 'Referral Bonus%');
-
-              if (!refTxCount) {
-                  await supabase.from('referrals').upsert({
-                      referrer_id: referrerId,
-                      referred_id: userId,
-                      status: 'completed',
-                      earned: 0
-                  }, { onConflict: 'referred_id', ignoreDuplicates: true });
-              }
+              await supabase.from('referrals').upsert({
+                  referrer_id: referrerId,
+                  referred_id: userId,
+                  status: 'completed',
+                  earned: 0
+              }, { onConflict: 'referred_id', ignoreDuplicates: true });
           }
       }
   }
@@ -238,36 +200,34 @@ const distributeReferralReward = async (userId: string, earningAmount: number) =
         .maybeSingle();
 
     const percent = tierConfig ? tierConfig.commission_percent : 5.0;
-    const commission = Number((earningAmount * (percent / 100)).toFixed(4));
+    const commission = Number((earningAmount * (percent / 100)).toFixed(2));
         
-    if (commission < 0.001) return;
+    if (commission < 0.01) return;
 
-    const { data: rWallet } = await supabase.from('wallets').select('*').eq('user_id', referrerProfile.id).single();
-    if (rWallet) {
+    await updateWallet(referrerProfile.id, commission, 'increment', 'commission_balance');
+    
+    // Also update referral tracking stats
+    const { data: rWallet } = await supabase.from('wallets').select('total_earning, referral_earnings').eq('user_id', referrerProfile.id).single();
+    if(rWallet) {
         await supabase.from('wallets').update({
-            commission_balance: (rWallet.commission_balance || 0) + commission, 
             total_earning: rWallet.total_earning + commission,
-            referral_earnings: (rWallet.referral_earnings || 0) + commission
+            referral_earnings: rWallet.referral_earnings + commission
         }).eq('user_id', referrerProfile.id);
-
-        await createTransaction(referrerProfile.id, 'referral', commission, `${percent}% Commission from ${userProfile.name_1 || 'User'}`);
-        
-        const { data: refRecord } = await supabase.from('referrals').select('*')
-            .eq('referrer_id', referrerProfile.id)
-            .eq('referred_id', userId)
-            .maybeSingle();
-            
-        if (refRecord) {
-            await supabase.from('referrals').update({
-                earned: refRecord.earned + commission
-            }).eq('id', refRecord.id);
-        }
-
-        await createNotification(referrerProfile.id, 'Commission Earned! 💸', `You earned ${commission.toFixed(2)} (${percent}%) commission.`, 'success');
-        
-        // Sync
-        await syncWalletTotals(referrerProfile.id);
     }
+
+    await createTransaction(referrerProfile.id, 'referral', commission, `${percent}% Commission from ${userProfile.name_1 || 'User'}`);
+    
+    // Update referral record
+    const { data: refRecord } = await supabase.from('referrals').select('*')
+        .eq('referrer_id', referrerProfile.id)
+        .eq('referred_id', userId)
+        .maybeSingle();
+        
+    if (refRecord) {
+        await supabase.from('referrals').update({ earned: refRecord.earned + commission }).eq('id', refRecord.id);
+    }
+
+    await syncWalletTotals(referrerProfile.id);
 };
 
 // --- GAME LOGIC ---
@@ -305,52 +265,34 @@ export const processGameResult = async (userId: string, gameId: string, gameName
                      today_earning: w.today_earning + finalProfit
                  }).eq('user_id', userId);
              }
-        }
-        
-        if (finalProfit > 0) {
-            await distributeReferralReward(userId, finalProfit);
+             await distributeReferralReward(userId, finalProfit);
         }
     }
 
     await createTransaction(userId, finalProfit > 0 ? 'game_win' : 'game_loss', Math.abs(finalProfit), details);
-    
-    if (finalProfit > 50) {
-        await createNotification(userId, 'Big Win! 🏆', `You won $${finalProfit.toFixed(2)} in ${gameName}!`, 'success');
-    }
-    
     await syncWalletTotals(userId);
 };
 
 export const claimTask = async (userId: string, task: Task) => {
     if (!isValidUUID(userId)) throw new Error("Invalid User ID");
 
-    const { data: w, error: walletFetchError } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
-    if (walletFetchError || !w) throw new Error("Wallet not found");
-
-    const currentBal = Number(w.earning_balance) || 0; 
+    // Task reward is in BDT
     const reward = Number(task.reward) || 0;
-    const totalEarn = Number(w.total_earning) || 0;
-    const todayEarn = Number(w.today_earning) || 0;
 
-    const newBalance = currentBal + reward;
+    await updateWallet(userId, reward, 'increment', 'earning_balance');
+    
+    // Update stats
+    const { data: w } = await supabase.from('wallets').select('total_earning, today_earning').eq('user_id', userId).single();
+    if(w) {
+        await supabase.from('wallets').update({
+            total_earning: w.total_earning + reward,
+            today_earning: w.today_earning + reward
+        }).eq('user_id', userId);
+    }
 
-    const { error: updateError } = await supabase.from('wallets').update({
-        earning_balance: newBalance,
-        total_earning: totalEarn + reward,
-        today_earning: todayEarn + reward
-    }).eq('user_id', userId);
-
-    if (updateError) throw new Error("Failed to credit reward.");
-
-    await supabase.from('user_tasks').insert({
-        user_id: userId,
-        task_id: task.id,
-        completed_at: new Date().toISOString()
-    });
-
+    await supabase.from('user_tasks').insert({ user_id: userId, task_id: task.id, completed_at: new Date().toISOString() });
     await createTransaction(userId, 'earn', reward, `Task Completed: ${task.title}`);
     await distributeReferralReward(userId, reward);
-    await syncWalletTotals(userId);
     
     return true;
 }
@@ -365,7 +307,7 @@ export const claimInvestmentReturn = async (userId: string, investment: ActiveIn
         throw new Error("Claim not available yet. Please wait.");
     }
 
-    const dailyProfit = investment.daily_return;
+    const dailyProfit = investment.daily_return; // BDT
     
     await updateWallet(userId, dailyProfit, 'increment', 'earning_balance');
     
@@ -395,7 +337,7 @@ export const saveWithdrawMethod = async (userId: string, method: string, number:
     if (!isValidUUID(userId)) throw new Error("Invalid User ID");
 
     const { data: settings } = await supabase.from('withdrawal_settings').select('*').maybeSingle();
-    const fee = settings?.id_change_fee || 30;
+    const fee = settings?.id_change_fee || 30; // BDT
 
     const { data: existing } = await supabase.from('user_withdrawal_methods').select('*').eq('user_id', userId).maybeSingle();
 
@@ -403,7 +345,7 @@ export const saveWithdrawMethod = async (userId: string, method: string, number:
         if (existing.account_number !== number) {
             const { data: wallet } = await supabase.from('wallets').select('main_balance').eq('user_id', userId).single();
             if (!wallet || wallet.main_balance < fee) {
-                throw new Error(`Insufficient Main Balance. Changing the saved number costs ${fee} TK.`);
+                throw new Error(`Insufficient Main Balance. Changing the saved number costs ৳${fee}.`);
             }
             await updateWallet(userId, fee, 'decrement', 'main_balance');
             await createTransaction(userId, 'penalty', fee, 'Withdrawal ID Change Fee');
@@ -428,6 +370,7 @@ export const saveWithdrawMethod = async (userId: string, method: string, number:
 export const requestWithdrawal = async (userId: string, amount: number, method: string, accountNumber: string) => {
     if (!isValidUUID(userId)) throw new Error("Invalid User ID");
 
+    // Amount is already in BDT
     const { data, error } = await supabase.rpc('request_withdrawal', {
         p_user_id: userId,
         p_amount: amount,
@@ -435,14 +378,8 @@ export const requestWithdrawal = async (userId: string, amount: number, method: 
         p_account_number: accountNumber
     });
 
-    if (error) {
-        console.error("RPC Error:", error);
-        throw new Error(error.message);
-    }
-
-    if (data && data.success === false) {
-        throw new Error(data.message);
-    }
+    if (error) throw new Error(error.message);
+    if (data && data.success === false) throw new Error(data.message);
     
     await syncWalletTotals(userId);
     return data;
@@ -454,14 +391,7 @@ export const processMonthlyPayment = async (userId: string, balance: number, met
     const bonus = Number((balance * 0.02).toFixed(2));
     const totalPayout = balance + bonus;
     
-    const { error: wErr } = await supabase.from('wallets').update({
-        main_balance: 0, 
-        balance: 0,
-        withdrawable: 0,
-        pending_withdraw: 0
-    }).eq('user_id', userId);
-
-    if (wErr) throw new Error("Failed to deduct user balance");
+    await updateWallet(userId, balance, 'decrement', 'main_balance'); // Clear main balance
 
     await createTransaction(userId, 'bonus', bonus, 'Monthly Auto-Pay 2% Bonus');
     await createTransaction(userId, 'withdraw', totalPayout, `Monthly Auto-Pay to ${method}`);
@@ -473,38 +403,28 @@ export const processMonthlyPayment = async (userId: string, balance: number, met
         status: 'approved',
         processed_at: new Date().toISOString()
     });
+    
+    await syncWalletTotals(userId);
 };
 
 export const checkDailyBonus = async (userId: string) => {
     const today = new Date();
     today.setHours(0,0,0,0);
 
-    const { data: streak } = await supabase
-        .from('daily_streaks')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+    const { data: streak } = await supabase.from('daily_streaks').select('*').eq('user_id', userId).maybeSingle();
 
-    if (!streak) {
-        return { canClaim: true, streak: 1 };
-    }
+    if (!streak) return { canClaim: true, streak: 1 };
 
     const lastClaim = new Date(streak.last_claimed_at);
     lastClaim.setHours(0,0,0,0);
 
-    if (lastClaim.getTime() === today.getTime()) {
-        return { canClaim: false, streak: streak.current_streak };
-    }
+    if (lastClaim.getTime() === today.getTime()) return { canClaim: false, streak: streak.current_streak };
 
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     yesterday.setHours(0,0,0,0);
 
-    if (lastClaim.getTime() < yesterday.getTime()) {
-        // Missed a day? Check logic. 
-        // If last claim was before yesterday, streak resets.
-        return { canClaim: true, streak: 1 };
-    }
+    if (lastClaim.getTime() < yesterday.getTime()) return { canClaim: true, streak: 1 }; // Reset if missed a day
 
     return { canClaim: true, streak: streak.current_streak + 1 };
 };
@@ -514,17 +434,17 @@ export const claimDailyBonus = async (userId: string, day: number) => {
 
     const { data: configs } = await supabase.from('daily_bonus_config').select('*').order('day');
     
-    let rewards = [0.10, 0.20, 0.30, 0.40, 0.50, 0.75, 1.00]; 
+    let rewards = [5, 10, 15, 20, 25, 50, 100]; // Default BDT Rewards
     
     if (configs && configs.length > 0) {
-        rewards = Array(7).fill(0.10);
+        rewards = Array(7).fill(5);
         configs.forEach((c: any) => {
             if (c.day >= 1 && c.day <= 7) rewards[c.day - 1] = c.reward_amount;
         });
     }
 
     const index = (day - 1) % 7; 
-    const amount = rewards[index] || 0.10;
+    const amount = rewards[index] || 5;
 
     await updateWallet(userId, amount, 'increment', 'bonus_balance');
     await createTransaction(userId, 'bonus', amount, `Daily Login Bonus (Day ${day})`);
@@ -547,16 +467,11 @@ export const claimDailyBonus = async (userId: string, day: number) => {
     }
 
     window.dispatchEvent(new Event('wallet_updated'));
-    
     return amount;
 };
 
 export const resetAllDailyStreaks = async () => {
     const { error } = await supabase.rpc('admin_reset_all_streaks');
-    if (error) {
-        // If RPC is missing, fallback to creating table query if possible, 
-        // but since we can't run raw SQL here, we throw error asking user to run the tool.
-        throw new Error("RPC 'admin_reset_all_streaks' missing. Run SQL in Database Ultra.");
-    }
+    if (error) throw new Error("RPC 'admin_reset_all_streaks' missing. Run SQL in Database Ultra.");
     return true;
 };

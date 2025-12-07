@@ -115,20 +115,17 @@ const WebsiteSettings: React.FC = () => {
                 
                 {config.is_activation_enabled && (
                     <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-                        <label className="text-xs text-purple-300 font-bold block mb-1">Required Deposit Amount (USD)</label>
+                        <label className="text-xs text-purple-300 font-bold block mb-1">Required Deposit Amount (BDT)</label>
                         <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">৳</span>
                             <input 
                                 type="number" 
-                                step="0.01" 
+                                step="1" 
                                 value={config.activation_amount || 0}
                                 onChange={e => setConfig({...config, activation_amount: parseFloat(e.target.value)})}
                                 className="w-full bg-black/40 border border-white/10 rounded-lg pl-8 pr-4 py-2 text-white text-sm focus:border-purple-500 outline-none"
                             />
                         </div>
-                        <p className="text-[10px] text-gray-500 mt-2">
-                            Approx: {(config.activation_amount || 0) * 120} BDT. Users with total deposits below this cannot withdraw.
-                        </p>
                     </div>
                 )}
             </div>
@@ -160,7 +157,7 @@ const WebsiteSettings: React.FC = () => {
                     />
                 </div>
                 <div>
-                    <label className="text-xs text-gray-400 font-bold block mb-1">Min Transfer ($)</label>
+                    <label className="text-xs text-gray-400 font-bold block mb-1">Min Transfer (BDT)</label>
                     <input 
                         type="number" 
                         step="1" 

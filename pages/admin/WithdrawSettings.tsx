@@ -56,23 +56,23 @@ const WithdrawSettings: React.FC = () => {
             <GlassCard>
                 <div className="flex items-center gap-2 mb-6 border-b border-white/10 pb-4">
                     <DollarSign size={18} className="text-green-400" />
-                    <h3 className="font-bold text-white uppercase tracking-wider text-sm">Transaction Limits</h3>
+                    <h3 className="font-bold text-white uppercase tracking-wider text-sm">Transaction Limits (BDT)</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Minimum Withdraw ($)</label>
+                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Minimum Withdraw</label>
                         <input type="number" value={settings.min_withdraw} onChange={e => setSettings({...settings, min_withdraw: parseFloat(e.target.value)})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none font-mono" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Maximum Withdraw ($)</label>
+                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Maximum Withdraw</label>
                         <input type="number" value={settings.max_withdraw} onChange={e => setSettings({...settings, max_withdraw: parseFloat(e.target.value)})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none font-mono" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Daily Limit ($)</label>
+                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Daily Limit</label>
                         <input type="number" value={settings.daily_limit} onChange={e => setSettings({...settings, daily_limit: parseFloat(e.target.value)})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none font-mono" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Monthly Limit ($)</label>
+                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Monthly Limit</label>
                         <input type="number" value={settings.monthly_limit} onChange={e => setSettings({...settings, monthly_limit: parseFloat(e.target.value)})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none font-mono" />
                     </div>
                 </div>
@@ -100,7 +100,7 @@ const WithdrawSettings: React.FC = () => {
                         <p className="text-[10px] text-gray-500 mt-2">Deducted from the user's requested amount.</p>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">ID Change Penalty (Local Currency)</label>
+                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">ID Change Penalty (BDT)</label>
                         <input type="number" value={settings.id_change_fee} onChange={e => setSettings({...settings, id_change_fee: parseFloat(e.target.value)})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none font-mono" />
                         <p className="text-[10px] text-gray-500 mt-2">Cost to change a saved withdrawal number (e.g. Bkash).</p>
                     </div>
@@ -111,7 +111,7 @@ const WithdrawSettings: React.FC = () => {
             <GlassCard>
                 <div className="flex items-center gap-2 mb-4">
                     <Shield size={18} className="text-purple-400" />
-                    <h3 className="font-bold text-white uppercase tracking-wider text-sm">Security Rules</h3>
+                    <h3 className="text-bold text-white uppercase tracking-wider text-sm">Security Rules</h3>
                 </div>
                 <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between group hover:border-purple-500/30 transition">
                     <div>
