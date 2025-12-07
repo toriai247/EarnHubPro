@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/api/deepseek/(.*)",
-      "destination": "https://api.deepseek.com/$1"
+      "source": "/api/openrouter/(.*)",
+      "destination": "https://openrouter.ai/api/v1/$1"
     },
     {
       "source": "/(.*)",

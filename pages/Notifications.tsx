@@ -22,7 +22,7 @@ const Notifications: React.FC = () => {
     const sub = supabase
         .channel('notif-page')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
-            const newNotif = { ...payload.new, read: false } as AppNotification;
+            const newNotif = { ...(payload.new as any), read: false } as AppNotification;
             setNotifications(prev => [newNotif, ...prev]);
         })
         .subscribe();

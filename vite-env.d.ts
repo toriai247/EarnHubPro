@@ -1,3 +1,4 @@
+
 declare module '*.svg' {
   const content: string;
   export default content;
@@ -37,6 +38,8 @@ declare module '*.bmp' {
   const content: string;
   export default content;
 }
+
+declare module 'canvas-confetti';
 
 interface ImportMetaEnv {
   readonly VITE_DEEPSEEK_API_KEY: string;

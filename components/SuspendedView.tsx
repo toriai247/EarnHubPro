@@ -38,7 +38,7 @@ const SuspendedView: React.FC<SuspendedViewProps> = ({ session }) => {
                 email: session.user.email,
                 message: `[SUSPENSION APPEAL] ${appealText}`,
                 status: 'pending'
-            });
+            } as any);
 
             if (error) throw error;
 

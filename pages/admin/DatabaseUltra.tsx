@@ -19,12 +19,96 @@ const TABLE_LIST = [
     'deposit_bonuses', 'withdrawal_settings', 'user_withdrawal_methods',
     'crash_game_state', 'crash_bets', 'referral_tiers', 'ludo_cards',
     'spin_items', 'bot_profiles', 'help_requests', 'marketplace_tasks', 'marketplace_submissions',
-    'game_configs', 'task_attempts', 'daily_bonus_config', 'daily_streaks'
+    'game_configs', 'task_attempts', 'daily_bonus_config', 'daily_streaks',
+    'influencer_campaigns', 'influencer_submissions', 'published_sites'
 ];
 
 // SQL Templates Library
 const SQL_TOOLS = {
     setup: [
+        {
+            title: 'New: Site Publisher Module',
+            desc: 'Creates table for publishing external sites via custom URLs.',
+            sql: `
+CREATE TABLE IF NOT EXISTS public.published_sites (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    target_url TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    views INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.published_sites ENABLE ROW LEVEL SECURITY;
+
+-- Public Read
+DROP POLICY IF EXISTS "Public read sites" ON public.published_sites;
+CREATE POLICY "Public read sites" ON public.published_sites FOR SELECT USING (is_active = true);
+
+-- Admin Manage
+DROP POLICY IF EXISTS "Admin manage sites" ON public.published_sites;
+CREATE POLICY "Admin manage sites" ON public.published_sites FOR ALL USING (
+  EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() AND (role = 'admin' OR admin_user = true)
+  )
+);
+`
+        },
+        {
+            title: 'Setup: Influencer / Staff Module',
+            desc: 'Creates tables for Staff campaigns and submissions.',
+            sql: `
+-- 1. Create Campaigns Table
+CREATE TABLE IF NOT EXISTS public.influencer_campaigns (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    title TEXT NOT NULL,
+    platform TEXT CHECK (platform IN ('facebook', 'youtube', 'instagram', 'tiktok')),
+    media_link TEXT NOT NULL,
+    requirements TEXT,
+    payout NUMERIC(10, 2) NOT NULL,
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Create Submissions Table
+CREATE TABLE IF NOT EXISTS public.influencer_submissions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    campaign_id UUID REFERENCES public.influencer_campaigns(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) NOT NULL,
+    proof_link TEXT NOT NULL,
+    views_count INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Enable RLS
+ALTER TABLE public.influencer_campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.influencer_submissions ENABLE ROW LEVEL SECURITY;
+
+-- 4. Policies
+-- Campaigns: Public Read, Admin Write
+DROP POLICY IF EXISTS "Public read campaigns" ON public.influencer_campaigns;
+CREATE POLICY "Public read campaigns" ON public.influencer_campaigns FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin manage campaigns" ON public.influencer_campaigns;
+CREATE POLICY "Admin manage campaigns" ON public.influencer_campaigns FOR ALL USING (true); 
+
+-- Submissions: Staff insert, Admin manage
+DROP POLICY IF EXISTS "Staff insert submission" ON public.influencer_submissions;
+CREATE POLICY "Staff insert submission" ON public.influencer_submissions FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Staff view own" ON public.influencer_submissions;
+CREATE POLICY "Staff view own" ON public.influencer_submissions FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Admin manage submissions" ON public.influencer_submissions;
+CREATE POLICY "Admin manage submissions" ON public.influencer_submissions FOR ALL USING (true); 
+
+-- 5. Seed Data
+INSERT INTO public.influencer_campaigns (title, platform, media_link, requirements, payout) VALUES
+('Share Official Launch Video', 'facebook', 'https://facebook.com/naxxivo/launch', 'Share on Profile, Min 5k Friends', 50.00),
+('Create YouTube Review', 'youtube', 'https://naxxivo.com', 'Create a 3min review video. Min 1k views.', 150.00),
+('Instagram Story Shoutout', 'instagram', 'https://instagram.com/naxxivo', 'Tag @naxxivo in story. 24h active.', 25.00);
+`
+        },
         {
             title: 'Fix: Reset Daily Bonus System',
             desc: 'Drops old policies/tables and recreates Daily Bonus system cleanly.',
@@ -193,9 +277,59 @@ FOR UPDATE USING (
     ],
     danger: [
         {
+            title: 'MASTER ADMIN POLICY (GOD MODE)',
+            desc: 'Unrestricted Admin Access to ALL 39+ Tables. Run in Supabase SQL Editor.',
+            sql: `
+-- 1. Create Secure Admin Check Function (Prevents Infinite Recursion)
+CREATE OR REPLACE FUNCTION public.check_is_admin()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER -- Bypass RLS for this check
+SET search_path = public
+AS $$
+BEGIN
+  -- Check if the user is an admin in the profiles table
+  IF EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() 
+      AND (role = 'admin' OR admin_user = true)
+  ) THEN
+      RETURN TRUE;
+  ELSE
+      RETURN FALSE;
+  END IF;
+END;
+$$;
+
+-- 2. Apply Master Policy to ALL Tables (Loop)
+DO $$ 
+DECLARE 
+    t text; 
+BEGIN 
+    FOR t IN 
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+    LOOP 
+        -- Enable RLS just in case
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t); 
+        
+        -- Drop old policies to avoid conflicts
+        EXECUTE format('DROP POLICY IF EXISTS "Admins Full Access" ON public.%I;', t); 
+        
+        -- Create new GOD MODE policy using the secure function
+        EXECUTE format('CREATE POLICY "Admins Full Access" ON public.%I FOR ALL USING (public.check_is_admin()) WITH CHECK (public.check_is_admin());', t); 
+    END LOOP; 
+END $$;
+
+-- 3. Grant Storage Access (Files/Images)
+DROP POLICY IF EXISTS "Admin Storage Full Access" ON storage.objects;
+CREATE POLICY "Admin Storage Full Access" ON storage.objects FOR ALL USING (public.check_is_admin()) WITH CHECK (public.check_is_admin());
+`
+        },
+        {
             title: 'Factory Reset (Data Only)',
             desc: 'Wipes all user data but keeps table structure.',
-            sql: `TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, notifications, marketplace_submissions, user_tasks, task_attempts, daily_streaks CASCADE;
+            sql: `TRUNCATE TABLE transactions, deposit_requests, withdraw_requests, game_history, investments, notifications, marketplace_submissions, user_tasks, task_attempts, daily_streaks, influencer_submissions CASCADE;
 UPDATE wallets SET balance=0, main_balance=0, deposit=0, withdrawable=0, total_earning=0, deposit_balance=0, game_balance=0, earning_balance=0, bonus_balance=0, referral_balance=0, commission_balance=0, investment_balance=0;
 UPDATE profiles SET level_1=1, xp_1=0;`
         }
@@ -335,7 +469,7 @@ const DatabaseUltra: React.FC = () => {
 
     const copySQL = (sql: string) => {
         navigator.clipboard.writeText(sql);
-        toast.success("SQL Copied to Clipboard");
+        toast.success("SQL Copied. Paste in Supabase Editor.");
     };
 
     const estimatedSizeMB = (totalRecords * 0.5) / 1024; 

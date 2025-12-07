@@ -2,12 +2,8 @@
 import React, { useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
-import { 
-  Megaphone, UploadCloud, Sparkles, Bot, Loader2, X, CheckCircle2,
-  Image as ImageIcon, Plus, ArrowLeft
-} from 'lucide-react';
+import { Megaphone, ArrowLeft } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
-import { analyzeTaskReference } from '../../lib/aiHelper';
 import { updateWallet, createTransaction } from '../../lib/actions';
 import { Link, useNavigate } from 'react-router-dom';
 import { QuizConfig } from '../../types';
@@ -15,9 +11,6 @@ import { QuizConfig } from '../../types';
 const CreateCampaign: React.FC = () => {
   const { toast, confirm } = useUI();
   const navigate = useNavigate();
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [generatedData, setGeneratedData] = useState<{ quiz: QuizConfig, dna: any } | null>(null);
   
   const [form, setForm] = useState({
       title: '',
@@ -25,40 +18,22 @@ const CreateCampaign: React.FC = () => {
       url: '',
       category: 'website',
       quantity: 500,
-      pricePerAction: 0.10, // Higher default for dealers
+      pricePerAction: 0.10,
       timer: 30
   });
 
-  const handleAnalyzeImage = async () => {
-      if (!screenshot) { toast.error("Upload a reference screenshot."); return; }
-      setIsAnalyzing(true);
-      try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) throw new Error("No session");
-
-          const fileExt = screenshot.name.split('.').pop();
-          const fileName = `dealer_ai/${session.user.id}_${Date.now()}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from('task-proofs').upload(fileName, screenshot);
-          if (uploadError) throw uploadError;
-          
-          const { data: urlData } = supabase.storage.from('task-proofs').getPublicUrl(fileName);
-          
-          const result = await analyzeTaskReference(urlData.publicUrl, form.category);
-          if (!result.quiz || !result.visual_dna) throw new Error("AI analysis incomplete.");
-
-          setGeneratedData({ quiz: result.quiz, dna: result.visual_dna });
-          toast.success("Visual DNA Generated!");
-      } catch (e: any) {
-          toast.error(e.message);
-      } finally {
-          setIsAnalyzing(false);
-      }
-  };
+  const [quizQuestion, setQuizQuestion] = useState('');
+  const [quizOptions, setQuizOptions] = useState(['', '', '']);
+  const [correctIndex, setCorrectIndex] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!generatedData) { toast.error("AI Analysis required."); return; }
       
+      if (!quizQuestion || quizOptions.some(o => !o.trim())) {
+          toast.error("Please set a validation quiz.");
+          return;
+      }
+
       const totalCost = form.quantity * form.pricePerAction;
       if (!await confirm(`Launch Campaign? Cost: $${totalCost.toFixed(2)}`)) return;
 
@@ -77,6 +52,12 @@ const CreateCampaign: React.FC = () => {
           await updateWallet(session.user.id, totalCost, 'decrement', 'deposit_balance');
           await createTransaction(session.user.id, 'invest', totalCost, `Dealer Ad: ${form.title}`);
 
+          const quizConfig: QuizConfig = {
+              question: quizQuestion,
+              options: quizOptions,
+              correct_index: correctIndex
+          };
+
           const { error } = await supabase.from('marketplace_tasks').insert({
               creator_id: session.user.id,
               title: form.title,
@@ -88,8 +69,7 @@ const CreateCampaign: React.FC = () => {
               price_per_action: form.pricePerAction,
               worker_reward: form.pricePerAction * 0.8, // 20% Platform Fee for Dealers
               proof_type: 'ai_quiz',
-              quiz_config: generatedData.quiz,
-              ai_reference_data: generatedData.dna,
+              quiz_config: quizConfig,
               timer_seconds: form.timer,
               status: 'active'
           });
@@ -112,87 +92,90 @@ const CreateCampaign: React.FC = () => {
             </h2>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Form */}
-            <GlassCard className="border-amber-500/20">
-                <form onSubmit={handleSubmit} className="space-y-4">
+        <GlassCard className="border-amber-500/20">
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Campaign Title</label>
+                    <input required type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Target URL</label>
+                    <input required type="url" value={form.url} onChange={e => setForm({...form, url: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Description</label>
+                    <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none resize-none h-20" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Campaign Title</label>
-                        <input required type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
+                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Total Users</label>
+                        <input required type="number" min="100" value={form.quantity} onChange={e => setForm({...form, quantity: parseInt(e.target.value)})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Target URL</label>
-                        <input required type="url" value={form.url} onChange={e => setForm({...form, url: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
+                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Cost Per User ($)</label>
+                        <input required type="number" step="0.01" min="0.05" value={form.pricePerAction} onChange={e => setForm({...form, pricePerAction: parseFloat(e.target.value)})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
                     </div>
-                    <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Description</label>
-                        <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none resize-none h-20" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Total Users</label>
-                            <input required type="number" min="100" value={form.quantity} onChange={e => setForm({...form, quantity: parseInt(e.target.value)})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Cost Per User ($)</label>
-                            <input required type="number" step="0.01" min="0.05" value={form.pricePerAction} onChange={e => setForm({...form, pricePerAction: parseFloat(e.target.value)})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
-                        </div>
-                    </div>
-                    <div className="bg-amber-900/10 border border-amber-500/20 p-3 rounded-xl flex justify-between items-center">
-                        <span className="text-xs text-amber-500 font-bold uppercase">Total Budget</span>
-                        <span className="text-xl font-bold text-white">${(form.quantity * form.pricePerAction).toFixed(2)}</span>
-                    </div>
-                </form>
-            </GlassCard>
+                </div>
 
-            {/* AI Setup */}
-            <div className="space-y-6">
-                <GlassCard className="border-purple-500/20 bg-purple-900/5">
-                    <h3 className="text-sm font-bold text-white uppercase mb-4 flex items-center gap-2">
-                        <Bot className="text-purple-400"/> AI Verification Setup
+                {/* Validation Quiz Setup */}
+                <div className="border-t border-[#222] pt-6 mt-6">
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-2">
+                        Verification Quiz
                     </h3>
-                    
-                    <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-purple-500/50 hover:bg-purple-900/10 transition relative overflow-hidden bg-black/20">
-                        {screenshot ? (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
-                                <p className="text-white text-xs font-bold flex items-center gap-2"><CheckCircle2 className="text-green-500"/> {screenshot.name}</p>
-                            </div>
-                        ) : (
-                            <div className="text-center">
-                                <UploadCloud className="mx-auto text-gray-500 mb-2"/>
-                                <p className="text-xs text-gray-400">Upload "Proof" Screenshot</p>
-                            </div>
-                        )}
-                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files && setScreenshot(e.target.files[0])} />
-                    </label>
-
-                    <button 
-                        type="button"
-                        onClick={handleAnalyzeImage}
-                        disabled={isAnalyzing || !screenshot}
-                        className="w-full mt-4 py-3 bg-purple-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 hover:bg-purple-500 disabled:opacity-50 transition"
-                    >
-                        {isAnalyzing ? <Loader2 className="animate-spin" size={16}/> : <Sparkles size={16}/>} Generate Visual DNA
-                    </button>
-                </GlassCard>
-
-                {generatedData && (
-                    <div className="p-4 rounded-xl border border-green-500/30 bg-green-900/10">
-                        <div className="flex items-center gap-2 mb-2 text-green-400">
-                            <CheckCircle2 size={18} />
-                            <span className="text-sm font-bold uppercase">Ready to Launch</span>
+                    <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-[#333]">
+                        <div>
+                            <label className="text-xs font-bold text-gray-400 mb-1 block">Question</label>
+                            <input 
+                                required 
+                                type="text" 
+                                value={quizQuestion} 
+                                onChange={e => setQuizQuestion(e.target.value)} 
+                                className="w-full bg-black/40 border border-[#333] rounded-lg p-2 text-sm text-white" 
+                                placeholder="e.g. What is the last word of the article?"
+                            />
                         </div>
-                        <p className="text-xs text-gray-400">AI has extracted verification points. Click below to go live.</p>
-                        <button 
-                            onClick={handleSubmit}
-                            className="w-full mt-4 py-4 bg-amber-500 text-black font-black text-lg rounded-xl hover:bg-amber-400 transition shadow-lg shadow-amber-500/20 uppercase"
-                        >
-                            Launch Campaign
-                        </button>
+                        
+                        <div>
+                            <label className="text-xs font-bold text-gray-400 mb-1 block">Options (Select Correct)</label>
+                            <div className="space-y-2">
+                                {quizOptions.map((opt, idx) => (
+                                    <div key={idx} className={`flex items-center gap-2 p-2 rounded border ${idx === correctIndex ? 'border-amber-500 bg-amber-500/10' : 'border-[#333]'}`}>
+                                        <input 
+                                            type="radio" 
+                                            name="correctOption"
+                                            checked={idx === correctIndex}
+                                            onChange={() => setCorrectIndex(idx)}
+                                            className="accent-amber-500"
+                                        />
+                                        <input 
+                                            type="text" 
+                                            value={opt}
+                                            onChange={e => {
+                                                const newOpts = [...quizOptions];
+                                                newOpts[idx] = e.target.value;
+                                                setQuizOptions(newOpts);
+                                            }}
+                                            className="bg-transparent outline-none w-full text-sm text-white"
+                                            placeholder={`Option ${idx + 1}`}
+                                            required
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                )}
-            </div>
-        </div>
+                </div>
+
+                <div className="bg-amber-900/10 border border-amber-500/20 p-3 rounded-xl flex justify-between items-center mt-6">
+                    <span className="text-xs text-amber-500 font-bold uppercase">Total Budget</span>
+                    <span className="text-xl font-bold text-white">${(form.quantity * form.pricePerAction).toFixed(2)}</span>
+                </div>
+
+                <button type="submit" className="w-full py-3 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 transition flex items-center justify-center gap-2 shadow-lg mt-4">
+                    Launch Campaign
+                </button>
+            </form>
+        </GlassCard>
     </div>
   );
 };

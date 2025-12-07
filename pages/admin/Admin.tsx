@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Bot, Sparkles, Calendar
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Calendar, Globe
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -30,8 +30,8 @@ import DatabaseUltra from './DatabaseUltra';
 import NotiSender from './NotiSender';
 import ReferralControl from './ReferralControl';
 import VerificationRequest from './VerificationRequest';
-import AIAssistant from './AIAssistant';
 import DailyBonusControl from './DailyBonusControl';
+import SiteManagement from './SiteManagement';
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -49,7 +49,6 @@ const Admin: React.FC = () => {
   const allItems = [
     { id: 'home', icon: Home, label: 'Back to App', path: '/', roles: ['admin', 'moderator'] },
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard', roles: ['admin', 'moderator'] },
-    { id: 'ai_assistant', icon: Bot, label: 'AI Architect', color: 'text-purple-400', path: '/admin/ai_assistant', roles: ['admin'] }, 
     { id: 'database_ultra', icon: HardDrive, label: 'Database Ultra', color: 'text-cyan-400', path: '/admin/database_ultra', roles: ['admin'] },
     { id: 'noti_sender', icon: BellRing, label: 'Noti Sender', color: 'text-yellow-400', path: '/admin/noti_sender', roles: ['admin'] },
     { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400', path: '/admin/off_systems', roles: ['admin'] }, 
@@ -58,6 +57,7 @@ const Admin: React.FC = () => {
     { id: 'users', icon: Users, label: 'User Admin', path: '/admin/users', roles: ['admin', 'moderator'] },
     { id: 'referrals', icon: GitFork, label: 'Referral Tiers', color: 'text-green-400', path: '/admin/referrals', roles: ['admin'] },
     { id: 'tasks', icon: CheckCircle, label: 'Task Coord', path: '/admin/tasks', roles: ['admin'] },
+    { id: 'sites', icon: Globe, label: 'Site Publisher', color: 'text-indigo-400', path: '/admin/sites', roles: ['admin'] },
     { id: 'spin', icon: PieChart, label: 'Spin Control', path: '/admin/spin', roles: ['admin'] },
     { id: 'daily_bonus', icon: Calendar, label: 'Daily Login', color: 'text-pink-400', path: '/admin/daily_bonus', roles: ['admin'] },
     { id: 'payment', icon: Banknote, label: 'Payment Methods', path: '/admin/payment', roles: ['admin'] },
@@ -170,7 +170,6 @@ const Admin: React.FC = () => {
 
       switch(activeSection) {
           case 'dashboard': return <Dashboard />;
-          case 'ai_assistant': return <AIAssistant />;
           case 'database_ultra': return <DatabaseUltra />;
           case 'noti_sender': return <NotiSender />;
           case 'off_systems': return <OffSystems />;
@@ -179,6 +178,7 @@ const Admin: React.FC = () => {
           case 'users': return <UserManagement onSelectUser={setSelectedUserId} />;
           case 'referrals': return <ReferralControl />; 
           case 'tasks': return <TaskManagement />;
+          case 'sites': return <SiteManagement />;
           case 'spin': return <SpinSettings />;
           case 'daily_bonus': return <DailyBonusControl />;
           case 'payment': return <PaymentSettings />;

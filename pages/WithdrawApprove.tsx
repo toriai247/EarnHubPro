@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
-import GlassCard from '../../components/GlassCard';
-import { supabase } from '../../integrations/supabase/client';
-import { WithdrawRequest } from '../../types';
+import GlassCard from '../components/GlassCard';
+import { supabase } from '../integrations/supabase/client';
+import { WithdrawRequest } from '../types';
 
 const WithdrawApprove: React.FC = () => {
   const [withdrawals, setWithdrawals] = useState<WithdrawRequest[]>([]);

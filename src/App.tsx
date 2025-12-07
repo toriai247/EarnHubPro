@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -33,6 +32,10 @@ import Leaderboard from './pages/Leaderboard';
 import BiometricSetup from './pages/BiometricSetup';
 import Admin from './pages/admin/Admin';
 import FeatureAccessBlock from './components/FeatureAccessBlock';
+import DealerDashboard from './pages/dealer/DealerDashboard';
+import CreateCampaign from './pages/dealer/CreateCampaign';
+import ManageCampaigns from './pages/dealer/ManageCampaigns';
+import DealerProfile from './pages/dealer/DealerProfile';
 import { supabase } from './integrations/supabase/client';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { UIProvider } from './context/UIContext';
@@ -63,6 +66,26 @@ const RequireAuth: React.FC<{ session: any; children: React.ReactNode }> = ({ se
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
+};
+
+// Dealer Route Guard
+const RequireDealer: React.FC<{ session: any; children: React.ReactNode }> = ({ session, children }) => {
+    const [isDealer, setIsDealer] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        const check = async () => {
+            if (!session) { setIsDealer(false); return; }
+            const { data } = await supabase.from('profiles').select('is_dealer').eq('id', session.user.id).single();
+            setIsDealer(!!(data as any)?.is_dealer);
+        };
+        check();
+    }, [session]);
+
+    if (!session) return <Navigate to="/login" replace />;
+    if (isDealer === null) return <div className="p-20 text-center text-gray-500">Verifying Partner Status...</div>;
+    if (isDealer === false) return <Navigate to="/" replace />; // Redirect non-dealers home
+
+    return <>{children}</>;
 };
 
 const AppContent: React.FC = () => {
@@ -127,7 +150,13 @@ const AppContent: React.FC = () => {
           <Route path="/terms" element={<Terms />} />
           <Route path="/support" element={<Support />} />
 
-          {/* Protected Routes */}
+          {/* DEALER ROUTES (Protected) */}
+          <Route path="/dealer/dashboard" element={<RequireDealer session={session}><DealerDashboard /></RequireDealer>} />
+          <Route path="/dealer/create" element={<RequireDealer session={session}><CreateCampaign /></RequireDealer>} />
+          <Route path="/dealer/campaigns" element={<RequireDealer session={session}><ManageCampaigns /></RequireDealer>} />
+          <Route path="/dealer/profile" element={<RequireDealer session={session}><DealerProfile /></RequireDealer>} />
+
+          {/* User Protected Routes */}
           <Route path="/invest" element={<RequireAuth session={session}><FeatureGuard feature="invest"><Invest /></FeatureGuard></RequireAuth>} />
           <Route path="/tasks" element={<RequireAuth session={session}><FeatureGuard feature="tasks"><Tasks /></FeatureGuard></RequireAuth>} />
           <Route path="/advertise" element={<RequireAuth session={session}><Advertise /></RequireAuth>} /> 

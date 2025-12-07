@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Search, RefreshCw, AlertCircle, ArrowRight, Copy, 
-  ShieldCheck, Lock, Users, Filter, UserX, CheckCircle2, MoreVertical, Ban, ShieldAlert, BadgeAlert, StickyNote, Briefcase, Eye
+  ShieldCheck, Lock, Users, Filter, UserX, CheckCircle2, MoreVertical, Ban, ShieldAlert, BadgeAlert, StickyNote, Briefcase, Eye, Star
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
@@ -16,7 +16,7 @@ interface UserManagementProps {
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
-  const { toast } = useUI();
+  const { toast, confirm } = useUI();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +73,21 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
   const handleCopyId = (id: string) => {
       navigator.clipboard.writeText(id);
       toast.success("User ID copied to clipboard");
+  };
+
+  // Toggle Staff Role
+  const toggleStaff = async (u: UserProfile) => {
+      const isStaff = u.role === 'staff';
+      const newRole = isStaff ? 'user' : 'staff';
+      
+      if (!await confirm(`Make ${u.name_1} a ${isStaff ? 'User' : 'Staff Member'}?`)) return;
+
+      const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', u.id);
+      if (error) toast.error("Error: " + error.message);
+      else {
+          setUsers(prev => prev.map(user => user.id === u.id ? { ...user, role: newRole as any } : user));
+          toast.success("Role updated");
+      }
   };
 
   const filteredUsers = users.filter(u => {
@@ -269,6 +284,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
                                                     <Briefcase size={8} /> DEALER
                                                 </span>
                                             )}
+                                            {u.role === 'staff' && (
+                                                <span className="bg-cyan-500/20 text-cyan-400 text-[10px] font-bold px-2 py-0.5 rounded border border-cyan-500/30 flex items-center gap-1">
+                                                    <Star size={8} /> STAFF
+                                                </span>
+                                            )}
                                             {u.is_suspended ? (
                                                 <span className="bg-red-500 text-black text-[10px] font-bold px-2 py-0.5 rounded border border-red-600 shadow-sm flex items-center gap-1">
                                                     <Ban size={10}/> BANNED
@@ -309,12 +329,21 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                     {currentUserRole === 'admin' ? (
-                                        <button 
-                                            onClick={() => onSelectUser && onSelectUser(u.id)}
-                                            className="bg-white/5 hover:bg-royal-600 hover:text-white text-royal-400 border border-royal-500/30 hover:border-royal-500 px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ml-auto shadow-sm active:scale-95 group-hover:bg-white/10"
-                                        >
-                                            Manage <ArrowRight size={14}/>
-                                        </button>
+                                        <div className="flex items-center justify-end gap-2">
+                                            <button 
+                                                onClick={() => toggleStaff(u)}
+                                                className={`p-2 rounded hover:bg-white/10 ${u.role === 'staff' ? 'text-cyan-400' : 'text-gray-500'}`}
+                                                title={u.role === 'staff' ? "Remove Staff" : "Make Staff"}
+                                            >
+                                                <Star size={14} fill={u.role === 'staff' ? 'currentColor' : 'none'}/>
+                                            </button>
+                                            <button 
+                                                onClick={() => onSelectUser && onSelectUser(u.id)}
+                                                className="bg-white/5 hover:bg-royal-600 hover:text-white text-royal-400 border border-royal-500/30 hover:border-royal-500 px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-sm active:scale-95 group-hover:bg-white/10"
+                                            >
+                                                Manage <ArrowRight size={14}/>
+                                            </button>
+                                        </div>
                                     ) : (
                                         <div className="flex items-center justify-end gap-1 text-gray-500 text-xs">
                                             <Eye size={14}/> <span className="text-[10px] uppercase font-bold">Read Only</span>

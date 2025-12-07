@@ -72,7 +72,7 @@ export interface TaskAttempt {
 export interface Transaction {
   id: string;
   user_id: string;
-  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer';
+  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer' | 'sponsorship';
   amount: number;
   status: 'success' | 'pending' | 'failed';
   description?: string;
@@ -118,8 +118,8 @@ export interface UserProfile {
   is_withdraw_blocked?: boolean;
   is_suspended?: boolean;
   is_account_active?: boolean;
-  is_dealer?: boolean; // NEW: Dealer/Partner Role
-  role?: 'admin' | 'moderator' | 'user'; // NEW: Granular Admin Role
+  is_dealer?: boolean; // Dealer/Partner Role
+  role?: 'admin' | 'moderator' | 'user' | 'staff'; // Added 'staff'
   admin_notes?: string;
   risk_score?: number;
   rank_1?: string;
@@ -136,7 +136,38 @@ export interface UserProfile {
   created_at: string;
 }
 
-// ... (Rest of types kept minimal for context, ensuring MarketTask is updated)
+// Influencer Campaign Interface
+export interface InfluencerCampaign {
+    id: string;
+    title: string;
+    platform: 'facebook' | 'youtube' | 'instagram' | 'tiktok';
+    media_link: string; // The link to Naxxivo content they need to share
+    requirements: string; // "Must have 10k views"
+    payout: number;
+    status: 'active' | 'completed';
+    created_at: string;
+}
+
+export interface InfluencerSubmission {
+    id: string;
+    campaign_id: string;
+    user_id: string;
+    proof_link: string;
+    views_count: number;
+    status: 'pending' | 'approved' | 'rejected';
+    created_at: string;
+}
+
+export interface PublishedSite {
+    id: string;
+    name: string;
+    slug: string; // The URL path part
+    target_url: string;
+    is_active: boolean;
+    views: number;
+    created_at: string;
+}
+
 export interface Game { 
   id: string; 
   name: string; 

@@ -6,18 +6,20 @@ import {
   Globe, Search, Loader2, Star, PenTool, Lock, X, Clock, AlertTriangle, ShieldCheck, HelpCircle, Bot, UploadCloud
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
-import { MarketTask, QuizConfig } from '../types';
+import { MarketTask } from '../types';
 import { updateWallet, createTransaction } from '../lib/actions';
 import Skeleton from '../components/Skeleton';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
-import { verifyTaskSubmission } from '../lib/aiHelper';
+
+type TaskStatus = 'todo' | 'pending' | 'approved' | 'rejected' | 'locked';
 
 const Tasks: React.FC = () => {
   const { toast } = useUI();
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<MarketTask[]>([]);
+  const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({});
   const [selectedTask, setSelectedTask] = useState<MarketTask | null>(null);
   const [filter, setFilter] = useState('all');
   
@@ -86,39 +88,44 @@ const Tasks: React.FC = () => {
      
      if (!allTasks) { setLoading(false); return; }
 
-     // 2. Get User Submissions (Completed)
+     // 2. Get User Submissions
      const { data: mySubs } = await supabase
         .from('marketplace_submissions')
-        .select('task_id')
+        .select('task_id, status')
         .eq('worker_id', session.user.id);
      
-     const completedIds = new Set(mySubs?.map(s => s.task_id) || []);
-
      // 3. Get User Attempts (Locked)
      const { data: attempts } = await supabase
         .from('task_attempts')
         .select('task_id, is_locked')
         .eq('user_id', session.user.id);
      
-     const lockedIds = new Set(attempts?.filter(a => a.is_locked).map(a => a.task_id) || []);
-
-     // Filter
-     const available = allTasks.filter((t: MarketTask) => 
-         !completedIds.has(t.id) && !lockedIds.has(t.id)
-     );
+     const statusMap: Record<string, TaskStatus> = {};
      
-     setTasks(available as MarketTask[]);
+     attempts?.forEach(a => {
+         if (a.is_locked) statusMap[a.task_id] = 'locked';
+     });
+
+     mySubs?.forEach(s => {
+         if (s.status === 'approved') statusMap[s.task_id] = 'approved';
+         else if (s.status === 'pending') statusMap[s.task_id] = 'pending';
+     });
+
+     setTaskStatuses(statusMap);
+     setTasks(allTasks as MarketTask[]);
      setLoading(false);
   };
 
   const handleOpenTask = async (task: MarketTask) => {
+      const status = taskStatuses[task.id] || 'todo';
+      if (status !== 'todo') return; 
+
       setSelectedTask(task);
       setTaskStep('details');
       setCountDown(task.timer_seconds || 15);
       setScreenshot(null);
-      setVerifyMode('quiz'); // Default to quiz
+      setVerifyMode('quiz'); 
       
-      // Check attempts remaining
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
           const { data } = await supabase.from('task_attempts').select('attempts_count').eq('task_id', task.id).eq('user_id', session.user.id).maybeSingle();
@@ -144,6 +151,7 @@ const Tasks: React.FC = () => {
       if (!session) return;
 
       let isSuccess = false;
+      let isManualReview = false;
       let failReason = "Incorrect Answer";
 
       // LOGIC FOR QUIZ
@@ -153,8 +161,8 @@ const Tasks: React.FC = () => {
               isSuccess = true;
           }
       } 
-      // LOGIC FOR IMAGE MATCH
-      else if (verifyMode === 'image' && screenshot && selectedTask.ai_reference_data) {
+      // LOGIC FOR IMAGE
+      else if (verifyMode === 'image' && screenshot) {
           try {
               // 1. Upload
               const fileExt = screenshot.name.split('.').pop();
@@ -162,42 +170,37 @@ const Tasks: React.FC = () => {
               const { error: uploadError } = await supabase.storage.from('task-proofs').upload(fileName, screenshot);
               if (uploadError) throw uploadError;
               
-              const { data: urlData } = supabase.storage.from('task-proofs').getPublicUrl(fileName);
-              
-              // 2. Verify with AI
-              const result = await verifyTaskSubmission(urlData.publicUrl, selectedTask.ai_reference_data);
-              
-              if (result.match) {
-                  isSuccess = true;
-              } else {
-                  failReason = result.reason || "AI Comparison Mismatch";
-              }
+              // Image submissions are always sent to manual review now (AI Removed)
+              isManualReview = true;
+              isSuccess = true; // Technically submission successful, but pending approval
           } catch (e: any) {
-              failReason = "Upload/Verify Error";
+              failReason = "Upload Error";
           }
       }
 
       if (isSuccess) {
-          // Success Path
           try {
               await supabase.from('marketplace_submissions').insert({
                   task_id: selectedTask.id,
                   worker_id: session.user.id,
-                  status: 'approved',
+                  status: isManualReview ? 'pending' : 'approved',
                   submission_data: { 
                       type: verifyMode, 
-                      answer: verifyMode === 'quiz' ? selectedOption : 'screenshot_match' 
+                      answer: verifyMode === 'quiz' ? selectedOption : 'screenshot' 
                   }
               });
 
-              // Decrement Qty
-              await supabase.rpc('decrement_task_quantity', { task_id: selectedTask.id });
-
-              // Pay User
-              await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'earning_balance');
-              await createTransaction(session.user.id, 'earn', selectedTask.worker_reward, `Task: ${selectedTask.title}`);
+              if (!isManualReview) {
+                  // Instant Approval (Quiz)
+                  await supabase.rpc('decrement_task_quantity', { task_id: selectedTask.id });
+                  await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'earning_balance');
+                  await createTransaction(session.user.id, 'earn', selectedTask.worker_reward, `Task: ${selectedTask.title}`);
+                  toast.success("Verified! Reward Credited.");
+              } else {
+                  // Manual Review
+                  toast.success("Submitted for Review.");
+              }
               
-              toast.success("Verified! Reward Credited.");
               window.dispatchEvent(new Event('wallet_updated'));
               closeModal();
               fetchTasks();
@@ -206,7 +209,7 @@ const Tasks: React.FC = () => {
               toast.error("Error: " + e.message);
           }
       } else {
-          // Failure Path
+          // Failure Path (Only for Quiz Mismatch)
           const newAttempts = attemptsLeft - 1;
           setAttemptsLeft(newAttempts);
           
@@ -221,6 +224,7 @@ const Tasks: React.FC = () => {
               }, { onConflict: 'task_id,user_id' });
               
               toast.error(`Failed: ${failReason}. Task Locked.`);
+              fetchTasks(); 
           } else {
               toast.error(`Failed: ${failReason}. ${newAttempts} attempt left.`);
               await supabase.from('task_attempts').upsert({
@@ -252,6 +256,35 @@ const Tasks: React.FC = () => {
       }
   };
 
+  const getStatusBadge = (status: TaskStatus) => {
+      switch (status) {
+          case 'approved':
+              return (
+                  <div className="flex items-center gap-1 bg-green-900/30 text-green-400 px-2 py-1 rounded text-[10px] font-bold uppercase border border-green-500/30">
+                      <CheckCircle2 size={12} /> Completed
+                  </div>
+              );
+          case 'pending':
+              return (
+                  <div className="flex items-center gap-1 bg-yellow-900/30 text-yellow-400 px-2 py-1 rounded text-[10px] font-bold uppercase border border-yellow-500/30">
+                      <Clock size={12} /> In Review
+                  </div>
+              );
+          case 'locked':
+              return (
+                  <div className="flex items-center gap-1 bg-red-900/30 text-red-400 px-2 py-1 rounded text-[10px] font-bold uppercase border border-red-500/30">
+                      <Lock size={12} /> Locked
+                  </div>
+              );
+          default:
+              return (
+                  <div className="flex items-center gap-1 bg-white/10 text-white px-2 py-1 rounded text-[10px] font-bold uppercase border border-white/10">
+                      To Do
+                  </div>
+              );
+      }
+  };
+
   const filteredTasks = tasks.filter(t => filter === 'all' || t.category === filter);
 
   if (loading) return <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6"><Skeleton className="w-48 h-8 mb-4 mx-4" /></div>;
@@ -264,7 +297,7 @@ const Tasks: React.FC = () => {
           <div className="flex justify-between items-end">
              <div>
                 <h1 className="text-2xl font-display font-bold text-white mb-1">Micro Jobs</h1>
-                <p className="text-gray-400 text-sm">Complete tasks & verify via AI Match or Quiz.</p>
+                <p className="text-gray-400 text-sm">Complete tasks & earn rewards.</p>
              </div>
              <button onClick={fetchTasks} className="p-2 bg-[#1a1a1a] rounded-lg text-gray-400 hover:text-white"><RefreshCw size={18}/></button>
           </div>
@@ -290,36 +323,43 @@ const Tasks: React.FC = () => {
                   <p>No tasks available.</p>
               </div>
           ) : (
-              filteredTasks.map((task) => (
-                <motion.div 
-                    key={task.id} 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="cursor-pointer" 
-                    onClick={() => handleOpenTask(task)}
-                >
-                     <GlassCard className="flex items-center justify-between p-4 group hover:bg-[#1a1a1a] transition border border-[#222]">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-black/30 flex items-center justify-center border border-[#333] shrink-0">
-                                {getTaskIcon(task.category)}
-                            </div>
-                            <div className="min-w-0">
-                                <h3 className="font-bold text-white text-sm truncate pr-4">{task.title}</h3>
-                                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                                    <span className="capitalize">{task.category}</span>
-                                    <span>•</span>
-                                    <span className="flex items-center gap-1 text-purple-400"><Bot size={10}/> AI Verified</span>
+              filteredTasks.map((task) => {
+                const status = taskStatuses[task.id] || 'todo';
+                const isActionable = status === 'todo';
+
+                return (
+                    <motion.div 
+                        key={task.id} 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`cursor-pointer ${!isActionable ? 'opacity-60' : ''}`}
+                        onClick={() => handleOpenTask(task)}
+                    >
+                        <GlassCard className={`flex items-center justify-between p-4 group transition border ${isActionable ? 'border-[#222] hover:bg-[#1a1a1a]' : 'border-[#222] bg-[#0f0f0f]'}`}>
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-black/30 flex items-center justify-center border border-[#333] shrink-0 relative">
+                                    {getTaskIcon(task.category)}
+                                    {status === 'approved' && <div className="absolute -top-1 -right-1 bg-green-500 text-black rounded-full p-0.5"><CheckCircle2 size={10}/></div>}
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="font-bold text-white text-sm truncate pr-4">{task.title}</h3>
+                                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                        <span className="capitalize">{task.category}</span>
+                                        <span>•</span>
+                                        <span>{task.timer_seconds}s</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="text-right pl-2 shrink-0">
-                           <div className="bg-green-900/20 border border-green-500/30 px-3 py-1.5 rounded-lg">
-                                <p className="text-green-400 font-black text-sm"><BalanceDisplay amount={task.worker_reward} decimals={3} /></p>
-                           </div>
-                        </div>
-                     </GlassCard>
-                </motion.div>
-             ))
+                            <div className="flex flex-col items-end gap-2 shrink-0">
+                                {getStatusBadge(status)}
+                                <div className="bg-green-900/20 border border-green-500/30 px-3 py-1 rounded-lg">
+                                    <p className="text-green-400 font-black text-xs"><BalanceDisplay amount={task.worker_reward} decimals={3} /></p>
+                                </div>
+                            </div>
+                        </GlassCard>
+                    </motion.div>
+                );
+             })
           )}
       </div>
 
@@ -353,13 +393,12 @@ const Tasks: React.FC = () => {
                             
                             <div className="bg-blue-900/10 border border-blue-500/20 p-4 rounded-xl mb-6">
                                 <h4 className="text-blue-400 font-bold text-xs uppercase mb-2 flex items-center gap-2">
-                                    <Bot size={14}/> Auto-Verification Process
+                                    <Bot size={14}/> Task Instructions
                                 </h4>
                                 <ul className="text-xs text-gray-300 space-y-1">
                                     <li>1. Click "Start Task" to open the link.</li>
                                     <li>2. Stay on the page for <span className="text-white font-bold">{selectedTask.timer_seconds} seconds</span>.</li>
                                     <li>3. Verify by <strong>Answering a Quiz</strong> or <strong>Uploading a Screenshot</strong>.</li>
-                                    <li>4. <span className="text-red-400 font-bold">Wrong verify = Locked.</span></li>
                                 </ul>
                             </div>
 
@@ -410,13 +449,13 @@ const Tasks: React.FC = () => {
                              {/* Toggle Method */}
                              <div className="flex bg-black/40 p-1 rounded-lg border border-[#333]">
                                  <button onClick={() => setVerifyMode('quiz')} className={`flex-1 py-2 text-xs font-bold rounded transition ${verifyMode === 'quiz' ? 'bg-[#333] text-white' : 'text-gray-500'}`}>Answer Quiz</button>
-                                 <button onClick={() => setVerifyMode('image')} className={`flex-1 py-2 text-xs font-bold rounded transition ${verifyMode === 'image' ? 'bg-[#333] text-white' : 'text-gray-500'}`}>Upload Screenshot</button>
+                                 <button onClick={() => setVerifyMode('image')} className={`flex-1 py-2 text-xs font-bold rounded transition ${verifyMode === 'image' ? 'bg-[#333] text-white' : 'text-gray-500'}`}>Upload Proof</button>
                              </div>
                              
                              {verifyMode === 'quiz' ? (
                                  <>
                                      <p className="text-white text-sm font-medium bg-black/40 p-4 rounded-xl border border-[#333]">
-                                         {selectedTask.quiz_config?.question || "Error loading question."}
+                                         {selectedTask.quiz_config?.question || "No quiz configured. Upload proof instead."}
                                      </p>
                                      <div className="grid gap-2">
                                          {selectedTask.quiz_config?.options.map((opt, idx) => (
@@ -446,7 +485,7 @@ const Tasks: React.FC = () => {
                                              </div>
                                          )}
                                      </label>
-                                     <p className="text-xs text-gray-500 mt-2">AI will compare your screenshot with the creator's visual DNA.</p>
+                                     <p className="text-xs text-gray-500 mt-2">Screenshot submissions require manual review.</p>
                                  </div>
                              )}
 
@@ -455,7 +494,7 @@ const Tasks: React.FC = () => {
                                 disabled={(verifyMode === 'quiz' && selectedOption === null) || (verifyMode === 'image' && !screenshot) || isSubmitting}
                                 className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 disabled:opacity-50 mt-4 flex items-center justify-center gap-2"
                             >
-                                 {isSubmitting ? <Loader2 className="animate-spin"/> : 'Verify & Claim Reward'}
+                                 {isSubmitting ? <Loader2 className="animate-spin"/> : 'Submit Verification'}
                              </button>
                          </div>
                      )}
@@ -468,7 +507,7 @@ const Tasks: React.FC = () => {
                              </div>
                              <h3 className="text-xl font-bold text-white mb-2">Task Locked</h3>
                              <p className="text-gray-400 text-sm mb-6">
-                                 You failed verification twice. To prevent spam, this task is no longer available to you.
+                                 You failed verification twice.
                              </p>
                              <button onClick={closeModal} className="px-6 py-3 bg-white/10 text-white rounded-xl font-bold hover:bg-white/20">
                                  Close

@@ -43,8 +43,8 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                         .eq('user_id', session.user.id)
                         .maybeSingle();
 
-                    if (data?.currency && CURRENCY_CONFIG[data.currency as CurrencyCode]) {
-                        if (mounted) setCurrencyState(data.currency as CurrencyCode);
+                    if ((data as any)?.currency && CURRENCY_CONFIG[(data as any).currency as CurrencyCode]) {
+                        if (mounted) setCurrencyState((data as any).currency as CurrencyCode);
                     }
                 }
             } catch (error) {
@@ -88,7 +88,7 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             // Fee is deducted from the MAIN balance if possible, or total assets reduction
             // For simplicity, we deduct from 'main_balance' equivalent.
             
-            const currentBalance = wallet.balance || 0; // Usually main balance
+            const currentBalance = (wallet as any).balance || 0; // Usually main balance
             const fee = currentBalance * 0.05; 
 
             // Check if user has enough to cover fee
@@ -107,7 +107,7 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             // 4. Prepare Converted Values
             // First deduct fee from current balance
             const balAfterFee = currentBalance - fee;
-            const mainAfterFee = (wallet.main_balance || 0) - fee; // Assuming fee taken from main
+            const mainAfterFee = ((wallet as any).main_balance || 0) - fee; // Assuming fee taken from main
 
             // Convert Function
             const convert = (val: number) => (val || 0) * ratio;
@@ -117,21 +117,21 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 // Core Balances
                 balance: balAfterFee * ratio,
                 main_balance: mainAfterFee * ratio,
-                deposit_balance: convert(wallet.deposit_balance),
-                game_balance: convert(wallet.game_balance),
-                earning_balance: convert(wallet.earning_balance),
-                investment_balance: convert(wallet.investment_balance),
-                referral_balance: convert(wallet.referral_balance),
-                commission_balance: convert(wallet.commission_balance),
-                bonus_balance: convert(wallet.bonus_balance),
+                deposit_balance: convert((wallet as any).deposit_balance),
+                game_balance: convert((wallet as any).game_balance),
+                earning_balance: convert((wallet as any).earning_balance),
+                investment_balance: convert((wallet as any).investment_balance),
+                referral_balance: convert((wallet as any).referral_balance),
+                commission_balance: convert((wallet as any).commission_balance),
+                bonus_balance: convert((wallet as any).bonus_balance),
                 
                 // Stats / Legacy Fields
-                deposit: convert(wallet.deposit),
-                withdrawable: convert(wallet.withdrawable),
-                total_earning: convert(wallet.total_earning),
-                today_earning: convert(wallet.today_earning),
-                pending_withdraw: convert(wallet.pending_withdraw),
-                referral_earnings: convert(wallet.referral_earnings)
+                deposit: convert((wallet as any).deposit),
+                withdrawable: convert((wallet as any).withdrawable),
+                total_earning: convert((wallet as any).total_earning),
+                today_earning: convert((wallet as any).today_earning),
+                pending_withdraw: convert((wallet as any).pending_withdraw),
+                referral_earnings: convert((wallet as any).referral_earnings)
             };
 
             // 5. Commit Updates to DB

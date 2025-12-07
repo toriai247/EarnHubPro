@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
-  Megaphone, Plus, DollarSign, Globe, Trash2, Pause, Play, 
-  Calculator, UploadCloud, Sparkles, Bot, Loader2, RefreshCw, X, CheckCircle2,
+  Megaphone, DollarSign, Globe, Trash2,
+  UploadCloud, Loader2, RefreshCw, X, CheckCircle2,
   Image as ImageIcon
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
@@ -11,7 +11,6 @@ import { WalletData, MarketTask, QuizConfig } from '../types';
 import { updateWallet, createTransaction } from '../lib/actions';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
-import { analyzeTaskReference } from '../lib/aiHelper';
 
 const Advertise: React.FC = () => {
   const { toast, confirm } = useUI();
@@ -25,16 +24,16 @@ const Advertise: React.FC = () => {
       title: '',
       description: '',
       url: '',
-      category: 'social', // Default to social
+      category: 'social',
       quantity: 100,
       pricePerAction: 0.05,
       timer: 15
   });
   
-  // AI Quiz Generator State
-  const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [generatedData, setGeneratedData] = useState<{ quiz: QuizConfig, dna: any } | null>(null);
+  // Quiz Generator State
+  const [quizQuestion, setQuizQuestion] = useState('');
+  const [quizOptions, setQuizOptions] = useState(['', '', '']);
+  const [correctIndex, setCorrectIndex] = useState(0);
   
   useEffect(() => {
     fetchData();
@@ -62,45 +61,6 @@ const Advertise: React.FC = () => {
     }
   };
 
-  const handleAnalyzeImage = async () => {
-      if (!screenshot) {
-          toast.error("Please upload a screenshot first.");
-          return;
-      }
-      setIsAnalyzing(true);
-      try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) throw new Error("No session");
-
-          // 1. Upload
-          const fileExt = screenshot.name.split('.').pop();
-          const fileName = `temp_ai/${session.user.id}_${Date.now()}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from('task-proofs').upload(fileName, screenshot);
-          if (uploadError) throw uploadError;
-          
-          const { data: urlData } = supabase.storage.from('task-proofs').getPublicUrl(fileName);
-          const imageUrl = urlData.publicUrl;
-
-          // 2. Analyze Reference (Quiz + DNA)
-          const result = await analyzeTaskReference(imageUrl, form.category);
-          
-          if (!result.quiz || !result.visual_dna) {
-              throw new Error("AI could not extract enough data. Try a clearer image.");
-          }
-
-          setGeneratedData({
-              quiz: result.quiz,
-              dna: result.visual_dna
-          });
-          toast.success("AI Analysis Complete!");
-
-      } catch (e: any) {
-          toast.error("Analysis Failed: " + e.message);
-      } finally {
-          setIsAnalyzing(false);
-      }
-  };
-
   const handleCreateCampaign = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!wallet) return;
@@ -111,8 +71,8 @@ const Advertise: React.FC = () => {
           return;
       }
 
-      if (!generatedData) {
-          toast.error("Please analyze a screenshot first to generate AI Verification data.");
+      if (!quizQuestion || quizOptions.some(o => !o.trim())) {
+          toast.error("Please set a validation quiz.");
           return;
       }
 
@@ -125,6 +85,12 @@ const Advertise: React.FC = () => {
           await updateWallet(session.user.id, totalBudget, 'decrement', 'deposit_balance');
           await createTransaction(session.user.id, 'invest', totalBudget, `Ad Campaign: ${form.title}`);
 
+          const quizConfig: QuizConfig = {
+              question: quizQuestion,
+              options: quizOptions,
+              correct_index: correctIndex
+          };
+
           const { error } = await supabase.from('marketplace_tasks').insert({
               creator_id: session.user.id,
               title: form.title,
@@ -135,9 +101,8 @@ const Advertise: React.FC = () => {
               remaining_quantity: form.quantity,
               price_per_action: form.pricePerAction, 
               worker_reward: form.pricePerAction * 0.7, 
-              proof_type: 'ai_quiz',
-              quiz_config: generatedData.quiz,
-              ai_reference_data: generatedData.dna, // SAVE THE VISUAL DNA
+              proof_type: 'ai_quiz', // Keeping key for compatibility, handled manually now
+              quiz_config: quizConfig,
               timer_seconds: form.timer,
               status: 'active'
           });
@@ -146,17 +111,12 @@ const Advertise: React.FC = () => {
 
           toast.success("Campaign Published!");
           setForm({ ...form, title: '', description: '', url: '' });
-          setGeneratedData(null);
-          setScreenshot(null);
+          setQuizQuestion('');
           setActiveTab('manage');
           fetchData();
 
       } catch (e: any) {
-          if (e.message?.includes('violates check constraint')) {
-             toast.error("Database Update Required: Run 'Factory Reset: Task System V4.1' in Admin.");
-          } else {
-             toast.error("Error: " + e.message);
-          }
+          toast.error("Error: " + e.message);
       }
   };
 
@@ -174,9 +134,9 @@ const Advertise: React.FC = () => {
         <div className="flex justify-between items-end pt-4">
             <div>
                 <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                    <Megaphone className="text-purple-500" /> Advertise AI
+                    <Megaphone className="text-purple-500" /> Advertise
                 </h1>
-                <p className="text-gray-400 text-xs">Smart campaigns with Visual Matching & Quiz Verification.</p>
+                <p className="text-gray-400 text-xs">Create simple tasks with Quiz Verification.</p>
             </div>
             <div className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl text-right">
                 <p className="text-[10px] text-gray-500 font-bold uppercase">Ad Budget</p>
@@ -211,7 +171,7 @@ const Advertise: React.FC = () => {
                             </div>
                             
                             <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Category (Required for AI)</label>
+                                <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Category</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     {['social', 'video', 'app', 'website', 'seo', 'review'].map(cat => (
                                         <button 
@@ -242,93 +202,55 @@ const Advertise: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Step 2: AI Verification Setup */}
+                        {/* Step 2: Quiz Verification */}
                         <div className="border-t border-[#222] pt-6">
-                            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2">
-                                <Sparkles className="text-purple-400" size={16}/> Step 2: AI Reference Analysis
+                            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-2">
+                                Step 2: Verification Quiz
                             </h3>
                             <p className="text-xs text-gray-400 mb-4">
-                                Upload a "Proof" screenshot (e.g. Subscribed state). The AI will extract a <strong>Visual DNA</strong> profile and a Quiz Question. Workers must match this DNA or answer the quiz.
+                                Create a simple question that users can answer only after completing the task (e.g., "What color is the button?").
                             </p>
 
-                            <div className="flex flex-col md:flex-row gap-6">
-                                {/* Upload Box */}
-                                <div className="md:w-1/3">
-                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[#333] rounded-xl cursor-pointer hover:border-purple-500/50 hover:bg-purple-900/10 transition relative overflow-hidden">
-                                        {screenshot ? (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                                                <p className="text-white text-xs font-bold">{screenshot.name}</p>
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                                <UploadCloud className="text-gray-400 mb-2"/>
-                                                <p className="text-xs text-gray-500">Upload Reference Image</p>
-                                            </div>
-                                        )}
-                                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files && setScreenshot(e.target.files[0])} />
-                                    </label>
-                                    
-                                    <button 
-                                        type="button"
-                                        onClick={handleAnalyzeImage}
-                                        disabled={isAnalyzing || !screenshot}
-                                        className="w-full mt-3 py-2 bg-purple-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 hover:bg-purple-500 disabled:opacity-50"
-                                    >
-                                        {isAnalyzing ? <Loader2 className="animate-spin" size={14}/> : <Bot size={14}/>} Analyze Reference
-                                    </button>
+                            <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-[#333]">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 mb-1 block">Question</label>
+                                    <input 
+                                        required 
+                                        type="text" 
+                                        value={quizQuestion} 
+                                        onChange={e => setQuizQuestion(e.target.value)} 
+                                        className="w-full bg-black/40 border border-[#333] rounded-lg p-2 text-sm text-white" 
+                                        placeholder="e.g. What is the last word of the article?"
+                                    />
                                 </div>
-
-                                {/* Preview Data */}
-                                <div className="md:w-2/3 bg-black/20 border border-[#333] rounded-xl p-4 relative">
-                                    {!generatedData ? (
-                                        <div className="flex flex-col items-center justify-center h-full text-gray-600">
-                                            <ImageIcon size={32} className="opacity-20 mb-2"/>
-                                            <p className="text-xs">Analysis results will appear here.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between items-start">
-                                                <h4 className="text-sm font-bold text-white flex items-center gap-2"><CheckCircle2 className="text-green-400" size={14}/> AI Profile Generated</h4>
-                                                <button type="button" onClick={() => setGeneratedData(null)} className="text-gray-500 hover:text-white"><X size={14}/></button>
-                                            </div>
-                                            
-                                            <div className="bg-black/30 p-2 rounded text-[10px] text-gray-400 font-mono">
-                                                DNA Extracted: {Object.keys(generatedData.dna).length} features (Colors, Text, UI Status).
-                                            </div>
-
-                                            <div className="mt-2">
-                                                <p className="text-xs font-bold text-gray-300 mb-1">Auto-Generated Quiz:</p>
+                                
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 mb-1 block">Options (Select Correct)</label>
+                                    <div className="space-y-2">
+                                        {quizOptions.map((opt, idx) => (
+                                            <div key={idx} className={`flex items-center gap-2 p-2 rounded border ${idx === correctIndex ? 'border-green-500 bg-green-500/10' : 'border-[#333]'}`}>
+                                                <input 
+                                                    type="radio" 
+                                                    name="correctOption"
+                                                    checked={idx === correctIndex}
+                                                    onChange={() => setCorrectIndex(idx)}
+                                                    className="accent-green-500"
+                                                />
                                                 <input 
                                                     type="text" 
-                                                    value={generatedData.quiz.question}
-                                                    onChange={e => setGeneratedData({...generatedData, quiz: {...generatedData.quiz, question: e.target.value}})}
-                                                    className="w-full bg-black/40 border border-[#333] rounded-lg p-2 text-xs text-white mb-2"
+                                                    value={opt}
+                                                    onChange={e => {
+                                                        const newOpts = [...quizOptions];
+                                                        newOpts[idx] = e.target.value;
+                                                        setQuizOptions(newOpts);
+                                                    }}
+                                                    className="bg-transparent outline-none w-full text-sm text-white"
+                                                    placeholder={`Option ${idx + 1}`}
+                                                    required
                                                 />
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {generatedData.quiz.options.map((opt, idx) => (
-                                                        <div key={idx} className={`p-1.5 rounded border text-xs flex items-center gap-2 ${idx === generatedData.quiz.correct_index ? 'border-green-500 bg-green-900/20' : 'border-[#333]'}`}>
-                                                            <input 
-                                                                type="radio" 
-                                                                checked={idx === generatedData.quiz.correct_index}
-                                                                onChange={() => setGeneratedData({...generatedData, quiz: {...generatedData.quiz, correct_index: idx}})}
-                                                                className="accent-green-500"
-                                                            />
-                                                            <input 
-                                                                type="text" 
-                                                                value={opt}
-                                                                onChange={e => {
-                                                                    const newOpts = [...generatedData.quiz.options];
-                                                                    newOpts[idx] = e.target.value;
-                                                                    setGeneratedData({...generatedData, quiz: {...generatedData.quiz, options: newOpts}});
-                                                                }}
-                                                                className="bg-transparent outline-none w-full text-gray-300"
-                                                            />
-                                                        </div>
-                                                    ))}
-                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -341,8 +263,7 @@ const Advertise: React.FC = () => {
                             </div>
                             <button 
                                 type="submit" 
-                                disabled={!generatedData}
-                                className="px-8 py-3 bg-white text-black font-black rounded-xl hover:bg-gray-200 transition shadow-lg disabled:opacity-50"
+                                className="px-8 py-3 bg-white text-black font-black rounded-xl hover:bg-gray-200 transition shadow-lg"
                             >
                                 PUBLISH CAMPAIGN
                             </button>
@@ -366,7 +287,7 @@ const Advertise: React.FC = () => {
                             <div className="flex justify-between items-start mb-3">
                                 <div>
                                     <h3 className="font-bold text-white text-sm">{task.title}</h3>
-                                    <p className="text-xs text-gray-500 mt-0.5 capitalize">{task.category} • {task.proof_type === 'ai_quiz' ? 'AI Auto-Verify' : 'Manual'}</p>
+                                    <p className="text-xs text-gray-500 mt-0.5 capitalize">{task.category}</p>
                                 </div>
                                 <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${task.status === 'active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
                                     {task.status}

@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Trophy, Menu, X, 
   ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, 
-  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle
+  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle, Users
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import BalanceDisplay from './BalanceDisplay';
@@ -35,6 +35,11 @@ const GlobalAlertBanner = ({ message }: { message: string }) => {
         cleanMessage = message.replace('[INFO]', '').trim();
         Icon = Info;
         colorClass = 'bg-blue-900/50 text-blue-200 border-blue-800';
+    } else if (message.startsWith('[SUCCESS]')) {
+        type = 'success';
+        cleanMessage = message.replace('[SUCCESS]', '').trim();
+        Icon = Info;
+        colorClass = 'bg-green-900/50 text-green-200 border-green-800';
     }
 
     return (
@@ -61,6 +66,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
   const [isDealer, setIsDealer] = useState(false); 
+  const [isStaff, setIsStaff] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
   
@@ -92,6 +98,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const menuItems = [
       ...((isAdmin || isModerator) ? [{ path: '/admin/dashboard', icon: LayoutDashboard, label: 'Admin Panel', enabled: true }] : []),
       ...(isDealer ? [{ path: '/dealer/dashboard', icon: Briefcase, label: 'Dealer Console', enabled: true }] : []),
+      ...(isStaff ? [{ path: '/staff/dashboard', icon: Users, label: 'Influencer Hub', enabled: true }] : []),
       { path: '/advertise', icon: Megaphone, label: 'Create Ads', enabled: true, protected: true },
       { path: '/invest', icon: PieChart, label: 'Invest', enabled: isFeatureEnabled('is_invest_enabled'), protected: true },
       { path: '/games', icon: Gamepad2, label: 'Games', enabled: isFeatureEnabled('is_games_enabled'), protected: true },
@@ -112,6 +119,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         setIsAdmin(false);
         setIsModerator(false);
         setIsDealer(false);
+        setIsStaff(false);
         return;
     }
 
@@ -130,6 +138,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
           setIsAdmin(profile.admin_user || profile.role === 'admin');
           setIsModerator(profile.role === 'moderator');
           setIsDealer(profile.is_dealer || false);
+          setIsStaff(profile.role === 'staff');
       }
 
       // Fetch appropriate wallet balance
@@ -139,12 +148,12 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('is_read', false),
       ]);
 
-      if (walletRes.status === 'fulfilled' && walletRes.value.data) {
-          setBalance(walletRes.value.data.balance);
+      if (walletRes.status === 'fulfilled' && (walletRes.value as any).data) {
+          setBalance((walletRes.value as any).data.balance);
       }
       if (notifRes.status === 'fulfilled') {
           // @ts-ignore
-          setUnreadCount(notifRes.value.count || 0);
+          setUnreadCount((notifRes.value as any).count || 0);
       }
     };
 

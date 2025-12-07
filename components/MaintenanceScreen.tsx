@@ -73,7 +73,7 @@ const MaintenanceScreen: React.FC = () => {
                 email: email || session?.user?.email || 'anonymous@user',
                 message: message,
                 status: 'pending'
-            });
+            } as any);
 
             if (error) throw error;
             setStatus('success');
