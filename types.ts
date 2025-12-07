@@ -4,6 +4,7 @@ export interface PublishedSite {
     name: string;
     slug: string; // The URL path part
     target_url: string;
+    source_type?: 'url' | 'html'; // New field
     page_title?: string;
     meta_desc?: string;
     is_active: boolean;

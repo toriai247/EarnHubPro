@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { PublishedSite } from '../../types';
-import { Globe, Plus, Trash2, Edit2, ExternalLink, Power, Eye, Save, X, Search } from 'lucide-react';
+import { Globe, Plus, Trash2, Edit2, ExternalLink, Power, Eye, Save, X, Search, FileText, UploadCloud, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import Loader from '../../components/Loader';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +15,11 @@ const SiteManagement: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
+  // New States for Upload
+  const [uploadMode, setUploadMode] = useState<'url' | 'html'>('url');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const initialForm = {
       name: '',
       slug: '',
@@ -45,6 +50,8 @@ const SiteManagement: React.FC = () => {
           meta_desc: site.meta_desc || '',
           is_active: site.is_active
       });
+      setUploadMode(site.source_type === 'html' ? 'html' : 'url');
+      setSelectedFile(null);
       setEditingId(site.id);
       setIsEditing(true);
   };
@@ -71,10 +78,53 @@ const SiteManagement: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
       e.preventDefault();
       
+      let finalTargetUrl = form.target_url;
+
+      // Handle HTML Upload
+      if (uploadMode === 'html') {
+          if (!selectedFile && !editingId) { // New site requires file
+              toast.error("Please upload an HTML file.");
+              return;
+          }
+          if (selectedFile) {
+              if (selectedFile.type !== 'text/html') {
+                  toast.error("Only .html files are allowed.");
+                  return;
+              }
+              setIsUploading(true);
+              try {
+                  const sanitizedSlug = form.slug.replace(/[^a-zA-Z0-9-_]/g, '');
+                  const timestamp = Date.now();
+                  const filePath = `${sanitizedSlug}_${timestamp}.html`;
+                  
+                  const { error: uploadError } = await supabase.storage.from('hosted-sites').upload(filePath, selectedFile, {
+                      cacheControl: '3600',
+                      upsert: false
+                  });
+
+                  if (uploadError) throw uploadError;
+
+                  // Get Public URL
+                  const { data: urlData } = supabase.storage.from('hosted-sites').getPublicUrl(filePath);
+                  finalTargetUrl = urlData.publicUrl;
+
+              } catch (e: any) {
+                  toast.error("Upload Failed: " + e.message);
+                  setIsUploading(false);
+                  return;
+              }
+              setIsUploading(false);
+          } else if (editingId) {
+              // Keeping existing file (URL already in form.target_url)
+              // No changes needed
+          }
+      }
+
       const payload = {
           name: form.name,
-          slug: form.slug.replace(/[^a-zA-Z0-9-_]/g, ''), // Sanitize slug
-          target_url: form.target_url,
+          slug: form.slug.replace(/[^a-zA-Z0-9-_]/g, ''),
+          target_url: finalTargetUrl,
+          source_type: uploadMode,
           page_title: form.page_title,
           meta_desc: form.meta_desc,
           is_active: form.is_active
@@ -96,6 +146,7 @@ const SiteManagement: React.FC = () => {
           toast.success("Site Saved!");
           setIsEditing(false);
           setForm(initialForm);
+          setSelectedFile(null);
           setEditingId(null);
           fetchSites();
       } catch (e: any) {
@@ -105,6 +156,14 @@ const SiteManagement: React.FC = () => {
 
   const fullUrl = (slug: string) => `${window.location.origin}/#/${slug}`;
 
+  const openModal = () => {
+      setIsEditing(true);
+      setEditingId(null);
+      setForm(initialForm);
+      setUploadMode('url');
+      setSelectedFile(null);
+  }
+
   return (
     <div className="space-y-6 animate-fade-in pb-20 relative">
         <div className="flex justify-between items-center">
@@ -112,10 +171,10 @@ const SiteManagement: React.FC = () => {
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Globe className="text-indigo-400" /> Site Publisher
                 </h2>
-                <p className="text-gray-400 text-sm">Publish external websites under your domain.</p>
+                <p className="text-gray-400 text-sm">Publish external websites or upload HTML pages.</p>
             </div>
             <button 
-                onClick={() => { setIsEditing(true); setEditingId(null); setForm(initialForm); }}
+                onClick={openModal}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-500 transition shadow-lg"
             >
                 <Plus size={18} /> Add Site
@@ -134,7 +193,10 @@ const SiteManagement: React.FC = () => {
                     <GlassCard key={site.id} className={`border transition-colors ${site.is_active ? 'border-white/10' : 'border-white/5 opacity-70 grayscale'}`}>
                         <div className="flex justify-between items-start mb-3">
                             <div>
-                                <h3 className="font-bold text-white text-lg">{site.name}</h3>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="font-bold text-white text-lg">{site.name}</h3>
+                                    {site.source_type === 'html' && <span className="bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded text-[9px] font-bold border border-indigo-500/30 uppercase">Hosted</span>}
+                                </div>
                                 <a href={fullUrl(site.slug)} target="_blank" rel="noreferrer" className="text-xs text-indigo-400 hover:text-white flex items-center gap-1 mt-1">
                                     /{site.slug} <ExternalLink size={10}/>
                                 </a>
@@ -196,10 +258,52 @@ const SiteManagement: React.FC = () => {
                                         <input required type="text" value={form.slug} onChange={e => setForm({...form, slug: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg pl-6 pr-3 py-3 text-white focus:border-indigo-500 outline-none" placeholder="my-site" />
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="text-xs font-bold text-gray-400 block mb-1">Target URL (Iframe Source)</label>
-                                    <input required type="url" value={form.target_url} onChange={e => setForm({...form, target_url: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none" placeholder="https://..." />
+                                
+                                {/* SOURCE TYPE TOGGLE */}
+                                <div className="bg-black/30 p-1 rounded-lg flex border border-white/10">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setUploadMode('url')}
+                                        className={`flex-1 py-2 text-xs font-bold rounded-md flex items-center justify-center gap-2 transition ${uploadMode === 'url' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                                    >
+                                        <LinkIcon size={14} /> External Link
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setUploadMode('html')}
+                                        className={`flex-1 py-2 text-xs font-bold rounded-md flex items-center justify-center gap-2 transition ${uploadMode === 'html' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                                    >
+                                        <FileText size={14} /> Upload HTML
+                                    </button>
                                 </div>
+
+                                {uploadMode === 'url' ? (
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-400 block mb-1">Target URL (Iframe Source)</label>
+                                        <input required type="url" value={form.target_url} onChange={e => setForm({...form, target_url: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none" placeholder="https://..." />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-400 block mb-1">Upload HTML File</label>
+                                        <div className="border-2 border-dashed border-white/10 rounded-xl p-6 text-center hover:bg-white/5 transition cursor-pointer relative group">
+                                            <input 
+                                                type="file" 
+                                                accept=".html" 
+                                                onChange={e => e.target.files && setSelectedFile(e.target.files[0])} 
+                                                className="absolute inset-0 opacity-0 cursor-pointer z-10" 
+                                            />
+                                            <UploadCloud size={32} className="mx-auto text-indigo-400 mb-2 group-hover:scale-110 transition" />
+                                            {selectedFile ? (
+                                                <p className="text-sm font-bold text-green-400">{selectedFile.name}</p>
+                                            ) : (
+                                                <p className="text-xs text-gray-400">Drag & Drop or Click to Select (.html)</p>
+                                            )}
+                                        </div>
+                                        {editingId && !selectedFile && (
+                                            <p className="text-[10px] text-gray-500">Current file is active. Upload new to replace.</p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
@@ -221,8 +325,12 @@ const SiteManagement: React.FC = () => {
                                 <span className="text-white font-bold text-sm">Site Active</span>
                             </div>
 
-                            <button type="submit" className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-500 transition flex items-center justify-center gap-2 mt-4">
-                                <Save size={18} /> Save Site
+                            <button 
+                                type="submit" 
+                                disabled={isUploading}
+                                className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-500 transition flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
+                            >
+                                {isUploading ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />} Save Site
                             </button>
                         </form>
                     </motion.div>

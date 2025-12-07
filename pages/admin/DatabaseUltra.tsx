@@ -27,6 +27,30 @@ const TABLE_LIST = [
 const SQL_TOOLS = {
     setup: [
         {
+            title: 'Upgrade: Site Publisher V2 (HTML Upload)',
+            desc: 'Adds column for file type and enables storage bucket for hosted sites.',
+            sql: `
+-- 1. Add Source Type Column
+ALTER TABLE public.published_sites ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'url';
+
+-- 2. Create Storage Bucket (If not exists - requires admin/dashboard usually, but trying SQL)
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('hosted-sites', 'hosted-sites', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. Storage Policies
+DROP POLICY IF EXISTS "Public Read Sites" ON storage.objects;
+CREATE POLICY "Public Read Sites" ON storage.objects FOR SELECT USING (bucket_id = 'hosted-sites');
+
+DROP POLICY IF EXISTS "Admin Upload Sites" ON storage.objects;
+CREATE POLICY "Admin Upload Sites" ON storage.objects FOR INSERT WITH CHECK (
+    bucket_id = 'hosted-sites' AND (
+        EXISTS (SELECT 1 FROM auth.users WHERE id = auth.uid()) 
+    )
+);
+`
+        },
+        {
             title: 'New: Site Publisher Module',
             desc: 'Creates table for publishing external sites via custom URLs.',
             sql: `
