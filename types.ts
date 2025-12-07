@@ -1,4 +1,16 @@
 
+export interface PublishedSite {
+    id: string;
+    name: string;
+    slug: string; // The URL path part
+    target_url: string;
+    page_title?: string;
+    meta_desc?: string;
+    is_active: boolean;
+    views: number;
+    created_at: string;
+}
+
 export interface DailyBonusConfig {
     day: number;
     reward_amount: number;
@@ -155,16 +167,6 @@ export interface InfluencerSubmission {
     proof_link: string;
     views_count: number;
     status: 'pending' | 'approved' | 'rejected';
-    created_at: string;
-}
-
-export interface PublishedSite {
-    id: string;
-    name: string;
-    slug: string; // The URL path part
-    target_url: string;
-    is_active: boolean;
-    views: number;
     created_at: string;
 }
 

@@ -22,9 +22,25 @@ const SiteViewer: React.FC = () => {
                 .maybeSingle();
 
             if (data) {
-                setSite(data as PublishedSite);
+                const s = data as PublishedSite;
+                setSite(s);
+                
+                // Update Metadata
+                document.title = s.page_title || s.name;
+                
+                // Note: Changing meta description dynamically might not affect SEO crawlers fully 
+                // for SPA, but good for browser behavior.
+                let metaDesc = document.querySelector('meta[name="description"]');
+                if (!metaDesc) {
+                    metaDesc = document.createElement('meta');
+                    metaDesc.setAttribute('name', 'description');
+                    document.head.appendChild(metaDesc);
+                }
+                if (s.meta_desc) {
+                    metaDesc.setAttribute('content', s.meta_desc);
+                }
+
                 // Increment view count (Optimistic)
-                // In production, use RPC: supabase.rpc('increment_site_view', { site_id: data.id })
                 const newViews = (data.views || 0) + 1;
                 supabase.from('published_sites').update({ views: newViews }).eq('id', data.id).then(() => {});
             } else {
@@ -33,6 +49,11 @@ const SiteViewer: React.FC = () => {
             setLoading(false);
         };
         fetchSite();
+
+        // Cleanup: Reset title on unmount
+        return () => {
+            document.title = 'Naxxivo';
+        };
     }, [slug]);
 
     if (loading) {
@@ -60,28 +81,32 @@ const SiteViewer: React.FC = () => {
     }
 
     return (
-        <div className="fixed inset-0 z-[200] bg-black flex flex-col">
+        <div className="fixed inset-0 z-[200] bg-black flex flex-col h-[100dvh]">
             {/* Top Bar Overlay */}
-            <div className="bg-black/80 backdrop-blur-md border-b border-white/10 px-4 py-2 flex justify-between items-center z-50 h-14 shrink-0">
+            <div className="bg-black/90 backdrop-blur-md border-b border-white/10 px-4 py-2 flex justify-between items-center z-50 h-14 shrink-0 shadow-lg">
                 <div className="flex items-center gap-3">
-                    <Link to="/" className="p-2 bg-white/10 rounded-lg hover:bg-white/20 text-white transition">
-                        <ArrowLeft size={18} />
+                    <Link to="/" className="p-2 bg-white/10 rounded-lg hover:bg-white/20 text-white transition group" title="Back to Naxxivo">
+                        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
                     </Link>
-                    <span className="font-bold text-white text-sm">{site.name}</span>
+                    <div className="flex flex-col">
+                        <span className="font-bold text-white text-sm leading-tight">{site.name}</span>
+                        <span className="text-[10px] text-gray-500 leading-tight truncate max-w-[150px]">{site.target_url}</span>
+                    </div>
                 </div>
-                <a href={site.target_url} target="_blank" rel="noreferrer" className="text-xs text-gray-400 hover:text-white flex items-center gap-1">
+                <a href={site.target_url} target="_blank" rel="noreferrer" className="text-xs bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 border border-indigo-500/30">
                     Open Original <ExternalLink size={12}/>
                 </a>
             </div>
             
             {/* Iframe Content */}
-            <div className="flex-1 w-full h-full bg-white relative">
+            <div className="flex-1 w-full relative bg-white">
                 <iframe 
                     src={site.target_url} 
-                    className="w-full h-full border-0"
+                    className="w-full h-full border-0 absolute inset-0"
                     title={site.name}
                     sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
                     loading="lazy"
+                    allowFullScreen
                 />
             </div>
         </div>

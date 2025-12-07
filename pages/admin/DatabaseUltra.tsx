@@ -35,10 +35,16 @@ CREATE TABLE IF NOT EXISTS public.published_sites (
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
     target_url TEXT NOT NULL,
+    page_title TEXT,
+    meta_desc TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     views INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Upgrade existing table if needed
+ALTER TABLE public.published_sites ADD COLUMN IF NOT EXISTS page_title TEXT;
+ALTER TABLE public.published_sites ADD COLUMN IF NOT EXISTS meta_desc TEXT;
 
 ALTER TABLE public.published_sites ENABLE ROW LEVEL SECURITY;
 

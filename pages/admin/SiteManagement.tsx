@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { PublishedSite } from '../../types';
-import { Globe, Plus, Trash2, Edit2, ExternalLink, Power, Eye, Save, X } from 'lucide-react';
+import { Globe, Plus, Trash2, Edit2, ExternalLink, Power, Eye, Save, X, Search } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import Loader from '../../components/Loader';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,6 +19,8 @@ const SiteManagement: React.FC = () => {
       name: '',
       slug: '',
       target_url: '',
+      page_title: '',
+      meta_desc: '',
       is_active: true
   };
   const [form, setForm] = useState(initialForm);
@@ -39,6 +41,8 @@ const SiteManagement: React.FC = () => {
           name: site.name,
           slug: site.slug,
           target_url: site.target_url,
+          page_title: site.page_title || '',
+          meta_desc: site.meta_desc || '',
           is_active: site.is_active
       });
       setEditingId(site.id);
@@ -71,11 +75,13 @@ const SiteManagement: React.FC = () => {
           name: form.name,
           slug: form.slug.replace(/[^a-zA-Z0-9-_]/g, ''), // Sanitize slug
           target_url: form.target_url,
+          page_title: form.page_title,
+          meta_desc: form.meta_desc,
           is_active: form.is_active
       };
 
       if (!payload.name || !payload.slug || !payload.target_url) {
-          toast.error("Please fill all fields");
+          toast.error("Please fill all required fields");
           return;
       }
 
@@ -170,7 +176,7 @@ const SiteManagement: React.FC = () => {
                 >
                     <motion.div 
                         initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-                        className="bg-dark-900 w-full max-w-md rounded-2xl border border-white/10 p-6"
+                        className="bg-dark-900 w-full max-w-lg rounded-2xl border border-white/10 p-6 max-h-[90vh] overflow-y-auto custom-scrollbar"
                     >
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold text-white">{editingId ? 'Edit Site' : 'Publish New Site'}</h3>
@@ -178,20 +184,36 @@ const SiteManagement: React.FC = () => {
                         </div>
 
                         <form onSubmit={handleSave} className="space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 block mb-1">Site Name</label>
-                                <input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none" placeholder="e.g. My Portfolio" />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 block mb-1">Slug (URL Path)</label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">/</span>
-                                    <input required type="text" value={form.slug} onChange={e => setForm({...form, slug: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg pl-6 pr-3 py-3 text-white focus:border-indigo-500 outline-none" placeholder="my-site" />
+                            <div className="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 block mb-1">Site Name (Internal)</label>
+                                    <input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none" placeholder="e.g. My Portfolio" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 block mb-1">Slug (URL Path)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">/</span>
+                                        <input required type="text" value={form.slug} onChange={e => setForm({...form, slug: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg pl-6 pr-3 py-3 text-white focus:border-indigo-500 outline-none" placeholder="my-site" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 block mb-1">Target URL (Iframe Source)</label>
+                                    <input required type="url" value={form.target_url} onChange={e => setForm({...form, target_url: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none" placeholder="https://..." />
                                 </div>
                             </div>
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 block mb-1">Target URL</label>
-                                <input required type="url" value={form.target_url} onChange={e => setForm({...form, target_url: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none" placeholder="https://..." />
+
+                            <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                                <h4 className="text-xs font-bold text-indigo-400 uppercase flex items-center gap-2">
+                                    <Search size={14}/> SEO & Metadata (Optional)
+                                </h4>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 block mb-1">Browser Tab Title</label>
+                                    <input type="text" value={form.page_title} onChange={e => setForm({...form, page_title: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none" placeholder="e.g. Naxxivo - Special Offer" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 block mb-1">Meta Description</label>
+                                    <textarea value={form.meta_desc} onChange={e => setForm({...form, meta_desc: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none h-20 resize-none" placeholder="Brief description for search engines..." />
+                                </div>
                             </div>
 
                             <div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg">
