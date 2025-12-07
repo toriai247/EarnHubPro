@@ -70,7 +70,7 @@ const Games: React.FC = () => {
       
       if (configs) {
           const updatedGames = GAMES_META.map(game => {
-              const cfg = configs.find(c => c.id === game.id);
+              const cfg = configs.find((c: any) => c.id === game.id);
               const status = cfg ? (cfg.is_active ? 'active' : 'maintenance') : 'active';
               return { ...game, status };
           });

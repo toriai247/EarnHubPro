@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { Rocket, Trophy, Wallet } from 'lucide-react';
@@ -25,16 +26,16 @@ const Crash: React.FC = () => {
 
   useEffect(() => {
       // 1. Fetch User
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
           if (session) {
               setUserId(session.user.id);
-              supabase.from('wallets').select('*').eq('user_id', session.user.id).single().then(({data}) => setWallet(data as any));
+              supabase.from('wallets').select('*').eq('user_id', session.user.id).single().then(({data}: {data: any}) => setWallet(data as any));
           }
       });
 
       // 2. Realtime State Sync
       const channel = supabase.channel('crash_v3_lite')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'crash_game_state' }, payload => {
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'crash_game_state' }, (payload: any) => {
             const newState = payload.new as CrashGameState;
             if (newState.status !== gameStateRef.current.status) {
                 // Phase Change

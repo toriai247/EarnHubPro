@@ -23,11 +23,10 @@ const SiteViewer: React.FC = () => {
 
             if (data) {
                 setSite(data as PublishedSite);
-                // Increment view count
-                supabase.rpc('increment_site_view', { site_id: data.id }).catch(() => {
-                    // Fallback if RPC doesn't exist
-                    supabase.from('published_sites').update({ views: (data.views || 0) + 1 }).eq('id', data.id);
-                });
+                // Increment view count (Optimistic)
+                // In production, use RPC: supabase.rpc('increment_site_view', { site_id: data.id })
+                const newViews = (data.views || 0) + 1;
+                supabase.from('published_sites').update({ views: newViews }).eq('id', data.id).then(() => {});
             } else {
                 setError(true);
             }
@@ -63,7 +62,7 @@ const SiteViewer: React.FC = () => {
     return (
         <div className="fixed inset-0 z-[200] bg-black flex flex-col">
             {/* Top Bar Overlay */}
-            <div className="bg-black/80 backdrop-blur-md border-b border-white/10 px-4 py-2 flex justify-between items-center z-50">
+            <div className="bg-black/80 backdrop-blur-md border-b border-white/10 px-4 py-2 flex justify-between items-center z-50 h-14 shrink-0">
                 <div className="flex items-center gap-3">
                     <Link to="/" className="p-2 bg-white/10 rounded-lg hover:bg-white/20 text-white transition">
                         <ArrowLeft size={18} />
@@ -76,12 +75,15 @@ const SiteViewer: React.FC = () => {
             </div>
             
             {/* Iframe Content */}
-            <iframe 
-                src={site.target_url} 
-                className="flex-1 w-full h-full border-0 bg-white"
-                title={site.name}
-                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-            />
+            <div className="flex-1 w-full h-full bg-white relative">
+                <iframe 
+                    src={site.target_url} 
+                    className="w-full h-full border-0"
+                    title={site.name}
+                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
+                    loading="lazy"
+                />
+            </div>
         </div>
     );
 };

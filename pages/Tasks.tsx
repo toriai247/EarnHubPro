@@ -102,11 +102,11 @@ const Tasks: React.FC = () => {
      
      const statusMap: Record<string, TaskStatus> = {};
      
-     attempts?.forEach(a => {
+     attempts?.forEach((a: any) => {
          if (a.is_locked) statusMap[a.task_id] = 'locked';
      });
 
-     mySubs?.forEach(s => {
+     mySubs?.forEach((s: any) => {
          if (s.status === 'approved') statusMap[s.task_id] = 'approved';
          else if (s.status === 'pending') statusMap[s.task_id] = 'pending';
      });

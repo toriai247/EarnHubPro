@@ -50,7 +50,7 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // Subscribe to realtime changes
     const sub = supabase
         .channel('system_config_global')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_config' }, (payload) => {
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_config' }, (payload: any) => {
             console.log("System Config Updated:", payload.new);
             const newCfg = payload.new as SystemConfig;
             setConfig(newCfg);

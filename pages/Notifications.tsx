@@ -21,7 +21,7 @@ const Notifications: React.FC = () => {
     // Realtime Listener for new notifications
     const sub = supabase
         .channel('notif-page')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload: any) => {
             const newNotif = { ...(payload.new as any), read: false } as AppNotification;
             setNotifications(prev => [newNotif, ...prev]);
         })
@@ -41,7 +41,7 @@ const Notifications: React.FC = () => {
         .limit(50);
         
       if (data) {
-        setNotifications(data.map(n => ({ ...n, read: n.is_read })));
+        setNotifications(data.map((n: any) => ({ ...n, read: n.is_read })));
       }
     }
     setLoading(false);

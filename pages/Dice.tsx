@@ -19,10 +19,10 @@ const Dice: React.FC = () => {
   const [lastResult, setLastResult] = useState<{ val: number, win: boolean } | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
         if (session) {
             setUserId(session.user.id);
-            supabase.from('wallets').select('*').eq('user_id', session.user.id).single().then(({data}) => setWallet(data as any));
+            supabase.from('wallets').select('*').eq('user_id', session.user.id).single().then(({data}: {data: any}) => setWallet(data as any));
         }
     });
   }, []);

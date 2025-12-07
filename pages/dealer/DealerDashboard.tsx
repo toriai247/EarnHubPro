@@ -33,10 +33,10 @@ const DealerDashboard: React.FC = () => {
           .eq('creator_id', session.user.id);
 
       if (campaigns) {
-          const active = campaigns.filter(c => c.status === 'active').length;
+          const active = campaigns.filter((c: any) => c.status === 'active').length;
           // Calculate Spend based on remaining vs total
-          const totalSpent = campaigns.reduce((acc, c) => acc + ((c.total_quantity - c.remaining_quantity) * c.price_per_action), 0);
-          const totalClicks = campaigns.reduce((acc, c) => acc + (c.total_quantity - c.remaining_quantity), 0);
+          const totalSpent = campaigns.reduce((acc: number, c: any) => acc + ((c.total_quantity - c.remaining_quantity) * c.price_per_action), 0);
+          const totalClicks = campaigns.reduce((acc: number, c: any) => acc + (c.total_quantity - c.remaining_quantity), 0);
           
           setStats({
               activeCampaigns: active,

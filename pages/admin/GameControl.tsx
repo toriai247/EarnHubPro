@@ -48,8 +48,8 @@ const GameControl: React.FC = () => {
       if (data && data.length > 0) {
           const bets = data.length;
           const wins = data.filter(d => d.profit > 0).length;
-          const totalBet = data.reduce((sum, d) => sum + d.bet, 0);
-          const totalPay = data.reduce((sum, d) => sum + d.payout, 0);
+          const totalBet = data.reduce((sum: number, d: any) => sum + d.bet, 0);
+          const totalPay = data.reduce((sum: number, d: any) => sum + d.payout, 0);
           const profit = totalBet - totalPay;
 
           setCrashStats({

@@ -46,18 +46,18 @@ const Leaderboard: React.FC = () => {
           .limit(50);
 
       if (wallets) {
-          const pool = wallets.reduce((sum, w) => sum + (period === 'daily' ? w.today_earning : w.total_earning), 0);
+          const pool = wallets.reduce((sum: number, w: any) => sum + (period === 'daily' ? w.today_earning : w.total_earning), 0);
           setTotalPool(pool * 1.2); 
 
-          const userIds = wallets.map(w => w.user_id);
+          const userIds = wallets.map((w: any) => w.user_id);
           const { data: profiles } = await supabase
               .from('profiles')
               .select('id, name_1, avatar_1, level_1')
               .in('id', userIds);
           
-          const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+          const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
           
-          const rankedList: LeaderboardUser[] = wallets.map((w, index) => {
+          const rankedList: LeaderboardUser[] = wallets.map((w: any, index: number) => {
               const profile = profileMap.get(w.user_id) as any;
               const amount = period === 'daily' ? w.today_earning : w.total_earning;
               
@@ -309,7 +309,7 @@ const Leaderboard: React.FC = () => {
                                    <div className={`flex items-center justify-end text-[10px] ${user.trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
                                        {user.trend === 'up' ? <ChevronUp size={10}/> : <ChevronDown size={10}/>}
                                    </div>
-                               )}
+                                )}
                            </div>
                        </div>
                    </motion.div>

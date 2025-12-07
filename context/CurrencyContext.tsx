@@ -56,7 +56,7 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         syncCurrency();
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
             if (event === 'SIGNED_IN' && session) {
                 syncCurrency();
             } else if (event === 'SIGNED_OUT') {

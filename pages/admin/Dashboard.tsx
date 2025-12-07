@@ -72,14 +72,14 @@ const Dashboard: React.FC = () => {
         // 3. Financials
         // Fetch aggregated deposit/withdraw
         const { data: depositTx } = await supabase.from('transactions').select('amount').eq('type', 'deposit').eq('status', 'success');
-        const totalDeps = (depositTx || []).reduce((sum, t) => sum + t.amount, 0);
+        const totalDeps = (depositTx || []).reduce((sum: number, t: any) => sum + t.amount, 0);
 
         const { data: withdrawTx } = await supabase.from('transactions').select('amount').eq('type', 'withdraw').eq('status', 'success');
-        const totalWds = (withdrawTx || []).reduce((sum, t) => sum + t.amount, 0);
+        const totalWds = (withdrawTx || []).reduce((sum: number, t: any) => sum + t.amount, 0);
 
         // Calculate Liability (Sum of all user balances) - approximated by main_balance sum
         const { data: walletBalances } = await supabase.from('wallets').select('main_balance, deposit_balance, earning_balance');
-        const liability = (walletBalances || []).reduce((sum, w) => sum + w.main_balance + w.deposit_balance + w.earning_balance, 0);
+        const liability = (walletBalances || []).reduce((sum: number, w: any) => sum + w.main_balance + w.deposit_balance + w.earning_balance, 0);
 
         // 5. Logs
         const { data: logs } = await supabase.from('transactions')

@@ -134,7 +134,7 @@ const AppContent: React.FC = () => {
 
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
       setSession(session);
       setLoading(false);
     });

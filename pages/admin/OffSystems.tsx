@@ -29,7 +29,7 @@ const OffSystems: React.FC = () => {
     // Listen for realtime changes from other admins
     const sub = supabase
         .channel('system_config_live')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_config' }, (payload) => {
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_config' }, (payload: any) => {
             const newConfig = payload.new as SystemConfig;
             setConfig(newConfig);
             setOriginalConfig(newConfig);
@@ -60,9 +60,15 @@ const OffSystems: React.FC = () => {
         // If no config exists, create a default one in local state so UI works
         const defaultConfig: SystemConfig = {
             id: 'temp',
-            is_tasks_enabled: true, is_games_enabled: true, is_invest_enabled: true,
-            is_invite_enabled: true, is_video_enabled: true, is_deposit_enabled: true,
-            is_withdraw_enabled: true, maintenance_mode: false, global_alert: null
+            is_tasks_enabled: true,
+            is_games_enabled: true,
+            is_invest_enabled: true,
+            is_invite_enabled: true,
+            is_video_enabled: true,
+            is_deposit_enabled: true,
+            is_withdraw_enabled: true,
+            maintenance_mode: false,
+            global_alert: null
         };
         setConfig(defaultConfig);
         setOriginalConfig(defaultConfig);

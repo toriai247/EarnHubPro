@@ -12,10 +12,10 @@ const EarningsAnalytics: React.FC = () => {
       const fetch = async () => {
         const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
         const { data: deposits } = await supabase.from('wallets').select('deposit');
-        const totalDeposits = (deposits || []).reduce((sum, w) => sum + (w.deposit || 0), 0);
+        const totalDeposits = (deposits || []).reduce((sum: number, w: any) => sum + (w.deposit || 0), 0);
 
         const { data: withdrawals } = await supabase.from('transactions').select('amount').eq('type', 'withdraw').eq('status', 'success');
-        const totalWithdrawals = (withdrawals || []).reduce((sum, t) => sum + t.amount, 0);
+        const totalWithdrawals = (withdrawals || []).reduce((sum: number, t: any) => sum + t.amount, 0);
 
         const { count: pendingWd } = await supabase.from('withdraw_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending');
 
