@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { PublishedSite } from '../../types';
-import { Globe, Plus, Trash2, Edit2, ExternalLink, Power, Eye, Save, X, Search, FileText, UploadCloud, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Globe, Plus, Trash2, Edit2, ExternalLink, Power, Eye, Save, X, Search, FileText, UploadCloud, Link as LinkIcon, Loader2, AlertTriangle } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import Loader from '../../components/Loader';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -87,7 +87,7 @@ const SiteManagement: React.FC = () => {
               return;
           }
           if (selectedFile) {
-              if (selectedFile.type !== 'text/html') {
+              if (selectedFile.type !== 'text/html' && !selectedFile.name.endsWith('.html')) {
                   toast.error("Only .html files are allowed.");
                   return;
               }
@@ -99,24 +99,30 @@ const SiteManagement: React.FC = () => {
                   
                   const { error: uploadError } = await supabase.storage.from('hosted-sites').upload(filePath, selectedFile, {
                       cacheControl: '3600',
-                      upsert: false
+                      upsert: false,
+                      contentType: 'text/html;charset=UTF-8'
                   });
 
-                  if (uploadError) throw uploadError;
+                  if (uploadError) {
+                      if (uploadError.message.includes("Bucket not found") || uploadError.message.includes("not found")) {
+                          toast.error("Setup Required: Run 'Site Publisher V2' SQL in Database Ultra to create storage.");
+                      } else {
+                          toast.error("Upload Error: " + uploadError.message);
+                      }
+                      setIsUploading(false);
+                      return;
+                  }
 
                   // Get Public URL
                   const { data: urlData } = supabase.storage.from('hosted-sites').getPublicUrl(filePath);
                   finalTargetUrl = urlData.publicUrl;
 
               } catch (e: any) {
-                  toast.error("Upload Failed: " + e.message);
+                  toast.error("System Error: " + e.message);
                   setIsUploading(false);
                   return;
               }
               setIsUploading(false);
-          } else if (editingId) {
-              // Keeping existing file (URL already in form.target_url)
-              // No changes needed
           }
       }
 
@@ -299,8 +305,10 @@ const SiteManagement: React.FC = () => {
                                                 <p className="text-xs text-gray-400">Drag & Drop or Click to Select (.html)</p>
                                             )}
                                         </div>
-                                        {editingId && !selectedFile && (
+                                        {editingId && !selectedFile ? (
                                             <p className="text-[10px] text-gray-500">Current file is active. Upload new to replace.</p>
+                                        ) : (
+                                            <p className="text-[10px] text-yellow-500 flex items-center gap-1"><AlertTriangle size={10}/> If upload fails, enable storage in Database Ultra.</p>
                                         )}
                                     </div>
                                 )}

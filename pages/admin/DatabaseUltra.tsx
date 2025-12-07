@@ -28,15 +28,15 @@ const SQL_TOOLS = {
     setup: [
         {
             title: 'Upgrade: Site Publisher V2 (HTML Upload)',
-            desc: 'Adds column for file type and enables storage bucket for hosted sites.',
+            desc: 'Creates the required storage bucket for HTML hosting.',
             sql: `
--- 1. Add Source Type Column
+-- 1. Add Source Type Column (if not exists)
 ALTER TABLE public.published_sites ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'url';
 
--- 2. Create Storage Bucket (If not exists - requires admin/dashboard usually, but trying SQL)
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('hosted-sites', 'hosted-sites', true)
-ON CONFLICT (id) DO NOTHING;
+-- 2. Create Storage Bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
+VALUES ('hosted-sites', 'hosted-sites', true, 5242880, ARRAY['text/html'])
+ON CONFLICT (id) DO UPDATE SET public = true;
 
 -- 3. Storage Policies
 DROP POLICY IF EXISTS "Public Read Sites" ON storage.objects;
