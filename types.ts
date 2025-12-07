@@ -2,9 +2,9 @@
 export interface PublishedSite {
     id: string;
     name: string;
-    slug: string; // The URL path part
+    slug: string;
     target_url: string;
-    source_type?: 'url' | 'html'; // New field
+    source_type?: 'url' | 'html'; 
     page_title?: string;
     meta_desc?: string;
     is_active: boolean;
@@ -18,16 +18,38 @@ export interface DailyBonusConfig {
     is_active: boolean;
 }
 
-export interface InvestmentPlan {
-  id: string;
-  name: string;
-  daily_return: number;
-  duration: number;
-  min_invest: number;
-  total_roi: number;
-  badge_tag?: string;
-  description?: string;
-  is_active?: boolean;
+// NEW INVESTMENT TYPES
+export type AssetType = 'commodity' | 'currency' | 'business';
+
+export interface Asset {
+    id: string;
+    type: AssetType;
+    name: string;
+    description?: string;
+    image_url?: string;
+    current_price: number;
+    previous_price?: number;
+    
+    // Business Specific
+    target_fund?: number;
+    collected_fund?: number;
+    profit_rate?: number;
+    duration_days?: number;
+    
+    is_active: boolean;
+    created_at?: string;
+}
+
+export interface UserAsset {
+    id: string;
+    user_id: string;
+    asset_id: string;
+    quantity: number;
+    average_buy_price: number;
+    status: 'holding' | 'sold' | 'delivery_requested';
+    delivery_details?: string;
+    asset?: Asset; // Joined
+    created_at: string;
 }
 
 export interface TaskRequirement {
@@ -43,7 +65,6 @@ export interface QuizConfig {
     correct_index: number;
 }
 
-// NEW: Marketplace Task Interface V4 (AI Quiz)
 export interface MarketTask {
   id: string;
   creator_id: string;
@@ -56,9 +77,9 @@ export interface MarketTask {
   price_per_action: number;
   worker_reward: number; 
   proof_type: 'ai_quiz' | 'manual'; 
-  quiz_config?: QuizConfig; // AI Generated Question
-  ai_reference_data?: any; // NEW: Stores Visual DNA for matching
-  requirements?: TaskRequirement[]; // Legacy manual reqs
+  quiz_config?: QuizConfig; 
+  ai_reference_data?: any; 
+  requirements?: TaskRequirement[]; 
   timer_seconds?: number; 
   status: 'active' | 'paused' | 'completed' | 'banned';
   created_at: string;
@@ -85,15 +106,15 @@ export interface TaskAttempt {
 export interface Transaction {
   id: string;
   user_id: string;
-  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer' | 'sponsorship';
+  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer' | 'sponsorship' | 'asset_buy' | 'asset_sell';
   amount: number;
   status: 'success' | 'pending' | 'failed';
   description?: string;
   metadata?: any;
   created_at: string;
-  time?: string; // UI helper
-  title?: string; // UI helper
-  timestamp?: number; // UI helper
+  time?: string;
+  title?: string;
+  timestamp?: number;
 }
 
 export interface WalletData {
@@ -131,8 +152,8 @@ export interface UserProfile {
   is_withdraw_blocked?: boolean;
   is_suspended?: boolean;
   is_account_active?: boolean;
-  is_dealer?: boolean; // Dealer/Partner Role
-  role?: 'admin' | 'moderator' | 'user' | 'staff'; // Added 'staff'
+  is_dealer?: boolean;
+  role?: 'admin' | 'moderator' | 'user' | 'staff';
   admin_notes?: string;
   risk_score?: number;
   rank_1?: string;
@@ -149,13 +170,12 @@ export interface UserProfile {
   created_at: string;
 }
 
-// Influencer Campaign Interface
 export interface InfluencerCampaign {
     id: string;
     title: string;
     platform: 'facebook' | 'youtube' | 'instagram' | 'tiktok';
-    media_link: string; // The link to Naxxivo content they need to share
-    requirements: string; // "Must have 10k views"
+    media_link: string;
+    requirements: string;
     payout: number;
     status: 'active' | 'completed';
     created_at: string;
@@ -195,7 +215,6 @@ export interface WithdrawalSettings { id: string; min_withdraw: number; max_with
 export interface UserWithdrawMethod { id: string; user_id: string; method_name: string; account_number: string; is_auto_enabled: boolean; }
 export interface DepositBonus { id: string; title: string; tier_level: number; method_name?: string | null; bonus_percent: number; bonus_fixed: number; min_deposit: number; is_active: boolean; }
 export interface PaymentMethod { id: string; name: string; account_number: string; type: 'mobile_banking' | 'crypto' | 'bank'; instruction?: string; logo_url?: string; is_active: boolean; }
-export interface ActiveInvestment { id: string; user_id: string; plan_id: string; plan_name: string; amount: number; daily_return: number; total_profit_percent: number; start_date: string; end_date: string; status: 'active' | 'completed' | 'cancelled'; total_earned: number; last_claim_at?: string; next_claim_at: string; }
 export interface SpinItem { id?: string; label: string; value: number; probability: number; color: string; is_active: boolean; }
 export interface GameResult { id: string; gameId: string; gameName: string; bet: number; payout: number; profit: number; timestamp: number; details: string; }
 export interface AppNotification { id: string; title: string; message: string; type: 'info' | 'success' | 'warning' | 'error'; created_at: string; read: boolean; is_read?: boolean; }
@@ -206,5 +225,7 @@ export interface KycRequest { id: string; user_id: string; full_name: string; id
 export interface CrashGameState { id: number; status: 'BETTING' | 'FLYING' | 'CRASHED'; current_round_id: string; start_time: string; crash_point: number; total_bets_current_round: number; last_crash_point: number; }
 export interface CrashBet { id: string; round_id: string; user_id: string; amount: number; cashed_out_at: number | null; profit: number; avatar_url?: string; user_name?: string; wallet_type?: string; }
 export interface ReferralTier { id: string; level: number; commission_percent: number; type: 'deposit' | 'earning'; is_active: boolean; created_at?: string; }
-// Legacy Task Interface
+// Legacy Types kept for compatibility if needed, though mostly replaced
+export interface InvestmentPlan { id: string; name: string; daily_return: number; duration: number; min_invest: number; total_roi: number; badge_tag?: string; description?: string; is_active?: boolean; }
+export interface ActiveInvestment { id: string; user_id: string; plan_id: string; plan_name: string; amount: number; daily_return: number; total_profit_percent: number; start_date: string; end_date: string; status: 'active' | 'completed' | 'cancelled'; total_earned: number; last_claim_at?: string; next_claim_at: string; }
 export interface Task { id: string; title: string; description?: string; reward: number; sponsor_rate?: number; icon: string; url?: string; difficulty: 'Easy' | 'Medium' | 'Hard'; frequency: 'once' | 'daily'; type: 'social' | 'video' | 'app' | 'website'; status?: 'available' | 'completed' | 'cooldown'; is_active?: boolean; created_at?: string; }

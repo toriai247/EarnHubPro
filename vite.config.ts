@@ -19,6 +19,9 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    include: ["recharts"]
+  },
   build: {
     outDir: 'dist',
   }

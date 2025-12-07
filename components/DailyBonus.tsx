@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Gift, X, Check, Lock, Zap, Calendar, Sparkles } from 'lucide-react';
+import { Gift, X, Check, Lock, Zap, Calendar, Sparkles, Clock, Loader2 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import { claimDailyBonus, checkDailyBonus } from '../lib/actions';
 import BalanceDisplay from './BalanceDisplay';
@@ -18,12 +18,35 @@ const DailyBonus: React.FC<DailyBonusProps> = ({ userId }) => {
     const [currentDay, setCurrentDay] = useState(1);
     const [canClaim, setCanClaim] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [nextClaimTime, setNextClaimTime] = useState<number | null>(null);
+    const [timeRemaining, setTimeRemaining] = useState('');
     const [rewards, setRewards] = useState<number[]>([0.10, 0.20, 0.30, 0.40, 0.50, 0.75, 1.00]);
 
     useEffect(() => {
         fetchConfig();
         checkStatus();
     }, [userId]);
+
+    // Timer countdown
+    useEffect(() => {
+        if (!nextClaimTime) return;
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const diff = nextClaimTime - now;
+            if (diff <= 0) {
+                setTimeRemaining("Ready!");
+                setCanClaim(true);
+                setNextClaimTime(null);
+                clearInterval(interval);
+            } else {
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                setTimeRemaining(`${hours}h ${minutes}m ${seconds}s`);
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [nextClaimTime]);
 
     const fetchConfig = async () => {
         const { data } = await supabase.from('daily_bonus_config').select('*').order('day');
@@ -37,17 +60,28 @@ const DailyBonus: React.FC<DailyBonusProps> = ({ userId }) => {
     };
 
     const checkStatus = async () => {
+        setLoading(true);
         const status = await checkDailyBonus(userId);
         setCurrentDay(status.streak);
         setCanClaim(status.canClaim);
+        setNextClaimTime(status.nextClaim);
         
-        // Auto-open if claim available
-        if (status.canClaim) {
-            setTimeout(() => setIsOpen(true), 1500);
+        // Only open automatically if user hasn't claimed AND hasn't closed it this session
+        // Using session storage to remember "closed" state for this browser session
+        const hasClosed = sessionStorage.getItem('daily_bonus_closed');
+        if (status.canClaim && !hasClosed) {
+            setIsOpen(true);
         }
+        setLoading(false);
+    };
+
+    const handleClose = () => {
+        setIsOpen(false);
+        sessionStorage.setItem('daily_bonus_closed', 'true');
     };
 
     const handleClaim = async () => {
+        if (!canClaim) return;
         setLoading(true);
         try {
             await claimDailyBonus(userId, currentDay);
@@ -62,12 +96,19 @@ const DailyBonus: React.FC<DailyBonusProps> = ({ userId }) => {
             });
 
             toast.success(`Claimed Day ${currentDay} Reward!`);
+            
+            // Update local state immediately
             setCanClaim(false);
             
+            // Set next claim time to tomorrow midnight approx
+            const now = new Date();
+            const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            setNextClaimTime(tomorrow.getTime());
+
             // Wait a bit then close
-            setTimeout(() => setIsOpen(false), 3000); 
+            setTimeout(() => setIsOpen(false), 2000); 
         } catch (e: any) {
-            toast.error("Failed to claim: " + e.message);
+            toast.error(e.message || "Failed to claim");
         } finally {
             setLoading(false);
         }
@@ -76,28 +117,40 @@ const DailyBonus: React.FC<DailyBonusProps> = ({ userId }) => {
     // Calculate progress percentage (1 to 7)
     const progress = Math.min(100, ((currentDay - 1) / 6) * 100);
 
-    // Manual trigger button if user closed modal but can still claim
-    if (!isOpen && canClaim) {
+    // Manual trigger button if closed
+    if (!isOpen) {
         return (
             <motion.button
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
                 onClick={() => setIsOpen(true)}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 p-3 rounded-xl flex items-center justify-between shadow-lg mb-4 border border-white/20 relative overflow-hidden group"
+                className={`w-full p-3 rounded-xl flex items-center justify-between shadow-lg mb-4 border relative overflow-hidden group transition-all ${
+                    canClaim 
+                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 border-white/20' 
+                    : 'bg-[#111] border-white/5 opacity-80'
+                }`}
             >
-                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:animate-shimmer skew-x-12"></div>
+                {canClaim && <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:animate-shimmer skew-x-12"></div>}
+                
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/20 rounded-full animate-bounce-subtle">
-                        <Gift className="text-white" size={20} />
+                    <div className={`p-2 rounded-full ${canClaim ? 'bg-white/20 animate-bounce-subtle' : 'bg-white/5'}`}>
+                        <Gift className={canClaim ? 'text-white' : 'text-gray-500'} size={20} />
                     </div>
                     <div className="text-left">
-                        <p className="text-white font-black text-sm uppercase">Daily Reward Ready!</p>
-                        <p className="text-white/80 text-[10px] font-bold">Tap to claim Day {currentDay}</p>
+                        <p className={`font-black text-sm uppercase ${canClaim ? 'text-white' : 'text-gray-400'}`}>
+                            {canClaim ? 'Daily Reward' : 'Next Reward'}
+                        </p>
+                        <p className={`${canClaim ? 'text-white/80' : 'text-gray-600'} text-[10px] font-bold`}>
+                            {canClaim ? `Claim Day ${currentDay} Now!` : `Available in: ${timeRemaining}`}
+                        </p>
                     </div>
                 </div>
-                <div className="bg-white text-purple-600 px-3 py-1 rounded-lg text-xs font-black uppercase">
-                    Claim
-                </div>
+                
+                {canClaim && (
+                    <div className="bg-white text-purple-600 px-3 py-1 rounded-lg text-xs font-black uppercase shadow-sm">
+                        Claim
+                    </div>
+                )}
             </motion.button>
         );
     }
@@ -112,24 +165,21 @@ const DailyBonus: React.FC<DailyBonusProps> = ({ userId }) => {
                         animate={{ opacity: 1 }} 
                         exit={{ opacity: 0 }}
                         className="absolute inset-0 bg-black/80 backdrop-blur-md"
-                        onClick={() => !loading && setIsOpen(false)}
+                        onClick={handleClose}
                     />
 
                     {/* Modal Card */}
                     <motion.div 
-                        initial={{ scale: 0.8, y: 50, opacity: 0, rotateX: 20 }}
-                        animate={{ scale: 1, y: 0, opacity: 1, rotateX: 0 }}
+                        initial={{ scale: 0.8, y: 50, opacity: 0 }}
+                        animate={{ scale: 1, y: 0, opacity: 1 }}
                         exit={{ scale: 0.8, y: 50, opacity: 0 }}
-                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="bg-[#0a0a0a] w-full max-w-sm rounded-[32px] border border-white/10 overflow-hidden relative shadow-2xl perspective-1000"
+                        className="bg-[#0a0a0a] w-full max-w-sm rounded-[32px] border border-white/10 overflow-hidden relative shadow-2xl"
                     >
                         {/* Header Background FX */}
                         <div className="absolute top-0 left-0 right-0 h-48 bg-gradient-to-b from-purple-600/20 via-blue-600/10 to-transparent pointer-events-none"></div>
-                        <div className="absolute -top-20 -right-20 w-64 h-64 bg-purple-500/20 blur-[80px] rounded-full"></div>
-                        <div className="absolute -top-20 -left-20 w-64 h-64 bg-blue-500/20 blur-[80px] rounded-full"></div>
 
                         <button 
-                            onClick={() => setIsOpen(false)} 
+                            onClick={handleClose} 
                             className="absolute top-4 right-4 bg-white/5 hover:bg-white/10 p-2 rounded-full text-white/50 hover:text-white transition z-20"
                         >
                             <X size={20}/>
@@ -137,46 +187,26 @@ const DailyBonus: React.FC<DailyBonusProps> = ({ userId }) => {
 
                         <div className="pt-8 pb-4 px-6 text-center relative z-10">
                             <motion.div 
-                                animate={{ 
-                                    y: [0, -10, 0],
-                                    rotate: [0, 5, -5, 0]
-                                }}
-                                transition={{ repeat: Infinity, duration: 4 }}
-                                className="w-24 h-24 mx-auto mb-4 relative"
+                                animate={canClaim ? { y: [0, -5, 0] } : {}}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                                className="w-20 h-20 mx-auto mb-3 relative"
                             >
-                                <div className="absolute inset-0 bg-gradient-to-br from-yellow-300 to-orange-500 rounded-3xl blur-xl opacity-40"></div>
-                                <div className="w-full h-full bg-gradient-to-br from-yellow-400 to-orange-600 rounded-3xl flex items-center justify-center shadow-lg border-2 border-white/20 relative z-10">
-                                    <Gift size={48} className="text-white drop-shadow-md" />
+                                <div className={`w-full h-full rounded-2xl flex items-center justify-center shadow-lg border-2 border-white/10 relative z-10 ${canClaim ? 'bg-gradient-to-br from-purple-500 to-blue-500' : 'bg-white/5'}`}>
+                                    <Gift size={40} className="text-white drop-shadow-md" />
                                 </div>
-                                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-black px-3 py-1 rounded-full border-4 border-[#0a0a0a] shadow-lg whitespace-nowrap">
-                                    DAY {currentDay}
-                                </div>
+                                {canClaim && (
+                                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-green-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg whitespace-nowrap">
+                                        READY
+                                    </div>
+                                )}
                             </motion.div>
                             
-                            <h2 className="text-3xl font-black text-white uppercase tracking-tight mb-1">
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Daily</span> Bonus
+                            <h2 className="text-2xl font-black text-white uppercase tracking-tight mb-1">
+                                Daily <span className="text-purple-400">Bonus</span>
                             </h2>
-                            <p className="text-gray-400 text-xs font-medium">
-                                Keep your streak alive to unlock the <span className="text-yellow-400 font-bold">Mega Jackpot</span>!
+                            <p className="text-gray-400 text-xs">
+                                Day {currentDay} of 7
                             </p>
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="px-6 mb-6">
-                            <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase mb-2">
-                                <span>Streak Progress</span>
-                                <span>{currentDay}/7 Days</span>
-                            </div>
-                            <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
-                                <motion.div 
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${progress}%` }}
-                                    transition={{ duration: 1, ease: "easeOut" }}
-                                    className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full shadow-[0_0_15px_rgba(168,85,247,0.6)] relative"
-                                >
-                                    <div className="absolute inset-0 bg-white/20 animate-shimmer-fast w-full h-full"></div>
-                                </motion.div>
-                            </div>
                         </div>
 
                         {/* Calendar Grid */}
@@ -186,55 +216,31 @@ const DailyBonus: React.FC<DailyBonusProps> = ({ userId }) => {
                                 let status = 'locked';
                                 if (day < currentDay) status = 'claimed';
                                 if (day === currentDay) status = canClaim ? 'current' : 'claimed';
+                                // Logic check: if we just claimed, the streak might not update in UI instantly without re-fetch, but 'canClaim' handles it.
                                 
                                 const isBig = day === 7;
 
                                 return (
-                                    <motion.div 
+                                    <div 
                                         key={day}
-                                        whileHover={status === 'current' ? { scale: 1.05 } : {}}
-                                        className={`relative rounded-2xl flex flex-col items-center justify-center aspect-[4/5] border transition-all overflow-hidden group ${
+                                        className={`relative rounded-xl flex flex-col items-center justify-center aspect-[4/5] border transition-all overflow-hidden ${
                                             status === 'current' 
-                                            ? 'bg-gradient-to-br from-blue-600/40 to-purple-600/40 border-blue-400/50 shadow-[0_0_20px_rgba(59,130,246,0.3)] z-10' 
+                                            ? 'bg-gradient-to-br from-blue-600/30 to-purple-600/30 border-blue-400/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' 
                                             : status === 'claimed'
-                                            ? 'bg-green-500/10 border-green-500/30 opacity-70'
-                                            : 'bg-white/5 border-white/5 opacity-40'
-                                        } ${isBig ? 'col-span-2 aspect-auto flex-row gap-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-yellow-500/30 opacity-100' : ''}`}
+                                            ? 'bg-green-500/10 border-green-500/30'
+                                            : 'bg-white/5 border-white/5 opacity-50'
+                                        } ${isBig ? 'col-span-1 border-yellow-500/30 bg-yellow-500/10' : ''}`}
                                     >
-                                        <div className="absolute top-2 left-2 text-[8px] font-black text-white/40 uppercase">Day {day}</div>
+                                        <div className="absolute top-1 left-2 text-[8px] font-black text-white/30">D{day}</div>
                                         
                                         {status === 'claimed' && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] z-20">
-                                                <div className="bg-green-500 rounded-full p-1 shadow-lg shadow-green-500/40">
-                                                    <Check size={14} className="text-black stroke-[4px]" />
-                                                </div>
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
+                                                <Check size={16} className="text-green-500 stroke-[3px]" />
                                             </div>
                                         )}
 
-                                        {status === 'locked' && !isBig && (
-                                            <div className="absolute inset-0 flex items-center justify-center z-0 opacity-20">
-                                                <Lock size={20} />
-                                            </div>
-                                        )}
-                                        
-                                        {isBig ? (
-                                            <>
-                                                <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-yellow-500/20">
-                                                    <Zap size={20} className="text-white fill-white" />
-                                                </div>
-                                                <div className="text-left">
-                                                    <div className="text-[8px] text-yellow-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                                                        <Sparkles size={8}/> Grand Prize
-                                                    </div>
-                                                    <div className="text-lg font-black text-white"><BalanceDisplay amount={reward} compact/></div>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div className="mt-4 text-sm font-bold text-white">
-                                                <BalanceDisplay amount={reward} compact />
-                                            </div>
-                                        )}
-                                    </motion.div>
+                                        {isBig ? <Zap size={16} className="text-yellow-400 mb-1"/> : <span className="text-xs font-bold text-white mb-1"><BalanceDisplay amount={reward} compact /></span>}
+                                    </div>
                                 )
                             })}
                         </div>
@@ -244,14 +250,13 @@ const DailyBonus: React.FC<DailyBonusProps> = ({ userId }) => {
                             <button 
                                 onClick={handleClaim}
                                 disabled={!canClaim || loading}
-                                className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-xl transition-all relative overflow-hidden group ${
+                                className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-xl transition-all relative overflow-hidden group flex items-center justify-center gap-2 ${
                                     canClaim 
                                     ? 'bg-white text-black hover:scale-[1.02] active:scale-[0.98] shadow-white/20' 
                                     : 'bg-white/10 text-gray-500 cursor-not-allowed'
                                 }`}
                             >
-                                {canClaim && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent translate-x-[-100%] group-hover:animate-shimmer" />}
-                                {loading ? 'Processing...' : canClaim ? 'Claim Reward' : 'Come Back Tomorrow'}
+                                {loading ? <Loader2 className="animate-spin" size={16}/> : canClaim ? 'CLAIM REWARD' : timeRemaining}
                             </button>
                         </div>
                     </motion.div>
