@@ -106,7 +106,7 @@ const EarningsAnalytics: React.FC = () => {
           
           // Separate 'fee' transactions
           const fees = (txs || []).filter((t: any) => t.type === 'fee' || t.type === 'penalty');
-          const feeTotal = fees.reduce((acc, curr) => acc + curr.amount, 0);
+          const feeTotal = fees.reduce((acc: number, curr: any) => acc + curr.amount, 0);
           setTotalFeeRevenue(feeTotal);
 
           // Other Misc Logs (Exclude standard flows and fees)
@@ -120,7 +120,7 @@ const EarningsAnalytics: React.FC = () => {
           
           // Grand Totals
           setTotalRevenue(t_adminRev + g_adminProfit + feeTotal);
-          setTotalUserPayouts(t_userEarned + (Object.values(gameMap).reduce((acc, g) => acc + g.totalPayouts, 0)));
+          setTotalUserPayouts(t_userEarned + (Object.values(gameMap).reduce((acc: number, g: GameAnalytics) => acc + g.totalPayouts, 0)));
 
       } catch (e) {
           console.error("Analytics Error", e);
@@ -157,7 +157,7 @@ const EarningsAnalytics: React.FC = () => {
                      <h3 className="text-sm font-bold text-blue-400 uppercase">Task Revenue</h3>
                  </div>
                  <p className="text-2xl font-bold text-white">
-                     <BalanceDisplay amount={taskData.reduce((acc, t) => acc + t.adminRevenue, 0)} />
+                     <BalanceDisplay amount={taskData.reduce((acc: number, t: TaskAnalytics) => acc + t.adminRevenue, 0)} />
                  </p>
                  <p className="text-xs text-gray-500">Commission from Ads</p>
              </div>
@@ -168,7 +168,7 @@ const EarningsAnalytics: React.FC = () => {
                      <h3 className="text-sm font-bold text-purple-400 uppercase">Game Profit</h3>
                  </div>
                  <p className="text-2xl font-bold text-white">
-                     <BalanceDisplay amount={gameData.reduce((acc, g) => acc + g.adminProfit, 0)} />
+                     <BalanceDisplay amount={gameData.reduce((acc: number, g: GameAnalytics) => acc + g.adminProfit, 0)} />
                  </p>
                  <p className="text-xs text-gray-500">Total Loss - Total Wins</p>
              </div>
