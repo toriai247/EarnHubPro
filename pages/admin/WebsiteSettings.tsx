@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { SystemConfig } from '../../types';
-import { Save, Loader2, Settings, Smartphone, Lock, AlertTriangle, Eye } from 'lucide-react';
+import { Save, Loader2, Settings, Smartphone, Lock, AlertTriangle, Eye, Image as ImageIcon } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 
 const WebsiteSettings: React.FC = () => {
@@ -32,7 +32,10 @@ const WebsiteSettings: React.FC = () => {
           p2p_min_transfer: config.p2p_min_transfer,
           is_activation_enabled: config.is_activation_enabled,
           activation_amount: config.activation_amount,
-          is_pwa_enabled: config.is_pwa_enabled
+          is_pwa_enabled: config.is_pwa_enabled,
+          hero_title: config.hero_title,
+          hero_description: config.hero_description,
+          hero_image_url: config.hero_image_url
       }).eq('id', config.id);
 
       if(error) toast.error(error.message);
@@ -66,6 +69,46 @@ const WebsiteSettings: React.FC = () => {
                 </label>
             </div>
             
+            <div className="h-px bg-white/10"></div>
+
+            {/* HERO SECTION SETTINGS */}
+            <div>
+                <h4 className="font-bold text-white flex items-center gap-2 mb-4">
+                    <ImageIcon size={16} className="text-blue-400" /> Homepage Hero
+                </h4>
+                <div className="space-y-4 bg-white/5 p-4 rounded-xl border border-white/5">
+                    <div>
+                        <label className="text-xs font-bold text-gray-400 mb-1 block">Hero Title</label>
+                        <input 
+                            type="text"
+                            value={config.hero_title || ''}
+                            onChange={e => setConfig({...config, hero_title: e.target.value})}
+                            placeholder="EARN. PLAY. GROW."
+                            className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-blue-500 outline-none font-bold"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-400 mb-1 block">Hero Description</label>
+                        <textarea 
+                            value={config.hero_description || ''}
+                            onChange={e => setConfig({...config, hero_description: e.target.value})}
+                            placeholder="Join the next-generation earning ecosystem..."
+                            className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-blue-500 outline-none h-20 resize-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-gray-400 mb-1 block">Background Image URL (Optional)</label>
+                        <input 
+                            type="text"
+                            value={config.hero_image_url || ''}
+                            onChange={e => setConfig({...config, hero_image_url: e.target.value})}
+                            placeholder="https://... (Leave empty for default gradient)"
+                            className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-blue-500 outline-none"
+                        />
+                    </div>
+                </div>
+            </div>
+
             <div className="h-px bg-white/10"></div>
 
             {/* PWA Settings */}

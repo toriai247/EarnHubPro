@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -181,13 +182,15 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       {!isVideoPage && (
         <header className="sticky top-0 z-40 bg-void/90 backdrop-blur-md border-b border-border-base px-4 py-3 flex justify-between items-center transition-colors duration-500">
           <div className="flex items-center gap-3">
+            {/* --- REFINED MENU BUTTON --- */}
             <button 
                 onClick={() => setIsMenuOpen(true)}
-                className="p-2 text-muted hover:text-main border border-border-base rounded bg-card hover:bg-input transition-colors"
+                className="p-2.5 rounded-xl bg-[#111] border border-[#222] text-gray-400 hover:text-white hover:bg-[#1a1a1a] hover:border-[#333] active:scale-90 active:border-brand/50 active:text-brand transition-all duration-100 ease-out shadow-sm"
+                aria-label="Open Menu"
             >
-                <Menu size={20} />
+                <Menu size={20} strokeWidth={3} />
             </button>
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/" className="flex items-center gap-2 active:scale-95 transition-transform">
                 <Logo size="sm" showText={true} />
             </Link>
           </div>
@@ -210,14 +213,14 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                         </Link>
                     )}
 
-                    <Link to="/search" className="p-2 text-muted hover:text-main transition-colors">
+                    <Link to="/search" className="p-2 text-muted hover:text-main transition-colors active:scale-90 duration-200">
                         <Search size={20} />
                     </Link>
                     
                     <div className="hidden sm:flex px-2 py-1 bg-card border border-border-base rounded text-xs font-mono text-main transition-colors">
                         <BalanceDisplay amount={balance} isHeader={true} isNative={true} />
                     </div>
-                    <Link to="/notifications" className="relative p-2 text-muted hover:text-main transition-colors">
+                    <Link to="/notifications" className="relative p-2 text-muted hover:text-main transition-colors active:scale-90 duration-200">
                       <Bell size={20} />
                       {unreadCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-brand rounded-full"></span>}
                     </Link>
@@ -259,7 +262,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                     // @ts-ignore
                     if (item.protected && isGuest) { e.preventDefault(); navigate('/login'); } 
                 }}
-                className={`flex flex-col items-center justify-center w-full h-full ${colorClass}`}
+                className={`flex flex-col items-center justify-center w-full h-full ${colorClass} active:scale-90 transition-transform duration-200`}
               >
                 <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
                 <span className="text-[9px] font-bold mt-1 uppercase">{item.label}</span>
@@ -289,7 +292,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                     // @ts-ignore
                     if (item.protected && isGuest) { e.preventDefault(); navigate('/login'); } 
                 }}
-                className={`p-3 rounded-lg mx-auto flex flex-col items-center justify-center transition-colors ${bgClass}`}
+                className={`p-3 rounded-lg mx-auto flex flex-col items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 ${bgClass}`}
                 title={item.label}
               >
                 <item.icon size={24} />
@@ -306,17 +309,25 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
               <motion.div 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
                 onClick={() => setIsMenuOpen(false)}
               />
               <motion.div 
                 initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="relative w-[75%] max-w-[260px] bg-card h-full border-r border-border-base flex flex-col shadow-2xl"
+                className="relative w-[75%] max-w-[280px] bg-card h-full border-r border-border-base flex flex-col shadow-2xl"
               >
-                  <div className="p-4 border-b border-border-base flex justify-between items-center">
-                      <span className="font-bold text-main">Menu</span>
-                      <button onClick={() => setIsMenuOpen(false)} className="text-muted hover:text-main"><X size={20}/></button>
+                  <div className="p-5 border-b border-border-base flex justify-between items-center bg-input/20">
+                      <div className="flex items-center gap-2">
+                          <Logo size="sm" showText={false} />
+                          <span className="font-black text-main tracking-tight">MENU</span>
+                      </div>
+                      <button 
+                        onClick={() => setIsMenuOpen(false)} 
+                        className="p-2 bg-white/5 rounded-full text-muted hover:text-white hover:bg-red-500/20 active:scale-90 transition-all duration-200"
+                      >
+                          <X size={20}/>
+                      </button>
                   </div>
                   
                   {/* Low Data Mode Toggle */}
@@ -333,7 +344,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                       </button>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-2">
+                  <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
                       {menuItems.map((item, idx) => {
                           if (isGuest && (item as any).protected) return null;
                           return (
@@ -341,9 +352,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                                   key={idx} 
                                   to={item.path} 
                                   onClick={() => setIsMenuOpen(false)}
-                                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-input text-sm font-medium text-muted hover:text-main mb-1 transition-colors"
+                                  className="flex items-center gap-3 p-3.5 rounded-xl hover:bg-input text-sm font-medium text-muted hover:text-main mb-1 transition-all active:scale-95"
                               >
-                                  <item.icon size={18} />
+                                  <item.icon size={18} className="opacity-70" />
                                   {item.label}
                               </Link>
                           );
@@ -352,17 +363,17 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                       {!isGuest && (
                           <button 
                               onClick={() => { setIsMenuOpen(false); setShowReviewModal(true); }}
-                              className="flex w-full items-center gap-3 p-3 rounded-lg hover:bg-input text-sm font-medium text-muted hover:text-main mb-1 transition-colors"
+                              className="flex w-full items-center gap-3 p-3.5 rounded-xl hover:bg-input text-sm font-medium text-muted hover:text-main mb-1 transition-all active:scale-95"
                           >
-                              <MessageSquare size={18} /> Rate Us / Feedback
+                              <MessageSquare size={18} className="opacity-70" /> Rate Us / Feedback
                           </button>
                       )}
                   </div>
-                  <div className="p-4 border-t border-border-base flex flex-col gap-2">
+                  <div className="p-4 border-t border-border-base flex flex-col gap-2 bg-input/10">
                       {isGuest ? (
-                          <button onClick={() => { setIsMenuOpen(false); navigate('/login'); }} className="w-full py-3 bg-brand text-white font-bold text-sm rounded-lg">Sign In</button>
+                          <button onClick={() => { setIsMenuOpen(false); navigate('/login'); }} className="w-full py-3 bg-brand text-white font-bold text-sm rounded-xl shadow-lg active:scale-95 transition-transform">Sign In</button>
                       ) : (
-                          <button onClick={handleLogout} className="w-full py-3 bg-input hover:bg-danger hover:text-white text-muted font-bold text-sm rounded-lg flex items-center justify-center gap-2 border border-border-base transition-colors">
+                          <button onClick={handleLogout} className="w-full py-3 bg-input hover:bg-danger/20 hover:text-danger text-muted font-bold text-sm rounded-xl flex items-center justify-center gap-2 border border-border-base transition-colors active:scale-95">
                               <LogOut size={16} /> Sign Out
                           </button>
                       )}

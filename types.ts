@@ -222,7 +222,26 @@ export interface GameResult { id: string; gameId: string; gameName: string; bet:
 export interface AppNotification { id: string; title: string; message: string; type: 'info' | 'success' | 'warning' | 'error'; created_at: string; read: boolean; is_read?: boolean; }
 export interface BotProfile { id: string; name: string; avatar: string; is_active: boolean; }
 export interface SpinItem { id: string; label: string; value: number; probability: number; color: string; is_active: boolean; }
-export interface SystemConfig { id: string; is_tasks_enabled: boolean; is_games_enabled: boolean; is_invest_enabled: boolean; is_invite_enabled: boolean; is_video_enabled: boolean; is_deposit_enabled: boolean; is_withdraw_enabled: boolean; maintenance_mode: boolean; global_alert: string | null; p2p_transfer_fee_percent?: number; p2p_min_transfer?: number; is_activation_enabled?: boolean; activation_amount?: number; is_pwa_enabled?: boolean; }
+export interface SystemConfig { 
+    id: string; 
+    is_tasks_enabled: boolean; 
+    is_games_enabled: boolean; 
+    is_invest_enabled: boolean; 
+    is_invite_enabled: boolean; 
+    is_video_enabled: boolean; 
+    is_deposit_enabled: boolean; 
+    is_withdraw_enabled: boolean; 
+    maintenance_mode: boolean; 
+    global_alert: string | null; 
+    p2p_transfer_fee_percent?: number; 
+    p2p_min_transfer?: number; 
+    is_activation_enabled?: boolean; 
+    activation_amount?: number; 
+    is_pwa_enabled?: boolean;
+    hero_title?: string;
+    hero_description?: string;
+    hero_image_url?: string;
+}
 export interface HelpRequest { id: string; user_id?: string; email: string; message: string; status: 'pending' | 'resolved'; admin_response?: string; resolved_at?: string; created_at: string; }
 export interface KycRequest { id: string; user_id: string; full_name: string; id_type: string; id_number: string; front_image_url: string; back_image_url: string; status: 'pending' | 'approved' | 'rejected'; admin_note?: string; created_at: string; profile?: UserProfile; }
 export interface ReferralTier { id: string; level: number; commission_percent: number; type: 'deposit' | 'earning'; is_active: boolean; created_at?: string; }

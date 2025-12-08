@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
@@ -16,7 +17,7 @@ import { motion } from 'framer-motion';
 const MotionDiv = motion.div as any;
 
 const Home: React.FC = () => {
-  const { isFeatureEnabled } = useSystem();
+  const { isFeatureEnabled, config } = useSystem();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -113,8 +114,19 @@ const Home: React.FC = () => {
         <div className="pb-24 pt-safe min-h-screen bg-void relative overflow-x-hidden font-sans">
              {/* Background Effects */}
              <div className="absolute top-0 left-0 right-0 h-[60vh] bg-gradient-to-b from-blue-900/20 to-transparent pointer-events-none" />
-             <div className="absolute top-[-10%] right-[-20%] w-[60%] h-[60%] bg-brand/10 blur-[120px] rounded-full pointer-events-none" />
-             <div className="absolute bottom-[-10%] left-[-20%] w-[60%] h-[60%] bg-purple-900/10 blur-[120px] rounded-full pointer-events-none" />
+             
+             {/* Custom Hero Image Background */}
+             {config?.hero_image_url ? (
+                 <div className="absolute top-0 left-0 w-full h-[70vh] pointer-events-none opacity-40">
+                     <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-[#050505] z-10"></div>
+                     <img src={config.hero_image_url} className="w-full h-full object-cover" alt="Hero Background" />
+                 </div>
+             ) : (
+                 <>
+                    <div className="absolute top-[-10%] right-[-20%] w-[60%] h-[60%] bg-brand/10 blur-[120px] rounded-full pointer-events-none" />
+                    <div className="absolute bottom-[-10%] left-[-20%] w-[60%] h-[60%] bg-purple-900/10 blur-[120px] rounded-full pointer-events-none" />
+                 </>
+             )}
 
              <div className="px-6 relative z-10 space-y-16">
                 {/* Hero */}
@@ -130,13 +142,19 @@ const Home: React.FC = () => {
                             </span>
                         </div>
                         
-                        <h1 className="text-5xl sm:text-7xl font-black text-white leading-[0.9] tracking-tighter mb-6">
-                            EARN.<br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand to-cyan-400">PLAY.</span> GROW.
-                        </h1>
+                        {config?.hero_title ? (
+                            <h1 className="text-5xl sm:text-7xl font-black text-white leading-[0.9] tracking-tighter mb-6 whitespace-pre-wrap">
+                                {config.hero_title}
+                            </h1>
+                        ) : (
+                            <h1 className="text-5xl sm:text-7xl font-black text-white leading-[0.9] tracking-tighter mb-6">
+                                EARN.<br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand to-cyan-400">PLAY.</span> GROW.
+                            </h1>
+                        )}
                         
                         <p className="text-gray-400 text-sm sm:text-lg max-w-md mx-auto leading-relaxed font-medium">
-                            Join the next-generation earning ecosystem. Secure investments, instant tasks, and competitive gaming in one powerful dashboard.
+                            {config?.hero_description || "Join the next-generation earning ecosystem. Secure investments, instant tasks, and competitive gaming in one powerful dashboard."}
                         </p>
                     </motion.div>
 

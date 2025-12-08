@@ -99,6 +99,9 @@ export interface Database {
           is_activation_enabled: boolean
           activation_amount: number
           is_pwa_enabled: boolean
+          hero_title: string | null
+          hero_description: string | null
+          hero_image_url: string | null
         }
         Insert: {
           id?: string
@@ -116,6 +119,9 @@ export interface Database {
           is_activation_enabled?: boolean
           activation_amount?: number
           is_pwa_enabled?: boolean
+          hero_title?: string | null
+          hero_description?: string | null
+          hero_image_url?: string | null
         }
         Update: {
           id?: string
@@ -133,6 +139,9 @@ export interface Database {
           is_activation_enabled?: boolean
           activation_amount?: number
           is_pwa_enabled?: boolean
+          hero_title?: string | null
+          hero_description?: string | null
+          hero_image_url?: string | null
         }
       }
       withdrawal_settings: {
@@ -1033,6 +1042,105 @@ export interface Database {
           email_enc?: string
           password_enc?: string
           device_name?: string
+          created_at?: string
+        }
+      }
+      published_sites: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          target_url: string
+          source_type: 'url' | 'html' | null
+          page_title: string | null
+          meta_desc: string | null
+          is_active: boolean
+          views: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          target_url: string
+          source_type?: 'url' | 'html' | null
+          page_title?: string | null
+          meta_desc?: string | null
+          is_active?: boolean
+          views?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string
+          target_url?: string
+          source_type?: 'url' | 'html' | null
+          page_title?: string | null
+          meta_desc?: string | null
+          is_active?: boolean
+          views?: number
+          created_at?: string
+        }
+      }
+      influencer_campaigns: {
+        Row: {
+          id: string
+          title: string
+          platform: 'facebook' | 'youtube' | 'instagram' | 'tiktok' | null
+          media_link: string
+          requirements: string | null
+          payout: number
+          status: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          platform?: 'facebook' | 'youtube' | 'instagram' | 'tiktok' | null
+          media_link: string
+          requirements?: string | null
+          payout: number
+          status?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          platform?: 'facebook' | 'youtube' | 'instagram' | 'tiktok' | null
+          media_link?: string
+          requirements?: string | null
+          payout?: number
+          status?: string | null
+          created_at?: string
+        }
+      }
+      influencer_submissions: {
+        Row: {
+          id: string
+          campaign_id: string | null
+          user_id: string
+          proof_link: string
+          views_count: number | null
+          status: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          campaign_id?: string | null
+          user_id: string
+          proof_link: string
+          views_count?: number | null
+          status?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          campaign_id?: string | null
+          user_id?: string
+          proof_link?: string
+          views_count?: number | null
+          status?: string | null
           created_at?: string
         }
       }

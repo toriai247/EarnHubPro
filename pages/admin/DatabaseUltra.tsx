@@ -27,6 +27,15 @@ const TABLE_LIST = [
 const SQL_TOOLS = {
     setup: [
         {
+            title: 'Upgrade: Hero Section CMS',
+            desc: 'Adds title, description, and image URL columns to system_config.',
+            sql: `
+ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS hero_title TEXT;
+ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS hero_description TEXT;
+ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS hero_image_url TEXT;
+`
+        },
+        {
             title: 'Fix: Storage Permissions (Error 42501)',
             desc: 'Run this if you get "must be owner of table objects". Grants ownership to postgres.',
             sql: `
