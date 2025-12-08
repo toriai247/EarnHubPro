@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, UploadCloud, CheckCircle, Loader2, Calculator, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, UploadCloud, CheckCircle, Loader2, Copy, ShieldCheck, ArrowRight, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { PaymentMethod } from '../types';
@@ -20,6 +20,7 @@ const Deposit: React.FC = () => {
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success'>('idle');
+  const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,37 +31,60 @@ const Deposit: React.FC = () => {
     fetchMethods();
   }, []);
 
+  const handleCopy = (text: string) => {
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success("Number Copied!");
+      setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          if (file.size > 5 * 1024 * 1024) { // 5MB Limit
+              toast.error("File is too large. Max 5MB.");
+              return;
+          }
+          setScreenshot(file);
+          toast.success("Screenshot attached!");
+      }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!selectedMethod) return;
-      if (!amount || parseFloat(amount) <= 0) { toast.error("Invalid amount"); return; }
-      if (!transactionId) { toast.error("Transaction ID is required"); return; }
+      if (!amount || parseFloat(amount) <= 0) { toast.error("Please enter a valid amount."); return; }
+      if (!transactionId || transactionId.length < 4) { toast.error("Valid Transaction ID is required."); return; }
       
       const bdtAmount = parseFloat(amount);
 
       setLoading(true);
 
       try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) throw new Error("User not authenticated");
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError || !session) throw new Error("Session expired. Please login again.");
 
           let screenshotUrl = null;
 
           if (screenshot) {
               const fileExt = screenshot.name.split('.').pop();
               const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
+              
               const { error: uploadError } = await supabase.storage.from('deposits').upload(fileName, screenshot);
               
-              if (!uploadError) {
-                  const { data: urlData } = supabase.storage.from('deposits').getPublicUrl(fileName);
-                  screenshotUrl = urlData.publicUrl;
+              if (uploadError) {
+                  console.error("Upload Error:", uploadError);
+                  throw new Error("Failed to upload proof. Ensure image is under 5MB or try a different file.");
               }
+              
+              const { data: urlData } = supabase.storage.from('deposits').getPublicUrl(fileName);
+              screenshotUrl = urlData.publicUrl;
           }
 
           const { error: insertError } = await supabase.from('deposit_requests').insert({
               user_id: session.user.id,
               method_name: selectedMethod.name,
-              amount: bdtAmount, // Store directly as BDT
+              amount: bdtAmount, 
               transaction_id: transactionId,
               sender_number: senderNumber,
               screenshot_url: screenshotUrl,
@@ -69,33 +93,43 @@ const Deposit: React.FC = () => {
               processed_at: null
           });
 
-          if (insertError) throw insertError;
+          if (insertError) {
+              if (insertError.code === '23505') throw new Error("This Transaction ID is already used.");
+              throw new Error("Database error: " + insertError.message);
+          }
 
-          toast.success("Deposit Request Submitted!");
           setStatus('success');
-          
-          setTimeout(() => navigate('/wallet'), 2000);
+          setTimeout(() => navigate('/wallet'), 2500);
 
       } catch (e: any) {
-          toast.error("Submission Failed: " + e.message);
+          toast.error(e.message || "Failed to submit deposit.");
       } finally {
           setLoading(false);
       }
   };
 
+  const getMethodStyle = (name: string) => {
+      const n = name.toLowerCase();
+      if (n.includes('bkash')) return 'from-pink-600 to-rose-500 shadow-pink-900/20';
+      if (n.includes('nagad')) return 'from-orange-600 to-red-500 shadow-orange-900/20';
+      if (n.includes('rocket')) return 'from-purple-600 to-violet-500 shadow-purple-900/20';
+      if (n.includes('binance') || n.includes('crypto')) return 'from-yellow-500 to-amber-600 shadow-yellow-900/20';
+      return 'from-blue-600 to-indigo-600 shadow-blue-900/20';
+  };
+
   if (status === 'success') {
       return (
-          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-6 animate-fade-in">
-              <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(34,197,94,0.4)]">
-                  <CheckCircle size={48} className="text-green-500" />
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-6 animate-fade-in bg-black">
+              <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mb-4 shadow-[0_0_50px_rgba(34,197,94,0.3)]">
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>
+                      <CheckCircle size={48} className="text-green-500" />
+                  </motion.div>
               </div>
-              <h2 className="text-3xl font-bold text-white">Request Sent</h2>
-              <div className="bg-white/5 p-6 rounded-xl border border-white/10 max-w-xs mx-auto">
-                  <p className="text-gray-300 text-sm">
-                      Your deposit request has been submitted for review. Please allow up to 30 minutes for processing.
-                  </p>
-              </div>
-              <Link to="/wallet" className="px-8 py-3 bg-white text-black font-bold rounded-xl">Return to Wallet</Link>
+              <h2 className="text-3xl font-bold text-white">Deposit Queued</h2>
+              <p className="text-gray-400 text-sm max-w-xs mx-auto">
+                  Your funds will be added automatically once the admin verifies your Transaction ID.
+              </p>
+              <Link to="/wallet" className="px-8 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition">Return to Wallet</Link>
           </div>
       );
   }
@@ -103,101 +137,142 @@ const Deposit: React.FC = () => {
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0">
        <header className="flex items-center gap-3 pt-4">
-           <Link to="/wallet" className="p-2 bg-white/10 rounded-xl hover:bg-white/20 transition text-white">
+           <Link to="/wallet" className="p-2 bg-white/5 rounded-xl hover:bg-white/10 transition text-white">
               <ArrowLeft size={20} />
            </Link>
-           <h1 className="text-2xl font-display font-bold text-white">Deposit Funds</h1>
+           <h1 className="text-xl font-bold text-white tracking-wide">Add Funds</h1>
        </header>
 
        <AnimatePresence mode="wait">
        {!selectedMethod ? (
-           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-               <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Select Method</h3>
-               <div className="grid grid-cols-2 gap-4">
+           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+               <p className="text-xs font-bold text-gray-500 uppercase tracking-widest px-1">Select Gateway</p>
+               <div className="grid grid-cols-1 gap-3">
                    {methods.map(method => (
-                       <GlassCard key={method.id} onClick={() => setSelectedMethod(method)} className="flex flex-col items-center justify-center py-8 cursor-pointer hover:border-neon-green/50 hover:bg-white/10 transition border border-white/5">
-                            <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mb-3 text-white bg-blue-600 shadow-lg">
-                                {method.name.charAt(0)}
+                       <div 
+                           key={method.id} 
+                           onClick={() => setSelectedMethod(method)} 
+                           className={`cursor-pointer relative overflow-hidden rounded-2xl p-6 bg-gradient-to-r ${getMethodStyle(method.name)} border border-white/10 shadow-lg hover:scale-[1.02] transition-transform`}
+                       >
+                            <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/20 rounded-full blur-2xl"></div>
+                            <div className="relative z-10 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-xl font-black text-black shadow-lg">
+                                        {method.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-white text-lg">{method.name}</h3>
+                                        <p className="text-white/80 text-xs font-medium">{method.type === 'crypto' ? 'USDT / Crypto' : 'Personal / Agent'}</p>
+                                    </div>
+                                </div>
+                                <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
+                                    <ArrowRight size={20} className="text-white" />
+                                </div>
                             </div>
-                            <h3 className="font-bold text-white">{method.name}</h3>
-                            <p className="text-[10px] text-gray-500 uppercase mt-1">{method.type === 'crypto' ? 'Crypto' : 'Mobile Banking'}</p>
-                       </GlassCard>
+                       </div>
                    ))}
                </div>
            </motion.div>
        ) : (
-           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6">
+           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
                
-               {/* PAYMENT INFO */}
-               <div className="bg-black/30 p-5 rounded-2xl border border-white/10 text-center relative overflow-hidden">
-                   <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-neon-green via-white to-neon-green animate-shimmer"></div>
-                   <p className="text-xs text-gray-400 uppercase mb-2">Send Money To</p>
-                   <p className="text-2xl font-mono font-bold text-white tracking-widest select-all bg-white/5 py-2 rounded-lg mb-2">
-                       {selectedMethod.account_number}
-                   </p>
-                   <p className="text-xs text-gray-500">{selectedMethod.instruction}</p>
+               {/* 1. HERO COPY CARD */}
+               <div className={`relative overflow-hidden rounded-3xl p-6 bg-gradient-to-br ${getMethodStyle(selectedMethod.name)} shadow-2xl`}>
+                   <div className="absolute top-0 right-0 p-4 opacity-20 pointer-events-none">
+                       <Copy size={100} />
+                   </div>
+                   
+                   <div className="relative z-10 text-center">
+                       <p className="text-white/80 text-xs font-bold uppercase mb-2">Send Money To</p>
+                       <h2 className="text-3xl font-mono font-black text-white mb-4 tracking-wider drop-shadow-md">
+                           {selectedMethod.account_number}
+                       </h2>
+                       <button 
+                           onClick={() => handleCopy(selectedMethod.account_number)}
+                           className="bg-white text-black px-6 py-2.5 rounded-full font-bold text-xs shadow-lg active:scale-95 transition flex items-center gap-2 mx-auto hover:bg-gray-100"
+                       >
+                           {copied ? <CheckCircle size={14} className="text-green-600"/> : <Copy size={14}/>} 
+                           {copied ? 'COPIED!' : 'COPY NUMBER'}
+                       </button>
+                       <p className="mt-4 text-white/90 text-xs font-medium bg-black/20 inline-block px-3 py-1 rounded-lg backdrop-blur-sm">
+                           {selectedMethod.instruction || "Send Money (Personal)"}
+                       </p>
+                   </div>
                </div>
 
+               {/* 2. INPUT FORM */}
                <form onSubmit={handleSubmit} className="space-y-5">
-                   {/* Amount Input */}
-                   <div className="bg-blue-900/10 border border-blue-500/30 rounded-2xl p-5">
-                       <label className="text-xs text-gray-400 font-bold mb-1 block uppercase">Enter Amount (BDT)</label>
+                   
+                   {/* Amount */}
+                   <div className="bg-[#111] border border-white/10 rounded-2xl p-4">
+                       <label className="text-xs text-gray-500 font-bold mb-2 block uppercase">Amount (BDT)</label>
                        <div className="relative">
-                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white font-bold">৳</span>
+                           <span className="absolute left-0 top-1/2 -translate-y-1/2 text-white font-bold text-2xl">৳</span>
                            <input 
                              type="number" 
                              value={amount}
                              onChange={e => setAmount(e.target.value)}
-                             className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-white font-mono font-bold text-xl focus:border-neon-green outline-none"
-                             placeholder="500"
+                             className="w-full bg-transparent border-none py-2 pl-8 text-white font-bold text-3xl focus:ring-0 placeholder-gray-700 outline-none"
+                             placeholder="0.00"
+                             autoFocus
                            />
                        </div>
-                       <p className="text-[10px] text-gray-500 mt-2 italic">
-                           * Ensure you send exactly ৳{amount || '0'}
-                       </p>
                    </div>
 
-                   <div>
-                       <label className="text-xs font-bold text-gray-400 mb-1 block uppercase">Transaction ID</label>
-                       <input 
-                         type="text" 
-                         required
-                         value={transactionId}
-                         onChange={e => setTransactionId(e.target.value)}
-                         className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:border-neon-green outline-none transition font-mono"
-                         placeholder="TrxID"
-                       />
-                   </div>
-                   
-                   {selectedMethod.type !== 'crypto' && (
-                       <div>
-                           <label className="text-xs font-bold text-gray-400 mb-1 block uppercase">Sender Number</label>
+                   {/* Details Grid */}
+                   <div className="grid grid-cols-1 gap-4">
+                       <div className="bg-[#111] border border-white/10 rounded-2xl p-4">
+                           <label className="text-xs text-gray-500 font-bold mb-1 block uppercase">Transaction ID (TrxID)</label>
                            <input 
                              type="text" 
                              required
-                             value={senderNumber}
-                             onChange={e => setSenderNumber(e.target.value)}
-                             className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:border-neon-green outline-none transition font-mono"
-                             placeholder="017..."
+                             value={transactionId}
+                             onChange={e => setTransactionId(e.target.value)}
+                             className="w-full bg-transparent border-b border-white/10 py-2 text-white font-mono text-sm focus:border-white focus:outline-none placeholder-gray-700 uppercase"
+                             placeholder="e.g. 9H7K..."
                            />
                        </div>
-                   )}
 
-                   <div>
-                       <label className="text-xs font-bold text-gray-400 mb-2 block uppercase flex items-center gap-2">
-                           <ShieldCheck size={14} className="text-neon-green"/> Proof Screenshot (Optional)
-                       </label>
-                       <div className="border-2 border-dashed border-white/10 rounded-xl p-6 text-center cursor-pointer hover:border-white/20 transition relative">
-                           <input type="file" accept="image/*" onChange={e => e.target.files && setScreenshot(e.target.files[0])} className="absolute inset-0 opacity-0 cursor-pointer" />
-                           <UploadCloud className="mx-auto text-gray-500 mb-2" />
-                           <p className="text-xs text-gray-400">{screenshot ? screenshot.name : 'Tap to upload payment proof'}</p>
+                       {selectedMethod.type !== 'crypto' && (
+                           <div className="bg-[#111] border border-white/10 rounded-2xl p-4">
+                               <label className="text-xs text-gray-500 font-bold mb-1 block uppercase">Sender Number</label>
+                               <input 
+                                 type="text" 
+                                 required
+                                 value={senderNumber}
+                                 onChange={e => setSenderNumber(e.target.value)}
+                                 className="w-full bg-transparent border-b border-white/10 py-2 text-white font-mono text-sm focus:border-white focus:outline-none placeholder-gray-700"
+                                 placeholder="017..."
+                               />
+                           </div>
+                       )}
+                   </div>
+
+                   {/* Screenshot Drop */}
+                   <div className="relative">
+                       <input 
+                           type="file" 
+                           accept="image/*" 
+                           onChange={handleFileChange} 
+                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                       />
+                       <div className={`border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-3 transition-colors ${screenshot ? 'border-green-500 bg-green-500/10' : 'border-white/10 hover:border-white/30 bg-[#111]'}`}>
+                           <div className={`p-2 rounded-full ${screenshot ? 'bg-green-500 text-black' : 'bg-white/10 text-gray-400'}`}>
+                               {screenshot ? <CheckCircle size={18}/> : <UploadCloud size={18}/>}
+                           </div>
+                           <span className={`text-xs font-bold ${screenshot ? 'text-green-400' : 'text-gray-400'}`}>
+                               {screenshot ? 'Screenshot Added' : 'Upload Payment Proof (Max 5MB)'}
+                           </span>
                        </div>
                    </div>
 
-                   <div className="pt-4 flex gap-3">
-                       <button type="button" onClick={() => setSelectedMethod(null)} className="px-6 py-4 bg-white/5 text-gray-400 font-bold rounded-xl hover:bg-white/10 transition">Cancel</button>
-                       <button type="submit" disabled={loading} className="flex-1 py-4 bg-neon-green text-black font-bold rounded-xl hover:bg-emerald-400 flex items-center justify-center gap-2 shadow-lg shadow-neon-green/20">
-                           {loading ? <Loader2 className="animate-spin" size={20} /> : 'Submit for Review'}
+                   {/* Actions */}
+                   <div className="pt-2 flex gap-3">
+                       <button type="button" onClick={() => setSelectedMethod(null)} className="p-4 bg-white/5 text-gray-400 rounded-xl hover:bg-white/10 transition">
+                           <X size={20} />
+                       </button>
+                       <button type="submit" disabled={loading} className="flex-1 py-4 bg-white text-black font-black uppercase tracking-wider rounded-xl hover:bg-gray-200 transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
+                           {loading ? <Loader2 className="animate-spin" size={20} /> : 'Verify Payment'}
                        </button>
                    </div>
                </form>

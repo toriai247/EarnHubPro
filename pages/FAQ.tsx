@@ -84,6 +84,12 @@ const FAQs = [
         category: 'security', 
         q: "What is Biometric Login?", 
         a: "Biometric login allows you to use your device's fingerprint or face ID (Passkey) to log in securely without typing your password. You can set this up in the Profile menu." 
+    },
+    { 
+        id: 9, 
+        category: 'general', 
+        q: "Which wallet is used for playing games?", 
+        a: "Our smart betting system automatically uses funds in this priority order: 1. Game Wallet (Winnings), 2. Deposit Wallet, 3. Main Wallet. You can play as long as you have a balance in any of these wallets. All winnings are credited back to your Game Wallet." 
     }
 ];
 

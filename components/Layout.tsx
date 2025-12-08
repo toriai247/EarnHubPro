@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Trophy, Menu, X, 
   ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, 
-  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle, Users, Palette
+  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle, Users, Palette, MessageSquare, WifiOff
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import BalanceDisplay from './BalanceDisplay';
@@ -13,6 +12,7 @@ import MaintenanceScreen from './MaintenanceScreen';
 import SuspendedView from './SuspendedView';
 import { useUI } from '../context/UIContext';
 import Logo from './Logo';
+import ReviewModal from './ReviewModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '../types';
 
@@ -59,7 +59,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useUI();
-  const { isFeatureEnabled, config } = useSystem();
+  const { isFeatureEnabled, config, lowDataMode, toggleLowDataMode } = useSystem();
   const [balance, setBalance] = useState<number>(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [level, setLevel] = useState(1);
@@ -69,6 +69,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const [isStaff, setIsStaff] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   
   const isVideoPage = location.pathname === '/video';
   const isGuest = !session;
@@ -317,6 +318,21 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                       <span className="font-bold text-main">Menu</span>
                       <button onClick={() => setIsMenuOpen(false)} className="text-muted hover:text-main"><X size={20}/></button>
                   </div>
+                  
+                  {/* Low Data Mode Toggle */}
+                  <div className="p-4 bg-input/50 flex items-center justify-between border-b border-border-base">
+                      <div className="flex items-center gap-3 text-sm font-medium text-main">
+                          <WifiOff size={18} className={lowDataMode ? 'text-brand' : 'text-muted'} />
+                          <span>Low Data Mode</span>
+                      </div>
+                      <button 
+                          onClick={toggleLowDataMode}
+                          className={`relative w-10 h-5 rounded-full transition-colors ${lowDataMode ? 'bg-brand' : 'bg-border-highlight'}`}
+                      >
+                          <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${lowDataMode ? 'translate-x-5' : ''}`} />
+                      </button>
+                  </div>
+
                   <div className="flex-1 overflow-y-auto p-2">
                       {menuItems.map((item, idx) => {
                           if (isGuest && (item as any).protected) return null;
@@ -332,6 +348,15 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                               </Link>
                           );
                       })}
+                      {/* Review Trigger Button */}
+                      {!isGuest && (
+                          <button 
+                              onClick={() => { setIsMenuOpen(false); setShowReviewModal(true); }}
+                              className="flex w-full items-center gap-3 p-3 rounded-lg hover:bg-input text-sm font-medium text-muted hover:text-main mb-1 transition-colors"
+                          >
+                              <MessageSquare size={18} /> Rate Us / Feedback
+                          </button>
+                      )}
                   </div>
                   <div className="p-4 border-t border-border-base flex flex-col gap-2">
                       {isGuest ? (
@@ -346,6 +371,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
           </div>
       )}
       </AnimatePresence>
+
+      <ReviewModal isOpen={showReviewModal} onClose={() => setShowReviewModal(false)} />
     </div>
   );
 };

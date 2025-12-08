@@ -3,26 +3,35 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { DepositRequest } from '../../types';
-import { Eye, CheckCircle, XCircle, Loader2, RefreshCw, DollarSign, Banknote } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, Loader2, RefreshCw, DollarSign, Banknote, Clock, History } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { updateWallet, createTransaction } from '../../lib/actions';
+import { motion } from 'framer-motion';
 
 const DepositApprove: React.FC = () => {
   const { toast, confirm } = useUI();
   const [requests, setRequests] = useState<DepositRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
 
   useEffect(() => {
     fetchRequests();
-  }, []);
+  }, [activeTab]);
 
   const fetchRequests = async () => {
     setLoading(true);
-    const { data } = await supabase.from('deposit_requests')
+    let query = supabase
+        .from('deposit_requests')
         .select('*')
-        .eq('status', 'pending')
         .order('created_at', { ascending: false });
+
+    if (activeTab === 'pending') {
+        query = query.eq('status', 'pending');
+    } else {
+        query = query.neq('status', 'pending').limit(50);
+    }
     
+    const { data } = await query;
     if (data) setRequests(data as DepositRequest[]);
     setLoading(false);
   };
@@ -54,8 +63,6 @@ const DepositApprove: React.FC = () => {
       }
   };
 
-  if (loading) return <div className="p-10"><Loader2 className="animate-spin mx-auto text-white"/></div>;
-
   return (
     <div className="space-y-6 animate-fade-in">
         
@@ -71,81 +78,105 @@ const DepositApprove: React.FC = () => {
             </button>
         </div>
 
-        <div className="space-y-4">
-            {requests.length === 0 ? (
-                <div className="text-center py-12 bg-white/5 rounded-xl border border-white/5 text-gray-500">
-                    No pending deposits.
-                </div>
-            ) : (
-                requests.map((req) => (
-                    <GlassCard key={req.id} className="border border-white/10">
-                        <div className="flex flex-col lg:flex-row gap-6">
-                            
-                            {/* Screenshot Preview */}
-                            <div className="lg:w-1/4">
-                                {req.screenshot_url ? (
-                                    <div className="relative group rounded-xl overflow-hidden border border-white/10 aspect-video bg-black/50">
-                                        <img src={req.screenshot_url} alt="Proof" className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer" onClick={() => window.open(req.screenshot_url, '_blank')}>
-                                            <Eye className="text-white" />
+        {/* TABS */}
+        <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-fit">
+            <button 
+                onClick={() => setActiveTab('pending')}
+                className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'pending' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+            >
+                <Clock size={16} /> Pending
+            </button>
+            <button 
+                onClick={() => setActiveTab('history')}
+                className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'history' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+            >
+                <History size={16} /> History
+            </button>
+        </div>
+
+        {loading ? (
+            <div className="p-10"><Loader2 className="animate-spin mx-auto text-white"/></div>
+        ) : (
+            <div className="space-y-4">
+                {requests.length === 0 ? (
+                    <div className="text-center py-12 bg-white/5 rounded-xl border border-white/5 text-gray-500">
+                        No {activeTab} deposits found.
+                    </div>
+                ) : (
+                    requests.map((req) => (
+                        <GlassCard key={req.id} className={`border ${req.status === 'pending' ? 'border-white/10' : req.status === 'approved' ? 'border-green-500/30 opacity-80' : 'border-red-500/30 opacity-60'}`}>
+                            <div className="flex flex-col lg:flex-row gap-6">
+                                
+                                {/* Screenshot Preview */}
+                                <div className="lg:w-1/4">
+                                    {req.screenshot_url ? (
+                                        <div className="relative group rounded-xl overflow-hidden border border-white/10 aspect-video bg-black/50">
+                                            <img src={req.screenshot_url} alt="Proof" className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer" onClick={() => window.open(req.screenshot_url, '_blank')}>
+                                                <Eye className="text-white" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-white/5 rounded-xl text-gray-500 text-xs aspect-video">
+                                            No Image
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Details */}
+                                <div className="flex-1 space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                                <DollarSign size={18} className="text-green-400"/> {req.amount.toFixed(2)} USD
+                                            </h3>
+                                            <p className="text-xs text-gray-400">
+                                                Via <span className="text-white font-bold uppercase">{req.method_name}</span> • {new Date(req.created_at).toLocaleString()}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${req.status === 'approved' ? 'bg-green-500/20 text-green-400' : req.status === 'rejected' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                                                {req.status}
+                                            </span>
+                                            <p className="text-white font-mono text-xs mt-1">{req.user_id}</p>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-white/5 rounded-xl text-gray-500 text-xs aspect-video">
-                                        No Image
+
+                                    <div className="grid grid-cols-2 gap-3 bg-black/30 p-3 rounded-xl border border-white/5">
+                                        <div>
+                                            <p className="text-[10px] text-gray-500 uppercase font-bold">Transaction ID</p>
+                                            <p className="text-white font-mono text-sm select-all">{req.transaction_id}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-gray-500 uppercase font-bold">Sender Number</p>
+                                            <p className="text-white font-mono text-sm select-all">{req.sender_number}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Actions (Only for Pending) */}
+                                {req.status === 'pending' && (
+                                    <div className="flex flex-col gap-2 justify-center lg:w-40">
+                                        <button 
+                                            onClick={() => handleAction(req, 'approved')}
+                                            className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition shadow-lg shadow-green-900/20"
+                                        >
+                                            <CheckCircle size={14} /> Approve
+                                        </button>
+                                        <button 
+                                            onClick={() => handleAction(req, 'rejected')}
+                                            className="flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs font-bold transition border border-red-500/20"
+                                        >
+                                            <XCircle size={14} /> Reject
+                                        </button>
                                     </div>
                                 )}
                             </div>
-
-                            {/* Details */}
-                            <div className="flex-1 space-y-3">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                            <DollarSign size={18} className="text-green-400"/> {req.amount.toFixed(2)} USD
-                                        </h3>
-                                        <p className="text-xs text-gray-400">
-                                            Via <span className="text-white font-bold uppercase">{req.method_name}</span> • {new Date(req.created_at).toLocaleString()}
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-xs text-gray-500 uppercase font-bold">User ID</p>
-                                        <p className="text-white font-mono text-xs">{req.user_id}</p>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3 bg-black/30 p-3 rounded-xl border border-white/5">
-                                    <div>
-                                        <p className="text-[10px] text-gray-500 uppercase font-bold">Transaction ID</p>
-                                        <p className="text-white font-mono text-sm select-all">{req.transaction_id}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] text-gray-500 uppercase font-bold">Sender Number</p>
-                                        <p className="text-white font-mono text-sm select-all">{req.sender_number}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex flex-col gap-2 justify-center lg:w-40">
-                                <button 
-                                    onClick={() => handleAction(req, 'approved')}
-                                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition shadow-lg shadow-green-900/20"
-                                >
-                                    <CheckCircle size={14} /> Approve
-                                </button>
-                                <button 
-                                    onClick={() => handleAction(req, 'rejected')}
-                                    className="flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs font-bold transition border border-red-500/20"
-                                >
-                                    <XCircle size={14} /> Reject
-                                </button>
-                            </div>
-                        </div>
-                    </GlassCard>
-                ))
-            )}
-        </div>
+                        </GlassCard>
+                    ))
+                )}
+            </div>
+        )}
     </div>
   );
 };

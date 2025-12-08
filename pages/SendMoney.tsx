@@ -1,16 +1,18 @@
 
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, User, Search, Send, ShieldCheck, DollarSign, Loader2, CheckCircle, Copy, AtSign, Hash } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, CheckCircle, Copy, AtSign, Hash, Wallet, ArrowRightLeft } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { useUI } from '../context/UIContext';
 import { useSystem } from '../context/SystemContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
+import { updateWallet, createTransaction } from '../lib/actions';
 
 interface Recipient {
-    uid: number;
+    id: string; // UUID
+    uid: number; // Public ID
     name: string;
     avatar: string;
     email: string;
@@ -22,7 +24,7 @@ const SendMoney: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     
-    const [balance, setBalance] = useState(0);
+    const [depositBalance, setDepositBalance] = useState(0);
     const [searchInput, setSearchInput] = useState(searchParams.get('to') || '');
     const [recipient, setRecipient] = useState<Recipient | null>(null);
     const [amount, setAmount] = useState('');
@@ -56,8 +58,9 @@ const SendMoney: React.FC = () => {
     const fetchInitialData = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-            const { data: wallet } = await supabase.from('wallets').select('main_balance').eq('user_id', session.user.id).single();
-            if (wallet) setBalance(wallet.main_balance);
+            // Fetch Deposit Balance specifically
+            const { data: wallet } = await supabase.from('wallets').select('deposit_balance').eq('user_id', session.user.id).single();
+            if (wallet) setDepositBalance(wallet.deposit_balance);
             
             const { data: profile } = await supabase.from('profiles').select('user_uid').eq('id', session.user.id).single();
             if (profile) setMyUid(profile.user_uid);
@@ -71,7 +74,7 @@ const SendMoney: React.FC = () => {
         setRecipient(null); // Clear previous result while searching
 
         try {
-            let query = supabase.from('profiles').select('user_uid, name_1, avatar_1, email_1');
+            let query = supabase.from('profiles').select('id, user_uid, name_1, avatar_1, email_1');
             let isId = false;
 
             if (input.includes('@')) {
@@ -93,6 +96,7 @@ const SendMoney: React.FC = () => {
                     toast.error("You cannot send money to yourself.");
                 } else {
                     setRecipient({
+                        id: data.id,
                         uid: data.user_uid,
                         name: data.name_1 || 'Unknown User',
                         avatar: data.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.name_1}`,
@@ -117,23 +121,23 @@ const SendMoney: React.FC = () => {
         const val = parseFloat(amount);
         if (isNaN(val) || val <= 0) { toast.error("Invalid amount"); return; }
         if (val < minTransfer) { 
-            await alert(`The minimum transfer amount is $${minTransfer}.`, "Validation Error"); 
+            await alert(`The minimum transfer amount is ৳${minTransfer}.`, "Validation Error"); 
             return; 
         }
         
         const fee = (val * feePercent) / 100;
-        const total = val + fee;
+        const totalDeduction = val + fee;
 
-        if (total > balance) { 
+        if (totalDeduction > depositBalance) { 
             await alert(
-                `Insufficient Main Balance.\n\nAmount: $${val.toFixed(2)}\nFee: $${fee.toFixed(2)}\nTotal Required: $${total.toFixed(2)}\nAvailable: $${balance.toFixed(2)}`, 
-                "Transaction Failed"
+                `Insufficient Deposit Balance.\n\nAmount: ৳${val.toFixed(2)}\nFee: ৳${fee.toFixed(2)}\nTotal Required: ৳${totalDeduction.toFixed(2)}\nAvailable: ৳${depositBalance.toFixed(2)}`, 
+                "Insufficient Funds"
             ); 
             return; 
         }
 
         const confirmed = await confirm(
-            `Send $${val.toFixed(2)} to ${recipient.name}? \n\nRecipient ID: ${recipient.uid}\nFee: $${fee.toFixed(2)}\nTotal Deducted: $${total.toFixed(2)}`,
+            `Send ৳${val.toFixed(2)} to ${recipient.name}? \n\nFrom: Deposit Balance\nTo: User Main Balance\nFee: ৳${fee.toFixed(2)}`,
             "Confirm Transfer"
         );
 
@@ -144,16 +148,45 @@ const SendMoney: React.FC = () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("No session");
 
-            const { data, error } = await supabase.rpc('p2p_transfer_funds', {
-                p_sender_id: session.user.id,
-                p_receiver_uid: recipient.uid,
-                p_amount: val
+            // 1. Deduct from Sender (Deposit Balance)
+            await updateWallet(session.user.id, totalDeduction, 'decrement', 'deposit_balance');
+            
+            // Log Transfer (The amount sent)
+            await createTransaction(
+                session.user.id, 
+                'transfer', 
+                val, 
+                `Sent ৳${val} to ${recipient.name} (ID: ${recipient.uid})`
+            );
+
+            // Log Fee (The amount taken as profit)
+            if (fee > 0) {
+                await createTransaction(
+                    session.user.id, 
+                    'fee', 
+                    fee, 
+                    `Transfer Fee (${feePercent}%)`
+                );
+            }
+
+            // 2. Add to Receiver (Main Balance)
+            await updateWallet(recipient.id, val, 'increment', 'main_balance');
+            await createTransaction(
+                recipient.id, 
+                'transfer', 
+                val, 
+                `Received ৳${val} from ${myUid}`
+            );
+
+            // 3. Send Notification
+            await supabase.from('notifications').insert({
+                user_id: recipient.id,
+                title: 'Money Received',
+                message: `You received ৳${val.toFixed(2)} from ID: ${myUid}. Added to Main Balance.`,
+                type: 'success'
             });
 
-            if (error) throw error;
-            if (data && !data.success) throw new Error(data.message);
-
-            toast.success("Funds Sent Successfully!");
+            toast.success("Money Sent Successfully!");
             setAmount('');
             setRecipient(null);
             setSearchInput('');
@@ -179,10 +212,13 @@ const SendMoney: React.FC = () => {
             </header>
 
             <div className="max-w-md mx-auto">
-                <GlassCard className="bg-gradient-to-r from-blue-900/40 to-cyan-900/40 border-cyan-500/20 p-6 mb-6">
-                    <p className="text-cyan-300 text-xs font-bold uppercase tracking-widest mb-1">Available (Main)</p>
+                <GlassCard className="bg-gradient-to-r from-blue-900/40 to-blue-600/20 border-blue-500/20 p-6 mb-6">
+                    <div className="flex justify-between items-start mb-2">
+                        <p className="text-blue-300 text-xs font-bold uppercase tracking-widest">Source: Deposit Balance</p>
+                        <Wallet size={18} className="text-blue-400" />
+                    </div>
                     <h2 className="text-4xl font-display font-black text-white">
-                        <BalanceDisplay amount={balance} />
+                        <BalanceDisplay amount={depositBalance} isNative={true} />
                     </h2>
                     {myUid && (
                         <div 
@@ -214,12 +250,12 @@ const SendMoney: React.FC = () => {
                                     setSearchInput(e.target.value);
                                     if(e.target.value === '') setRecipient(null);
                                 }}
-                                className={`w-full bg-black/40 border rounded-xl py-4 pl-12 pr-4 text-white font-mono text-lg focus:outline-none transition ${recipient ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.2)]' : 'border-white/10 focus:border-cyan-500'}`}
+                                className={`w-full bg-black/40 border rounded-xl py-4 pl-12 pr-4 text-white font-mono text-lg focus:outline-none transition ${recipient ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.2)]' : 'border-white/10 focus:border-blue-500'}`}
                                 placeholder="8-digit ID or Email"
                             />
                             {searching && (
                                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                    <Loader2 className="animate-spin text-cyan-500" size={18} />
+                                    <Loader2 className="animate-spin text-blue-500" size={18} />
                                 </div>
                             )}
                         </div>
@@ -240,11 +276,16 @@ const SendMoney: React.FC = () => {
                                         <div className="absolute -bottom-1 -right-1 bg-green-500 text-black p-0.5 rounded-full"><CheckCircle size={10} strokeWidth={4} /></div>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[10px] text-green-400 font-bold uppercase tracking-wide">Verified Receiver</p>
+                                        <p className="text-[10px] text-green-400 font-bold uppercase tracking-wide">Receiver Found</p>
                                         <h3 className="text-white font-bold text-lg truncate">{recipient.name}</h3>
                                         <p className="text-xs text-gray-400 font-mono flex items-center gap-2">
                                             ID: {recipient.uid}
                                         </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="bg-black/40 px-2 py-1 rounded text-[10px] text-gray-400 font-bold border border-white/5">
+                                            MAIN WALLET
+                                        </div>
                                     </div>
                                 </div>
                             </motion.div>
@@ -253,14 +294,14 @@ const SendMoney: React.FC = () => {
 
                     {/* Amount Input */}
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-400 uppercase ml-1">Amount</label>
+                        <label className="text-xs font-bold text-gray-400 uppercase ml-1">Amount (BDT)</label>
                         <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-500">$</span>
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-500">৳</span>
                             <input 
                                 type="number" 
                                 value={amount}
                                 onChange={e => setAmount(e.target.value)}
-                                className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-10 pr-4 text-white font-bold text-3xl focus:border-cyan-500 outline-none placeholder-gray-700"
+                                className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-10 pr-4 text-white font-bold text-3xl focus:border-blue-500 outline-none placeholder-gray-700 font-mono"
                                 placeholder="0.00"
                             />
                         </div>
@@ -270,26 +311,30 @@ const SendMoney: React.FC = () => {
                     <div className="bg-white/5 border border-white/5 rounded-xl p-4 space-y-2">
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-400">Transfer Amount</span>
-                            <span className="text-white font-bold">${parseFloat(amount || '0').toFixed(2)}</span>
+                            <span className="text-white font-bold">৳{parseFloat(amount || '0').toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-400">Fee ({feePercent}%)</span>
-                            <span className="text-red-400 font-bold">+${calculatedFee.toFixed(2)}</span>
+                            <span className="text-red-400 font-bold">+৳{calculatedFee.toFixed(2)}</span>
                         </div>
                         <div className="h-px bg-white/10 my-1"></div>
                         <div className="flex justify-between text-sm">
                             <span className="text-white font-bold uppercase">Total Deduction</span>
-                            <span className="text-cyan-400 font-bold text-lg">${totalDeduction.toFixed(2)}</span>
+                            <span className="text-blue-400 font-bold text-lg">৳{totalDeduction.toFixed(2)}</span>
                         </div>
                     </div>
 
                     <button 
                         type="submit" 
                         disabled={loading || !recipient || !amount} 
-                        className="w-full py-4 bg-cyan-500 text-black font-black rounded-xl hover:bg-cyan-400 transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-lg uppercase tracking-wider"
+                        className="w-full py-4 bg-white text-black font-black rounded-xl hover:bg-gray-200 transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-lg uppercase tracking-wider"
                     >
-                        {loading ? <Loader2 className="animate-spin" size={24} /> : <><Send size={20} /> SEND MONEY</>}
+                        {loading ? <Loader2 className="animate-spin" size={24} /> : <><Send size={20} /> SEND NOW</>}
                     </button>
+                    
+                    <div className="text-center text-xs text-gray-500">
+                        Funds are transferred from your Deposit Balance to the receiver's Main Balance instantly.
+                    </div>
                 </form>
             </div>
         </div>

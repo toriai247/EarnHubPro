@@ -1,6 +1,6 @@
 
 import { supabase } from '../integrations/supabase/client';
-import { Task, ActiveInvestment, Asset } from '../types';
+import { Task, Asset } from '../types';
 import { CURRENCY_CONFIG } from '../constants';
 
 // Helper to create a random referral code
@@ -95,15 +95,18 @@ export const updateWallet = async (
 export const buyAsset = async (userId: string, asset: Asset, quantity: number, totalCost: number) => {
     if (!isValidUUID(userId)) throw new Error("Invalid User");
 
+    // Deduct from Deposit Balance
     await updateWallet(userId, totalCost, 'decrement', 'deposit_balance');
     await createTransaction(userId, 'asset_buy', totalCost, `Bought ${quantity} ${asset.type === 'commodity' ? 'g' : 'units'} of ${asset.name}`);
 
+    // Business Funding Update
     if (asset.type === 'business') {
         await supabase.from('assets').update({
             collected_fund: (asset.collected_fund || 0) + totalCost
         }).eq('id', asset.id);
     }
 
+    // Check existing holding
     const { data: existing } = await supabase.from('user_assets')
         .select('*')
         .eq('user_id', userId)
@@ -112,8 +115,9 @@ export const buyAsset = async (userId: string, asset: Asset, quantity: number, t
         .maybeSingle();
 
     if (existing) {
-        const totalQty = existing.quantity + quantity;
-        const totalVal = (existing.quantity * existing.average_buy_price) + totalCost;
+        // Average Price Calculation: ((OldQty * OldPrice) + (NewQty * NewPrice)) / TotalQty
+        const totalQty = parseFloat(existing.quantity) + quantity;
+        const totalVal = (parseFloat(existing.quantity) * parseFloat(existing.average_buy_price)) + totalCost;
         const newAvg = totalVal / totalQty;
 
         await supabase.from('user_assets').update({
@@ -134,14 +138,15 @@ export const buyAsset = async (userId: string, asset: Asset, quantity: number, t
     await syncWalletTotals(userId);
 };
 
-export const sellAsset = async (userId: string, userAssetId: string, quantityToSell: number, currentPrice: number) => {
+export const sellAsset = async (userId: string, holdingId: string, quantityToSell: number, currentPrice: number) => {
     if (!isValidUUID(userId)) throw new Error("Invalid User");
 
-    const { data: holding } = await supabase.from('user_assets').select('*').eq('id', userAssetId).single();
+    const { data: holding } = await supabase.from('user_assets').select('*').eq('id', holdingId).single();
     if (!holding || holding.quantity < quantityToSell) throw new Error("Insufficient holdings");
 
     const sellValue = quantityToSell * currentPrice;
     
+    // Add to Main Balance (Profit Realized)
     await updateWallet(userId, sellValue, 'increment', 'main_balance');
     
     const buyValue = quantityToSell * holding.average_buy_price;
@@ -151,28 +156,28 @@ export const sellAsset = async (userId: string, userAssetId: string, quantityToS
     await createTransaction(userId, 'asset_sell', sellValue, `Sold ${quantityToSell} units. ${pnlStr}`);
 
     if (holding.quantity - quantityToSell <= 0.0001) {
-        await supabase.from('user_assets').delete().eq('id', userAssetId);
+        await supabase.from('user_assets').delete().eq('id', holdingId);
     } else {
         await supabase.from('user_assets').update({
             quantity: holding.quantity - quantityToSell,
             updated_at: new Date().toISOString()
-        }).eq('id', userAssetId);
+        }).eq('id', holdingId);
     }
     
     await syncWalletTotals(userId);
 };
 
-export const requestDelivery = async (userId: string, userAssetId: string, address: string) => {
+export const requestDelivery = async (userId: string, holdingId: string, address: string) => {
     if (!isValidUUID(userId)) throw new Error("Invalid User");
     
-    const { data: holding } = await supabase.from('user_assets').select('*, assets(name)').eq('id', userAssetId).single();
+    const { data: holding } = await supabase.from('user_assets').select('*, assets(name)').eq('id', holdingId).single();
     if (!holding) throw new Error("Asset not found");
 
     await supabase.from('user_assets').update({
         status: 'delivery_requested',
         delivery_details: address,
         updated_at: new Date().toISOString()
-    }).eq('id', userAssetId);
+    }).eq('id', holdingId);
 
     await createNotification(userId, 'Delivery Requested', `Request for ${holding.quantity} of ${holding.assets.name} received.`, 'info');
 };
@@ -219,27 +224,21 @@ export const checkDailyBonus = async (userId: string) => {
 export const claimDailyBonus = async (userId: string, day: number) => {
     if (!isValidUUID(userId)) throw new Error("Invalid User");
 
-    // Double check eligibility
     const status = await checkDailyBonus(userId);
     if (!status.canClaim) throw new Error("Already claimed today.");
 
-    // Get Reward Config
     const { data: config } = await supabase.from('daily_bonus_config').select('reward_amount').eq('day', day).maybeSingle();
     const reward = config?.reward_amount || 0.10;
 
-    // Update Wallet
     await updateWallet(userId, reward, 'increment', 'bonus_balance');
     await createTransaction(userId, 'bonus', reward, `Daily Bonus Day ${day}`);
 
-    // Update Streak Record
-    const { error } = await supabase.from('daily_streaks').upsert({
+    await supabase.from('daily_streaks').upsert({
         user_id: userId,
         current_streak: day,
         last_claimed_at: new Date().toISOString(),
-        total_claimed: reward // In a real app, retrieve current total and add, but simple upsert here for logic
+        total_claimed: reward 
     }, { onConflict: 'user_id' });
-
-    if (error) throw error;
 
     return reward;
 };
@@ -295,12 +294,11 @@ export const createUserProfile = async (userId: string, email: string, fullName:
 
   if (walletError) throw walletError;
 
-  // Init Streak Table
   await supabase.from('daily_streaks').upsert({
       user_id: userId,
       current_streak: 0,
       total_claimed: 0,
-      last_claimed_at: new Date(0).toISOString() // Set to epoch to allow immediate claim
+      last_claimed_at: new Date(0).toISOString() 
   });
 
   if (userId) {
@@ -326,11 +324,37 @@ export const resetAllDailyStreaks = async () => {
 };
 
 export const requestWithdrawal = async (userId: string, amount: number, method: string, accountNumber: string) => {
-    await supabase.from('withdraw_requests').insert({ user_id: userId, amount, method, account_number: accountNumber, status: 'pending' });
-    await updateWallet(userId, amount, 'decrement', 'main_balance');
+    if (!isValidUUID(userId)) throw new Error("Invalid User Session");
+
+    // 1. Verify Balance
+    const { data: wallet, error: walletError } = await supabase.from('wallets').select('main_balance').eq('user_id', userId).single();
+    
+    if (walletError || !wallet) throw new Error("Could not verify wallet balance.");
+    if (wallet.main_balance < amount) throw new Error("Insufficient main balance.");
+
+    // 2. Create Request (Pending)
+    const { data: req, error: insertError } = await supabase.from('withdraw_requests').insert({ 
+        user_id: userId, 
+        amount, 
+        method, 
+        account_number: accountNumber, 
+        status: 'pending' 
+    }).select();
+
+    if (insertError) throw new Error("Failed to initialize withdrawal: " + insertError.message);
+
+    // 3. Deduct Balance
+    try {
+        await updateWallet(userId, amount, 'decrement', 'main_balance');
+    } catch (deductError: any) {
+        // Rollback: Delete request if deduction fails to prevent phantom requests
+        if (req && req[0]) {
+            await supabase.from('withdraw_requests').delete().eq('id', req[0].id);
+        }
+        throw new Error("Transaction failed during balance update. Request cancelled.");
+    }
 };
 
 export const processMonthlyPayment = async (userId: string, balance: number, method: string) => {};
 export const saveWithdrawMethod = async (userId: string, method: string, number: string, isAuto: boolean) => {};
-export const claimInvestmentReturn = async (userId: string, investment: ActiveInvestment) => {}; // Legacy
 export const claimTask = async (userId: string, task: Task) => {};

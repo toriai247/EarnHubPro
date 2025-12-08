@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
@@ -7,7 +6,8 @@ import {
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
 import DailyBonus from '../components/DailyBonus';
-import { Activity, WalletData, UserProfile } from '../types';
+import SmartImage from '../components/SmartImage';
+import { Activity, WalletData, UserProfile, WebsiteReview } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
 import { useSystem } from '../context/SystemContext';
@@ -22,9 +22,11 @@ const Home: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(true);
+  const [publicReviews, setPublicReviews] = useState<WebsiteReview[]>([]);
 
   useEffect(() => {
     fetchData();
+    fetchPublicReviews();
   }, []);
 
   const fetchData = async () => {
@@ -72,6 +74,26 @@ const Home: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchPublicReviews = async () => {
+      const { data } = await supabase
+          .from('website_reviews')
+          .select('*')
+          .eq('is_public', true)
+          .order('rating', { ascending: false })
+          .limit(5);
+      
+      if (data && data.length > 0) {
+          const userIds = data.map((r: any) => r.user_id).filter(Boolean);
+          const { data: profiles } = await supabase.from('profiles').select('id, name_1, avatar_1').in('id', userIds);
+          const profileMap = new Map(profiles?.map((p: any) => [p.id, p]));
+          
+          setPublicReviews(data.map((r: any) => ({
+              ...r,
+              profile: profileMap.get(r.user_id)
+          })));
+      }
   };
 
   const container = {
@@ -151,6 +173,35 @@ const Home: React.FC = () => {
                         </GlassCard>
                     ))}
                 </div>
+
+                {/* Public Reviews */}
+                {publicReviews.length > 0 && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <div className="h-px bg-white/10 flex-1"></div>
+                            <h2 className="text-lg font-bold text-white uppercase tracking-widest">User Love</h2>
+                            <div className="h-px bg-white/10 flex-1"></div>
+                        </div>
+                        <div className="overflow-x-auto no-scrollbar flex gap-4 pb-4">
+                            {publicReviews.map(review => (
+                                <GlassCard key={review.id} className="min-w-[250px] p-4 bg-white/5 border-white/5">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <SmartImage src={review.profile?.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.id}`} className="w-8 h-8 rounded-full" />
+                                        <div>
+                                            <p className="text-sm font-bold text-white">{review.profile?.name_1 || 'User'}</p>
+                                            <div className="flex text-yellow-400">
+                                                {Array.from({length: 5}).map((_, i) => (
+                                                    <Star key={i} size={10} className={i < review.rating ? "fill-yellow-400" : "text-gray-600"} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 italic">"{review.comment}"</p>
+                                </GlassCard>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Features Grid */}
                 <div className="space-y-8">
@@ -287,7 +338,7 @@ const Home: React.FC = () => {
             {isFeatureEnabled('is_invite_enabled') && (
               <Link to="/invite" className="flex flex-col items-center gap-2 group cursor-pointer">
                 <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-lg border border-border-base group-hover:scale-105 transition-transform bg-card relative">
-                    <img src="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/INVITE%204K.jpg" alt="Invite" className="w-full h-full object-cover" />
+                    <SmartImage src="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/INVITE%204K.jpg" alt="Invite" className="w-full h-full object-cover" />
                 </div>
                 <span className="text-[10px] font-bold text-muted uppercase group-hover:text-main transition-colors">Invite</span>
               </Link>
@@ -297,7 +348,7 @@ const Home: React.FC = () => {
             {isFeatureEnabled('is_games_enabled') && (
               <Link to="/games" className="flex flex-col items-center gap-2 group cursor-pointer">
                 <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-lg border border-border-base group-hover:scale-105 transition-transform bg-card relative">
-                    <img src="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/GAMES%204K.jpg" alt="Games" className="w-full h-full object-cover" />
+                    <SmartImage src="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/GAMES%204K.jpg" alt="Games" className="w-full h-full object-cover" />
                 </div>
                 <span className="text-[10px] font-bold text-muted uppercase group-hover:text-main transition-colors">Games</span>
               </Link>
@@ -306,7 +357,7 @@ const Home: React.FC = () => {
             {/* 3. Rank (Leaderboard) */}
             <Link to="/leaderboard" className="flex flex-col items-center gap-2 group cursor-pointer">
               <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-lg border border-border-base group-hover:scale-105 transition-transform bg-card relative">
-                  <img src="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/RANK%204K.jpg" alt="Rank" className="w-full h-full object-cover" />
+                  <SmartImage src="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/RANK%204K.jpg" alt="Rank" className="w-full h-full object-cover" />
               </div>
               <span className="text-[10px] font-bold text-muted uppercase group-hover:text-main transition-colors">Rank</span>
             </Link>
@@ -315,7 +366,7 @@ const Home: React.FC = () => {
             {isFeatureEnabled('is_tasks_enabled') && (
               <Link to="/tasks" className="flex flex-col items-center gap-2 group cursor-pointer">
                 <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-lg border border-border-base group-hover:scale-105 transition-transform bg-card relative">
-                    <img src="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/TASKS%204K.jpg" alt="Tasks" className="w-full h-full object-cover" />
+                    <SmartImage src="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/TASKS%204K.jpg" alt="Tasks" className="w-full h-full object-cover" />
                 </div>
                 <span className="text-[10px] font-bold text-muted uppercase group-hover:text-main transition-colors">Tasks</span>
               </Link>

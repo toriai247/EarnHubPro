@@ -74,7 +74,9 @@ const DealerDashboard: React.FC = () => {
                     <p className="text-amber-300 text-xs font-bold uppercase tracking-widest">Total Spend</p>
                     <DollarSign size={20} className="text-amber-500"/>
                 </div>
-                <h3 className="text-3xl font-black text-white mt-1"><BalanceDisplay amount={stats.totalSpent} /></h3>
+                <h3 className="text-3xl font-black text-white mt-1">
+                    <BalanceDisplay amount={stats.totalSpent} isNative={true} />
+                </h3>
             </GlassCard>
 
             <GlassCard className="p-5 border-l-4 border-l-blue-500 bg-blue-900/10">

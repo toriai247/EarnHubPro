@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { SystemConfig } from '../types';
@@ -8,6 +7,8 @@ interface SystemContextType {
   loading: boolean;
   refreshConfig: () => Promise<void>;
   isFeatureEnabled: (feature: keyof SystemConfig) => boolean;
+  lowDataMode: boolean;
+  toggleLowDataMode: () => void;
 }
 
 const SystemContext = createContext<SystemContextType | undefined>(undefined);
@@ -15,6 +16,10 @@ const SystemContext = createContext<SystemContextType | undefined>(undefined);
 export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [config, setConfig] = useState<SystemConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lowDataMode, setLowDataMode] = useState(() => {
+      const saved = localStorage.getItem('eh_low_data');
+      return saved === 'true';
+  });
 
   const fetchConfig = async () => {
     try {
@@ -69,8 +74,16 @@ export const SystemProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return !!config[feature];
   };
 
+  const toggleLowDataMode = () => {
+      setLowDataMode(prev => {
+          const next = !prev;
+          localStorage.setItem('eh_low_data', String(next));
+          return next;
+      });
+  };
+
   return (
-    <SystemContext.Provider value={{ config, loading, refreshConfig: fetchConfig, isFeatureEnabled }}>
+    <SystemContext.Provider value={{ config, loading, refreshConfig: fetchConfig, isFeatureEnabled, lowDataMode, toggleLowDataMode }}>
       {children}
     </SystemContext.Provider>
   );

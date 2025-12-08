@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Trophy, Crown, TrendingUp, Hexagon, ChevronUp, ChevronDown, Medal, Flame } from 'lucide-react';
+import { Trophy, Crown, TrendingUp, Hexagon, ChevronUp, ChevronDown, Medal, Flame, RefreshCw } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import Skeleton from '../components/Skeleton';
@@ -39,76 +39,93 @@ const Leaderboard: React.FC = () => {
 
       const sortColumn = period === 'daily' ? 'today_earning' : 'total_earning';
 
-      const { data: wallets } = await supabase
-          .from('wallets')
-          .select('user_id, today_earning, total_earning')
-          .order(sortColumn, { ascending: false })
-          .limit(50);
+      try {
+          // Fetch Top 50
+          const { data: wallets } = await supabase
+              .from('wallets')
+              .select('user_id, today_earning, total_earning')
+              .order(sortColumn, { ascending: false })
+              .limit(50);
 
-      if (wallets) {
-          const pool = wallets.reduce((sum: number, w: any) => sum + (period === 'daily' ? w.today_earning : w.total_earning), 0);
-          setTotalPool(pool * 1.2); 
+          if (wallets) {
+              const pool = wallets.reduce((sum: number, w: any) => sum + (period === 'daily' ? w.today_earning : w.total_earning), 0);
+              setTotalPool(pool * 1.2); 
 
-          const userIds = wallets.map((w: any) => w.user_id);
-          const { data: profiles } = await supabase
-              .from('profiles')
-              .select('id, name_1, avatar_1, level_1')
-              .in('id', userIds);
-          
-          const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
-          
-          const rankedList: LeaderboardUser[] = wallets.map((w: any, index: number) => {
-              const profile = profileMap.get(w.user_id) as any;
-              const amount = period === 'daily' ? w.today_earning : w.total_earning;
+              const userIds = wallets.map((w: any) => w.user_id);
+              const { data: profiles } = await supabase
+                  .from('profiles')
+                  .select('id, name_1, avatar_1, level_1')
+                  .in('id', userIds);
               
-              let tier = 'IRON';
-              if (index === 0) tier = 'GOD';
-              else if (index < 3) tier = 'LEGEND';
-              else if (index < 10) tier = 'DIAMOND';
-              else if (index < 25) tier = 'GOLD';
-              else if (index < 40) tier = 'SILVER';
+              const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
               
-              return {
-                  id: w.user_id,
-                  name: profile?.name_1 || `User ${w.user_id.slice(0,4)}`,
-                  avatar: profile?.avatar_1 || undefined,
-                  amount: amount,
-                  rank: index + 1,
-                  isCurrentUser: w.user_id === userId,
-                  tier,
-                  winRate: 45 + Math.random() * 50,
-                  trend: Math.random() > 0.5 ? 'up' : 'down'
-              };
-          });
-
-          setLeaders(rankedList);
-
-          if (userId) {
-              const me = rankedList.find(u => u.isCurrentUser);
-              if (me) {
-                  setMyRank(me);
-              } else {
-                  const { data: myWallet } = await supabase
-                      .from('wallets')
-                      .select('today_earning, total_earning')
-                      .eq('user_id', userId)
-                      .single();
+              const rankedList: LeaderboardUser[] = wallets.map((w: any, index: number) => {
+                  const profile = profileMap.get(w.user_id) as any;
+                  const amount = period === 'daily' ? w.today_earning : w.total_earning;
                   
-                  if (myWallet) {
-                      setMyRank({
-                          id: userId,
-                          name: 'You',
-                          amount: period === 'daily' ? myWallet.today_earning : myWallet.total_earning,
-                          rank: 999,
-                          tier: 'ROOKIE',
-                          winRate: 0,
-                          trend: 'neutral'
-                      });
+                  let tier = 'IRON';
+                  if (index === 0) tier = 'GOD';
+                  else if (index < 3) tier = 'LEGEND';
+                  else if (index < 10) tier = 'DIAMOND';
+                  else if (index < 25) tier = 'GOLD';
+                  else if (index < 40) tier = 'SILVER';
+                  
+                  return {
+                      id: w.user_id,
+                      name: profile?.name_1 || `User ${w.user_id.slice(0,4)}`,
+                      avatar: profile?.avatar_1 || undefined,
+                      amount: amount,
+                      rank: index + 1,
+                      isCurrentUser: w.user_id === userId,
+                      tier,
+                      winRate: 45 + Math.random() * 50,
+                      trend: Math.random() > 0.5 ? 'up' : 'down'
+                  };
+              });
+
+              setLeaders(rankedList);
+
+              if (userId) {
+                  const meIndex = rankedList.findIndex(u => u.isCurrentUser);
+                  if (meIndex !== -1) {
+                      setMyRank(rankedList[meIndex]);
+                  } else {
+                      // Calculate real rank if not in top 50
+                      const { data: myWallet } = await supabase
+                          .from('wallets')
+                          .select(`today_earning, total_earning`)
+                          .eq('user_id', userId)
+                          .single();
+                      
+                      if (myWallet) {
+                          const myVal = period === 'daily' ? myWallet.today_earning : myWallet.total_earning;
+                          
+                          // Count how many users have MORE earnings than current user
+                          const { count } = await supabase
+                              .from('wallets')
+                              .select('*', { count: 'exact', head: true })
+                              .gt(sortColumn, myVal);
+                          
+                          const realRank = (count || 0) + 1;
+
+                          setMyRank({
+                              id: userId,
+                              name: 'You',
+                              amount: myVal,
+                              rank: realRank,
+                              tier: 'ROOKIE',
+                              winRate: 0,
+                              trend: 'neutral'
+                          });
+                      }
                   }
               }
           }
+      } catch (e) {
+          console.error("Leaderboard Error:", e);
+      } finally {
+          setLoading(false);
       }
-      setLoading(false);
   };
 
   const getTierColor = (tier: string) => {
@@ -122,56 +139,71 @@ const Leaderboard: React.FC = () => {
   };
 
   const Podium = () => {
-      if (leaders.length < 3) return null;
-      const [first, second, third] = [leaders[0], leaders[1], leaders[2]];
+      if (leaders.length === 0) return null;
+      
+      const first = leaders[0];
+      const second = leaders.length > 1 ? leaders[1] : null;
+      const third = leaders.length > 2 ? leaders[2] : null;
 
       return (
-          <div className="flex justify-center items-end gap-4 sm:gap-6 mb-8 mt-4 px-4">
+          <div className="flex justify-center items-end gap-4 sm:gap-6 mb-8 mt-4 px-4 min-h-[180px]">
               {/* RANK 2 */}
-              <motion.div 
-                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                 className="flex flex-col items-center w-1/3 max-w-[100px]"
-              >
-                  <div className="relative mb-2">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-slate-400 overflow-hidden shadow-lg bg-surface">
-                          <img src={second?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${second.name}`} className="w-full h-full object-cover" loading="lazy" />
-                      </div>
-                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-slate-500 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-surface">2</div>
-                  </div>
-                  <p className="text-white font-bold text-xs truncate w-full text-center">{second.name.split(' ')[0]}</p>
-                  <p className="text-slate-400 font-mono text-[10px] font-bold"><BalanceDisplay amount={second.amount} compact /></p>
-              </motion.div>
+              <div className="w-1/3 max-w-[100px] flex flex-col items-center">
+                  {second ? (
+                      <motion.div 
+                         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+                         className="flex flex-col items-center w-full"
+                      >
+                          <div className="relative mb-2">
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-slate-400 overflow-hidden shadow-lg bg-surface">
+                                  <img src={second.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${second.name}`} className="w-full h-full object-cover" loading="lazy" />
+                              </div>
+                              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-slate-500 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-surface">2</div>
+                          </div>
+                          <p className="text-white font-bold text-xs truncate w-full text-center">{second.name.split(' ')[0]}</p>
+                          <p className="text-slate-400 font-mono text-[10px] font-bold"><BalanceDisplay amount={second.amount} compact /></p>
+                      </motion.div>
+                  ) : <div className="w-full h-full"/>}
+              </div>
 
               {/* RANK 1 */}
-              <motion.div 
-                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}
-                 className="flex flex-col items-center w-1/3 max-w-[120px] pb-4"
-              >
-                   <div className="relative mb-3">
-                       <Crown size={32} className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 drop-shadow-md" fill="currentColor" />
-                       <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-yellow-400 overflow-hidden shadow-[0_0_20px_rgba(250,204,21,0.3)] bg-surface">
-                           <img src={first?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${first?.name}`} className="w-full h-full object-cover" loading="lazy" />
-                       </div>
-                       <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-black text-sm font-black w-7 h-7 flex items-center justify-center rounded-full border-2 border-surface">1</div>
-                   </div>
-                   <p className="text-yellow-400 font-bold text-sm truncate w-full text-center">{first.name.split(' ')[0]}</p>
-                   <p className="text-yellow-200 font-mono text-xs font-bold"><BalanceDisplay amount={first.amount} compact /></p>
-              </motion.div>
+              <div className="w-1/3 max-w-[120px] flex flex-col items-center pb-4">
+                  {first ? (
+                      <motion.div 
+                         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}
+                         className="flex flex-col items-center w-full"
+                      >
+                           <div className="relative mb-3">
+                               <Crown size={32} className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 drop-shadow-md" fill="currentColor" />
+                               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-yellow-400 overflow-hidden shadow-[0_0_20px_rgba(250,204,21,0.3)] bg-surface">
+                                   <img src={first.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${first.name}`} className="w-full h-full object-cover" loading="lazy" />
+                               </div>
+                               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-black text-sm font-black w-7 h-7 flex items-center justify-center rounded-full border-2 border-surface">1</div>
+                           </div>
+                           <p className="text-yellow-400 font-bold text-sm truncate w-full text-center">{first.name.split(' ')[0]}</p>
+                           <p className="text-yellow-200 font-mono text-xs font-bold"><BalanceDisplay amount={first.amount} compact /></p>
+                      </motion.div>
+                  ) : null}
+              </div>
 
               {/* RANK 3 */}
-              <motion.div 
-                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                 className="flex flex-col items-center w-1/3 max-w-[100px]"
-              >
-                  <div className="relative mb-2">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-orange-500 overflow-hidden shadow-lg bg-surface">
-                          <img src={third?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${third?.name}`} className="w-full h-full object-cover" loading="lazy" />
-                      </div>
-                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-orange-600 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-surface">3</div>
-                  </div>
-                  <p className="text-white font-bold text-xs truncate w-full text-center">{third.name.split(' ')[0]}</p>
-                  <p className="text-orange-400 font-mono text-[10px] font-bold"><BalanceDisplay amount={third.amount} compact /></p>
-              </motion.div>
+              <div className="w-1/3 max-w-[100px] flex flex-col items-center">
+                  {third ? (
+                      <motion.div 
+                         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+                         className="flex flex-col items-center w-full"
+                      >
+                          <div className="relative mb-2">
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-orange-500 overflow-hidden shadow-lg bg-surface">
+                                  <img src={third.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${third.name}`} className="w-full h-full object-cover" loading="lazy" />
+                              </div>
+                              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-orange-600 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-surface">3</div>
+                          </div>
+                          <p className="text-white font-bold text-xs truncate w-full text-center">{third.name.split(' ')[0]}</p>
+                          <p className="text-orange-400 font-mono text-[10px] font-bold"><BalanceDisplay amount={third.amount} compact /></p>
+                      </motion.div>
+                  ) : <div className="w-full h-full"/>}
+              </div>
           </div>
       );
   };
@@ -198,9 +230,15 @@ const Leaderboard: React.FC = () => {
 
        {/* HEADER */}
        <header className="flex flex-col items-center justify-center pt-6 relative z-10">
-           <div className="inline-flex items-center gap-2 bg-surface/50 border border-white/10 px-4 py-1 rounded-full mb-3 shadow-sm">
-                <Trophy size={14} className="text-yellow-400" />
-                <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Global Rankings</span>
+           <div className="flex items-center gap-2 mb-3 w-full justify-between px-6 max-w-md">
+                <div className="w-8"></div> {/* Spacer */}
+                <div className="inline-flex items-center gap-2 bg-surface/50 border border-white/10 px-4 py-1 rounded-full shadow-sm">
+                        <Trophy size={14} className="text-yellow-400" />
+                        <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Global Rankings</span>
+                </div>
+                <button onClick={fetchLeaders} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition">
+                    <RefreshCw size={16} />
+                </button>
            </div>
            
            <h1 className="text-3xl font-display font-black text-white text-center mb-6">

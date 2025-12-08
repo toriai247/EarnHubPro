@@ -2,11 +2,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
-import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy, AlertTriangle, Lock } from 'lucide-react';
+import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy, Lock } from 'lucide-react';
 import { Game } from '../types';
 import { supabase } from '../integrations/supabase/client';
 
 const GAMES_META: Game[] = [
+    {
+      id: 'dice',
+      name: 'Lucky Dice',
+      description: 'Predict High/Low/7. Win up to x5.8 your bet!',
+      icon: Dices,
+      color: 'text-green-400',
+      bgColor: 'bg-green-900/20',
+      path: '/games/dice',
+      status: 'active', 
+      players: 850,
+      type: 'slots' 
+    },
     {
       id: 'spin',
       name: 'Lucky Spin',
@@ -15,7 +27,7 @@ const GAMES_META: Game[] = [
       color: 'text-purple-400',
       bgColor: 'bg-purple-900/20',
       path: '/games/spin',
-      status: 'active',
+      status: 'maintenance', // User asked for 1 game, let's keep others maint
       players: 1205,
       type: 'wheel'
     },
@@ -27,21 +39,9 @@ const GAMES_META: Game[] = [
       color: 'text-red-400',
       bgColor: 'bg-red-900/20',
       path: '/games/crash',
-      status: 'active', 
+      status: 'maintenance', 
       players: 4203,
       type: 'crash'
-    },
-    {
-      id: 'dice',
-      name: 'Cyber Dice',
-      description: 'Roll the dice and multiply your earnings.',
-      icon: Dices,
-      color: 'text-green-400',
-      bgColor: 'bg-green-900/20',
-      path: '/games/dice',
-      status: 'active', 
-      players: 850,
-      type: 'slots' 
     },
     {
       id: 'ludo',
@@ -51,7 +51,7 @@ const GAMES_META: Game[] = [
       color: 'text-yellow-400',
       bgColor: 'bg-yellow-900/20',
       path: '/games/ludo',
-      status: 'active',
+      status: 'maintenance',
       players: 310,
       type: 'ludo'
     }
@@ -68,10 +68,11 @@ const Games: React.FC = () => {
   const fetchGameStatus = async () => {
       const { data: configs } = await supabase.from('game_configs').select('*');
       
-      if (configs) {
+      if (configs && configs.length > 0) {
           const updatedGames = GAMES_META.map(game => {
               const cfg = configs.find((c: any) => c.id === game.id);
-              const status = cfg ? (cfg.is_active ? 'active' : 'maintenance') : 'active';
+              // If config exists, use it. If not, default to current meta status.
+              const status = cfg ? (cfg.is_active ? 'active' : 'maintenance') : game.status;
               return { ...game, status };
           });
           setGames(updatedGames);
@@ -90,12 +91,12 @@ const Games: React.FC = () => {
 
       <GlassCard className="bg-[#111] border-[#222] p-6 relative overflow-hidden">
          <div className="relative z-10">
-            <div className="inline-flex items-center gap-1 bg-yellow-900/20 text-yellow-400 px-2 py-1 rounded-lg text-[10px] font-bold uppercase mb-2 border border-yellow-500/30">
-                <Trophy size={12} /> Tournament Live
+            <div className="inline-flex items-center gap-1 bg-green-900/20 text-green-400 px-2 py-1 rounded-lg text-[10px] font-bold uppercase mb-2 border border-green-500/30">
+                <Trophy size={12} /> Featured Game
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Win the $500 Jackpot!</h2>
-            <p className="text-gray-300 text-sm mb-4 max-w-xs">Top players this week share the prize pool. Start playing Lucky Spin now.</p>
-            <Link to="/games/spin" className="inline-block bg-white text-black px-6 py-2.5 rounded-xl font-bold hover:scale-105 transition">
+            <h2 className="text-2xl font-bold text-white mb-2">Lucky Dice is LIVE!</h2>
+            <p className="text-gray-300 text-sm mb-4 max-w-xs">Predict the roll and win big. Instant payouts to your main wallet.</p>
+            <Link to="/games/dice" className="inline-block bg-white text-black px-6 py-2.5 rounded-xl font-bold hover:scale-105 transition">
                 Play Now
             </Link>
          </div>
@@ -112,8 +113,8 @@ const Games: React.FC = () => {
                       {game.icon && <game.icon size={24} />}
                     </div>
                     <div className="bg-[#111] px-2 py-1 rounded-lg text-[10px] text-gray-400 flex items-center gap-1 border border-[#222]">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                      {game.players} playing
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                      Live
                     </div>
                   </div>
                   <h3 className="text-lg font-bold text-white mb-1 group-hover:text-green-400 transition">{game.name}</h3>

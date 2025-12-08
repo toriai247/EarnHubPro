@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import Skeleton from '../components/Skeleton';
+import SmartImage from '../components/SmartImage';
 import { 
   Edit2, LogOut, Settings, Share2, Copy, 
   CheckCircle2, ShieldCheck, RefreshCw, 
@@ -9,7 +10,7 @@ import {
   Hash, Mail, QrCode, ExternalLink,
   Camera, Calendar, Award, Fingerprint, Lock,
   Twitter, Send, MessageCircle, Phone, Save, X, User,
-  UploadCloud, FileText, CreditCard, Loader2, Clock
+  UploadCloud, FileText, CreditCard, Loader2, Clock, Briefcase, Zap
 } from 'lucide-react';
 import { UserProfile, WalletData } from '../types';
 import { supabase } from '../integrations/supabase/client';
@@ -29,7 +30,7 @@ const Profile: React.FC = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'badges' | 'security'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'security' | 'badges'>('overview');
   
   const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
@@ -227,398 +228,354 @@ const Profile: React.FC = () => {
   if (loading) {
       return (
         <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0">
-            <Skeleton className="w-full h-48 rounded-2xl" />
-            <Skeleton className="w-full h-32 rounded-xl" />
+            <Skeleton className="w-full h-48 rounded-xl" />
+            <div className="flex gap-4">
+                <Skeleton className="w-1/3 h-64 rounded-xl" />
+                <Skeleton className="w-2/3 h-64 rounded-xl" />
+            </div>
         </div>
       );
   }
 
   return (
-    <div className="pb-24 sm:pl-20 sm:pt-0 space-y-6">
-        <div className="relative">
-            <div className="h-40 sm:h-56 w-full bg-input overflow-hidden relative border-b border-border-base">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+    <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0 max-w-6xl mx-auto">
+        
+        {/* TOP ALERT: ACTIVATION */}
+        {config?.is_activation_enabled && !user?.is_account_active && (
+            <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-red-500/20 rounded text-red-500"><Lock size={20}/></div>
+                    <div>
+                        <h4 className="text-white font-bold text-sm">Account Activation Required</h4>
+                        <p className="text-xs text-gray-400">Deposit <span className="text-white font-bold">{format(config.activation_amount || 1)}</span> to enable withdrawals & KYC.</p>
+                    </div>
+                </div>
+                <Link to="/deposit" className="px-5 py-2 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-500 w-full sm:w-auto text-center">Activate Now</Link>
             </div>
+        )}
 
-            <div className="px-4 sm:px-8 -mt-16 flex flex-col sm:flex-row items-center sm:items-end gap-4 relative z-10">
-                <div className="relative group">
-                    <div className="w-32 h-32 rounded-full border-4 border-card bg-card shadow-2xl overflow-hidden relative">
-                        <img 
-                            src={user?.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name_1}`} 
-                            alt="Profile" 
-                            className="w-full h-full object-cover"
-                        />
+        <div className="flex flex-col lg:flex-row gap-6">
+            
+            {/* --- LEFT COLUMN: IDENTITY --- */}
+            <div className="lg:w-1/3 space-y-6">
+                
+                {/* 1. Identity Card */}
+                <div className="bg-[#111] border border-white/10 rounded-xl overflow-hidden relative">
+                    {/* Cover Banner */}
+                    <div className="h-24 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border-b border-white/5 relative">
                         {isEditing && (
-                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center cursor-pointer">
-                                <Camera className="text-white" size={24} />
-                            </div>
+                            <button className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded hover:bg-white/20"><Camera size={14}/></button>
                         )}
                     </div>
-                    {user?.is_kyc_1 && (
-                        <div className="absolute bottom-2 right-2 bg-blue-500 text-white p-1 rounded-full border-2 border-white shadow-lg" title="Verified">
-                            <CheckCircle2 size={16} fill="currentColor" className="text-white" />
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex-1 text-center sm:text-left mb-2">
-                    <h1 className="text-3xl font-black text-main flex items-center justify-center sm:justify-start gap-2">
-                        {user?.name_1}
-                        <span className="text-xs bg-input text-muted px-2 py-0.5 rounded-lg border border-border-base font-bold uppercase tracking-wider">
-                            Level {user?.level_1}
-                        </span>
-                    </h1>
-                    <p className="text-muted text-sm flex items-center justify-center sm:justify-start gap-2 mt-1">
-                        <span className="font-mono text-muted">@{user?.id.slice(0, 8)}...</span>
-                    </p>
-                </div>
-
-                <div className="flex gap-3 mb-4 sm:mb-2">
-                    <button 
-                        onClick={() => setIsEditing(!isEditing)} 
-                        className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition ${isEditing ? 'bg-danger/10 text-danger border border-danger/20' : 'bg-card text-main border border-border-base hover:bg-input'}`}
-                    >
-                        {isEditing ? <X size={16}/> : <Edit2 size={16}/>}
-                        {isEditing ? 'Cancel' : 'Edit Profile'}
-                    </button>
-                    <button onClick={shareProfile} className="p-2 bg-card text-main rounded-xl border border-border-base hover:bg-input transition">
-                        <Share2 size={20} />
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div className="px-4 sm:px-8">
-            {config?.is_activation_enabled && !user?.is_account_active && (
-                <div className="bg-red-900/10 border border-red-500/20 p-4 rounded-xl mb-6 flex items-center gap-3">
-                    <div className="p-2 bg-red-500/20 rounded-lg text-danger"><Lock size={20}/></div>
-                    <div className="flex-1">
-                        <h4 className="text-danger font-bold text-sm">Account Inactive</h4>
-                        <p className="text-xs text-muted">Deposit <span className="font-bold text-main">{format(config.activation_amount || 1)}</span> to unlock withdrawals and KYC.</p>
-                    </div>
-                    <Link to="/deposit" className="px-4 py-2 bg-danger text-white text-xs font-bold rounded-lg hover:bg-red-600">Activate</Link>
-                </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-3 mb-6">
-                <GlassCard className="p-3 text-center border-l-2 border-l-success">
-                    <p className="text-[10px] text-muted uppercase font-bold">Total Earned</p>
-                    <p className="text-lg font-bold text-success"><BalanceDisplay amount={wallet?.total_earning || 0} compact /></p>
-                </GlassCard>
-                <GlassCard className="p-3 text-center border-l-2 border-l-brand">
-                    <p className="text-[10px] text-muted uppercase font-bold">Referrals</p>
-                    <p className="text-lg font-bold text-main">{wallet?.referral_earnings ? 'Active' : '0'}</p>
-                </GlassCard>
-                <GlassCard className="p-3 text-center border-l-2 border-l-purple-500">
-                    <p className="text-[10px] text-muted uppercase font-bold">Rank</p>
-                    <p className="text-lg font-bold text-purple-500">{user?.rank_1 || 'Rookie'}</p>
-                </GlassCard>
-            </div>
-
-            <div className="flex border-b border-border-base mb-6 space-x-6 overflow-x-auto no-scrollbar">
-                {[
-                    { id: 'overview', label: 'Overview', icon: User },
-                    { id: 'badges', label: 'Badges', icon: Award },
-                    { id: 'security', label: 'Security', icon: ShieldCheck },
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex items-center gap-2 pb-3 text-sm font-bold transition border-b-2 whitespace-nowrap ${
-                            activeTab === tab.id 
-                            ? 'text-main border-main' 
-                            : 'text-muted border-transparent hover:text-main'
-                        }`}
-                    >
-                        <tab.icon size={16} /> {tab.label}
-                    </button>
-                ))}
-            </div>
-
-            {activeTab === 'overview' && (
-                <div className="space-y-4">
-                    {isEditing && (
-                        <GlassCard className="border-border-base bg-card mb-4">
-                            <h3 className="font-bold text-main mb-4">Edit Profile Details</h3>
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs text-muted block mb-1">Display Name</label>
-                                        <input 
-                                            value={formData.name_1} 
-                                            onChange={e => setFormData({...formData, name_1: e.target.value})}
-                                            className="w-full bg-input border border-border-base rounded-lg p-2 text-main text-sm focus:border-brand outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs text-muted block mb-1">Phone Number</label>
-                                        <input 
-                                            value={formData.phone_1} 
-                                            onChange={e => setFormData({...formData, phone_1: e.target.value})}
-                                            className="w-full bg-input border border-border-base rounded-lg p-2 text-main text-sm focus:border-brand outline-none"
-                                            placeholder="+1 234 567 890"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-xs text-muted block mb-1">Bio</label>
-                                    <textarea 
-                                        value={formData.bio_1} 
-                                        onChange={e => setFormData({...formData, bio_1: e.target.value})}
-                                        className="w-full bg-input border border-border-base rounded-lg p-2 text-main text-sm focus:border-brand outline-none h-20 resize-none"
-                                        placeholder="Tell us about yourself..."
-                                    />
-                                </div>
-                                <div className="flex justify-end gap-3 pt-2">
-                                    <button onClick={() => setIsEditing(false)} className="px-4 py-2 rounded-lg text-sm font-bold text-muted hover:text-main transition">Cancel</button>
-                                    <button onClick={handleUpdateProfile} className="px-6 py-2 bg-main text-void rounded-lg text-sm font-bold hover:opacity-90 transition flex items-center gap-2">
-                                        <Save size={16}/> Save Changes
-                                    </button>
-                                </div>
+                    
+                    <div className="px-6 pb-6 relative">
+                        {/* Avatar */}
+                        <div className="-mt-12 mb-4 relative inline-block">
+                            <div className="w-24 h-24 rounded-xl bg-[#111] border-4 border-[#111] overflow-hidden shadow-lg">
+                                <SmartImage 
+                                    src={user?.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name_1}`} 
+                                    alt="Profile" 
+                                    className="w-full h-full object-cover"
+                                />
                             </div>
-                        </GlassCard>
-                    )}
-
-                    <GlassCard className="relative overflow-hidden">
-                        <h3 className="font-bold text-main text-sm mb-2 uppercase tracking-wide">About Me</h3>
-                        <p className="text-muted text-sm leading-relaxed italic">
-                            {user?.bio_1 || "No bio added yet. Click edit to tell your story."}
-                        </p>
-                    </GlassCard>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <GlassCard>
-                            <h3 className="font-bold text-main text-sm mb-3 uppercase tracking-wide flex items-center gap-2">
-                                <Hash size={16}/> Account IDs
-                            </h3>
-                            <div className="space-y-3">
-                                <div 
-                                    onClick={() => copyToClipboard(user?.user_uid?.toString() || '', "User ID")}
-                                    className="bg-input p-3 rounded-xl flex items-center justify-between cursor-pointer hover:bg-border-base transition group border border-border-base"
-                                >
-                                    <div>
-                                        <p className="text-[10px] text-muted font-bold uppercase">Public ID</p>
-                                        <p className="text-main font-mono font-bold text-lg tracking-widest">{user?.user_uid}</p>
-                                    </div>
-                                    <Copy size={16} className="text-muted group-hover:text-main" />
-                                </div>
-                                <div 
-                                    onClick={() => copyToClipboard(user?.email_1 || '', "Email")}
-                                    className="bg-input p-3 rounded-xl flex items-center justify-between cursor-pointer hover:bg-border-base transition group border border-border-base"
-                                >
-                                    <div className="overflow-hidden mr-2">
-                                        <p className="text-[10px] text-muted font-bold uppercase">Email Address</p>
-                                        <p className="text-main font-mono text-sm truncate">{user?.email_1}</p>
-                                    </div>
-                                    <Copy size={16} className="text-muted group-hover:text-main shrink-0" />
-                                </div>
-                            </div>
-                        </GlassCard>
-                    </div>
-                </div>
-            )}
-
-            {activeTab === 'badges' && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {BADGES.map(badge => {
-                        const isUnlocked = userBadges.includes(badge.id);
-                        return (
-                            <GlassCard key={badge.id} className={`text-center transition-all ${isUnlocked ? 'border-yellow-500/30 bg-yellow-500/10' : 'opacity-50 grayscale'}`}>
-                                <div className="text-4xl mb-2 drop-shadow-md">{badge.icon}</div>
-                                <h4 className={`font-bold text-sm ${isUnlocked ? 'text-main' : 'text-muted'}`}>{badge.name}</h4>
-                                <p className="text-[10px] text-muted mt-1 leading-tight">{badge.description}</p>
-                                {isUnlocked ? (
-                                    <div className="mt-2 text-[10px] text-yellow-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
-                                        <CheckCircle2 size={10} /> Unlocked
-                                    </div>
-                                ) : (
-                                    <div className="mt-2 text-[10px] text-muted font-bold uppercase tracking-wider flex items-center justify-center gap-1">
-                                        <Lock size={10} /> Locked
-                                    </div>
-                                )}
-                            </GlassCard>
-                        )
-                    })}
-                </div>
-            )}
-
-            {activeTab === 'security' && (
-                <div className="space-y-4">
-                    <GlassCard className="flex flex-col sm:flex-row items-center justify-between p-4 gap-4">
-                        <div className="flex items-center gap-4 w-full">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${kycStatus === 'verified' ? 'bg-success/20 text-success' : kycStatus === 'pending' ? 'bg-warning/20 text-warning' : 'bg-input text-muted'}`}>
-                                <ShieldCheck size={24} />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-main">KYC Verification</h4>
-                                <p className="text-xs text-muted">
-                                    {kycStatus === 'verified' ? 'Identity verified securely.' : kycStatus === 'pending' ? 'Verification in progress.' : 'Verify identity to unlock limits.'}
-                                </p>
-                            </div>
-                        </div>
-                        
-                        <div className="w-full sm:w-auto">
-                            {kycStatus === 'verified' ? (
-                                <span className="flex items-center justify-center gap-1 w-full sm:w-auto bg-success/20 text-success px-4 py-2 rounded-lg text-xs font-bold uppercase border border-success/30">
-                                    <CheckCircle2 size={14}/> Verified
-                                </span>
-                            ) : kycStatus === 'pending' ? (
-                                <span className="flex items-center justify-center gap-1 w-full sm:w-auto bg-warning/20 text-warning px-4 py-2 rounded-lg text-xs font-bold uppercase border border-warning/30">
-                                    <Clock size={14}/> Pending Review
-                                </span>
-                            ) : (
-                                <button 
-                                    onClick={handleKYCStart}
-                                    className="w-full sm:w-auto bg-input hover:bg-border-base text-main px-6 py-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 border border-border-base"
-                                >
-                                    {kycStatus === 'rejected' ? 'Retry KYC' : 'Start KYC'}
-                                </button>
-                            )}
-                        </div>
-                    </GlassCard>
-
-                    <Link to="/biometric-setup" className="block">
-                        <GlassCard className="flex items-center justify-between p-4 hover:bg-input transition group cursor-pointer">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-full bg-brand/20 text-brand flex items-center justify-center">
-                                    <Fingerprint size={24} />
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-main group-hover:text-brand transition">Biometric Login</h4>
-                                    <p className="text-xs text-muted">Use Fingerprint or Face ID to login securely.</p>
-                                </div>
-                            </div>
-                            <div className="bg-input p-2 rounded-lg text-muted group-hover:text-main transition">
-                                <Settings size={18} />
-                            </div>
-                        </GlassCard>
-                    </Link>
-
-                    <button onClick={handleLogout} className="w-full py-4 rounded-xl border border-danger/30 text-danger font-bold hover:bg-danger/10 transition flex items-center justify-center gap-2 mt-4">
-                        <LogOut size={18} /> Log Out
-                    </button>
-                </div>
-            )}
-
-            {isKycModalOpen && (
-                <div 
-                    className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
-                    onClick={() => setIsKycModalOpen(false)}
-                >
-                    <div 
-                        className="bg-card w-full max-w-lg rounded-2xl border border-border-base overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
-                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                    >
-                        <div className="p-4 border-b border-border-base flex justify-between items-center bg-input">
-                            <h3 className="font-bold text-main flex items-center gap-2"><ShieldCheck className="text-success"/> Identity Verification</h3>
-                            <button onClick={() => setIsKycModalOpen(false)} className="text-muted hover:text-main"><X size={20}/></button>
-                        </div>
-
-                        <div className="p-6 overflow-y-auto custom-scrollbar">
-                            <div className="flex items-center justify-between mb-8 relative">
-                                <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-border-base -z-10"></div>
-                                {[1, 2, 3].map(step => (
-                                    <div key={step} className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${kycStep >= step ? 'bg-success text-white' : 'bg-input border border-border-base text-muted'}`}>
-                                        {step}
-                                    </div>
-                                ))}
-                            </div>
-
-                            {kycStep === 1 && (
-                                <div className="space-y-4">
-                                    <h4 className="text-lg font-bold text-main">Personal Details</h4>
-                                    <div>
-                                        <label className="text-xs text-muted block mb-1">Full Name (As per ID)</label>
-                                        <input 
-                                            type="text" 
-                                            value={kycForm.fullName} 
-                                            onChange={e => setKycForm({...kycForm, fullName: e.target.value})}
-                                            className="w-full bg-input border border-border-base rounded-xl p-3 text-main text-sm focus:border-success outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs text-muted block mb-1">ID Number</label>
-                                        <input 
-                                            type="text" 
-                                            value={kycForm.idNumber} 
-                                            onChange={e => setKycForm({...kycForm, idNumber: e.target.value})}
-                                            className="w-full bg-input border border-border-base rounded-xl p-3 text-main text-sm focus:border-success outline-none"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {kycStep === 2 && (
-                                <div className="space-y-4">
-                                    <h4 className="text-lg font-bold text-main">Document Upload</h4>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <div className="border-2 border-dashed border-border-base rounded-xl p-6 text-center hover:bg-input transition relative group">
-                                            <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={e => e.target.files && setKycForm({...kycForm, frontImage: e.target.files[0]})} />
-                                            <div className="flex flex-col items-center">
-                                                {kycForm.frontImage ? (
-                                                    <span className="text-xs font-bold text-success">{kycForm.frontImage.name}</span>
-                                                ) : (
-                                                    <>
-                                                        <CreditCard size={32} className="text-muted mb-2"/>
-                                                        <p className="text-sm font-bold text-main">Front Side</p>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="border-2 border-dashed border-border-base rounded-xl p-6 text-center hover:bg-input transition relative group">
-                                            <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={e => e.target.files && setKycForm({...kycForm, backImage: e.target.files[0]})} />
-                                            <div className="flex flex-col items-center">
-                                                {kycForm.backImage ? (
-                                                    <span className="text-xs font-bold text-success">{kycForm.backImage.name}</span>
-                                                ) : (
-                                                    <>
-                                                        <div className="bg-border-base w-8 h-5 rounded mb-2"></div>
-                                                        <p className="text-sm font-bold text-main">Back Side</p>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {kycStep === 3 && (
-                                <div className="space-y-4 text-center">
-                                    <h4 className="text-xl font-bold text-main">Confirm Submission</h4>
-                                    <p className="text-sm text-muted max-w-xs mx-auto">
-                                        Please verify all details are correct. Review typically takes 24-48 hours.
-                                    </p>
+                            {/* Verification Badge */}
+                            {user?.is_kyc_1 && (
+                                <div className="absolute -bottom-1 -right-1 bg-[#111] p-1 rounded-full">
+                                    <CheckCircle2 size={18} className="text-blue-500 fill-black" />
                                 </div>
                             )}
                         </div>
 
-                        <div className="p-4 border-t border-border-base bg-card flex gap-3">
-                            {kycStep > 1 && (
-                                <button onClick={() => setKycStep(s => s - 1)} className="px-6 py-3 rounded-xl bg-input hover:bg-border-base text-main font-bold text-sm">
-                                    Back
-                                </button>
-                            )}
+                        {/* Name & Status */}
+                        <div className="mb-4">
+                            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                                {user?.name_1}
+                                <span className="bg-white/10 text-gray-300 text-[10px] px-1.5 py-0.5 rounded uppercase border border-white/5">Lvl {user?.level_1}</span>
+                            </h1>
+                            <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                                <span className="font-mono bg-black/40 px-1 rounded">ID: {user?.user_uid}</span>
+                                <span className="text-gray-600">•</span>
+                                <span>{user?.rank_1 || 'Rookie'}</span>
+                            </p>
+                        </div>
+
+                        {/* Tags */}
+                        <div className="flex flex-wrap gap-2 mb-6">
+                            {user?.admin_user && <span className="px-2 py-1 bg-purple-500/20 text-purple-400 text-[10px] font-bold uppercase rounded border border-purple-500/30">Admin</span>}
+                            {user?.is_dealer && <span className="px-2 py-1 bg-amber-500/20 text-amber-400 text-[10px] font-bold uppercase rounded border border-amber-500/30">Dealer</span>}
+                            <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded border ${user?.is_account_active ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                                {user?.is_account_active ? 'Active' : 'Inactive'}
+                            </span>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="grid grid-cols-2 gap-3">
                             <button 
-                                onClick={() => {
-                                    if (kycStep < 3) {
-                                        if (kycStep === 1 && (!kycForm.fullName || !kycForm.idNumber)) return toast.error("Fill all fields");
-                                        if (kycStep === 2 && (!kycForm.frontImage || !kycForm.backImage)) return toast.error("Upload both images");
-                                        setKycStep(s => s + 1);
-                                    } else {
-                                        handleKycSubmit();
-                                    }
-                                }}
-                                disabled={kycUploading}
-                                className="flex-1 py-3 rounded-xl bg-success text-white font-bold text-sm hover:opacity-90 transition flex items-center justify-center gap-2"
+                                onClick={() => setIsEditing(!isEditing)} 
+                                className={`py-2 px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition ${isEditing ? 'bg-white text-black' : 'bg-white/5 text-white hover:bg-white/10'}`}
                             >
-                                {kycUploading ? <Loader2 className="animate-spin"/> : kycStep === 3 ? 'Submit Verification' : 'Continue'}
+                                {isEditing ? 'Cancel Edit' : 'Edit Profile'}
+                            </button>
+                            <button 
+                                onClick={shareProfile} 
+                                className="py-2 px-4 bg-white/5 text-white rounded-lg text-xs font-bold hover:bg-white/10 flex items-center justify-center gap-2 transition"
+                            >
+                                <Share2 size={14}/> Share
                             </button>
                         </div>
                     </div>
                 </div>
-            )}
+
+                {/* 2. Quick Stats Card */}
+                <div className="bg-[#111] border border-white/10 rounded-xl p-5 space-y-4">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Performance</h3>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500/10 text-blue-400 rounded"><CreditCard size={16}/></div>
+                                <span className="text-sm text-white">Total Deposit</span>
+                            </div>
+                            <span className="text-sm font-mono font-bold text-white"><BalanceDisplay amount={wallet?.deposit || 0} /></span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-green-500/10 text-green-400 rounded"><Zap size={16}/></div>
+                                <span className="text-sm text-white">Total Earned</span>
+                            </div>
+                            <span className="text-sm font-mono font-bold text-green-400">+<BalanceDisplay amount={wallet?.total_earning || 0} /></span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-purple-500/10 text-purple-400 rounded"><Award size={16}/></div>
+                                <span className="text-sm text-white">XP Points</span>
+                            </div>
+                            <span className="text-sm font-mono font-bold text-white">{user?.xp_1 || 0}</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            {/* --- RIGHT COLUMN: DETAILS --- */}
+            <div className="lg:w-2/3 space-y-6">
+                
+                {/* Navigation Pills */}
+                <div className="flex bg-[#111] p-1 rounded-lg border border-white/10 w-full sm:w-fit">
+                    {[
+                        { id: 'overview', label: 'Overview', icon: User },
+                        { id: 'security', label: 'Security', icon: ShieldCheck },
+                        { id: 'badges', label: 'Badges', icon: Award },
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex-1 sm:flex-none px-6 py-2 rounded-md text-xs font-bold flex items-center justify-center gap-2 transition ${
+                                activeTab === tab.id 
+                                ? 'bg-white text-black shadow-sm' 
+                                : 'text-gray-500 hover:text-white'
+                            }`}
+                        >
+                            <tab.icon size={14} /> {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* TAB CONTENT */}
+                
+                {activeTab === 'overview' && (
+                    <div className="space-y-6">
+                        {isEditing ? (
+                            <div className="bg-[#111] border border-white/10 rounded-xl p-6">
+                                <h3 className="text-white font-bold mb-4">Edit Details</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="text-xs text-gray-500 mb-1 block">Full Name</label>
+                                        <input 
+                                            value={formData.name_1} 
+                                            onChange={e => setFormData({...formData, name_1: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white text-sm focus:border-white/30 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500 mb-1 block">Phone</label>
+                                        <input 
+                                            value={formData.phone_1} 
+                                            onChange={e => setFormData({...formData, phone_1: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white text-sm focus:border-white/30 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="mb-4">
+                                    <label className="text-xs text-gray-500 mb-1 block">Bio</label>
+                                    <textarea 
+                                        value={formData.bio_1} 
+                                        onChange={e => setFormData({...formData, bio_1: e.target.value})}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white text-sm focus:border-white/30 outline-none h-20 resize-none"
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-white">Cancel</button>
+                                    <button onClick={handleUpdateProfile} className="px-6 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-500">Save Changes</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-[#111] border border-white/10 rounded-xl p-6">
+                                <div className="mb-6">
+                                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">About</h4>
+                                    <p className="text-sm text-gray-300 leading-relaxed">
+                                        {user?.bio_1 || "No bio added yet."}
+                                    </p>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-black/30 p-3 rounded-lg border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] text-gray-500 uppercase font-bold">Email</p>
+                                            <p className="text-white text-sm truncate w-40">{user?.email_1}</p>
+                                        </div>
+                                        <Copy size={14} className="text-gray-600 cursor-pointer hover:text-white" onClick={() => copyToClipboard(user?.email_1 || '')} />
+                                    </div>
+                                    <div className="bg-black/30 p-3 rounded-lg border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] text-gray-500 uppercase font-bold">Phone</p>
+                                            <p className="text-white text-sm">{user?.phone_1 || 'Not Set'}</p>
+                                        </div>
+                                        {user?.phone_1 && <Copy size={14} className="text-gray-600 cursor-pointer hover:text-white" onClick={() => copyToClipboard(user?.phone_1 || '')} />}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="bg-[#111] border border-white/10 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div>
+                                <h4 className="text-white font-bold text-sm">Referral Program</h4>
+                                <p className="text-xs text-gray-400">Share your code to earn 5% commission.</p>
+                            </div>
+                            <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-lg border border-white/10 w-full md:w-auto justify-between">
+                                <span className="font-mono text-lg font-bold text-white tracking-widest">{user?.ref_code_1}</span>
+                                <button onClick={() => copyToClipboard(user?.ref_code_1 || '')} className="text-blue-400 hover:text-white transition"><Copy size={16}/></button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'security' && (
+                    <div className="space-y-4">
+                        <div className="bg-[#111] border border-white/10 rounded-xl p-6 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className={`p-3 rounded-full ${kycStatus === 'verified' ? 'bg-green-500/10 text-green-500' : 'bg-gray-800 text-gray-400'}`}>
+                                    <ShieldCheck size={24} />
+                                </div>
+                                <div>
+                                    <h4 className="text-white font-bold">KYC Verification</h4>
+                                    <p className="text-xs text-gray-400">
+                                        {kycStatus === 'verified' ? 'Identity verified.' : kycStatus === 'pending' ? 'Review in progress.' : 'Verify ID to unlock limits.'}
+                                    </p>
+                                </div>
+                            </div>
+                            {kycStatus === 'unverified' || kycStatus === 'rejected' ? (
+                                <button onClick={handleKYCStart} className="px-4 py-2 bg-white text-black text-xs font-bold rounded hover:bg-gray-200">Start KYC</button>
+                            ) : (
+                                <span className={`text-xs font-bold px-3 py-1 rounded capitalize ${kycStatus === 'verified' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{kycStatus}</span>
+                            )}
+                        </div>
+
+                        <Link to="/biometric-setup" className="block bg-[#111] border border-white/10 rounded-xl p-6 hover:bg-white/5 transition">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 rounded-full bg-blue-500/10 text-blue-500">
+                                        <Fingerprint size={24} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-white font-bold">Biometric Login</h4>
+                                        <p className="text-xs text-gray-400">Use Fingerprint / Face ID for faster access.</p>
+                                    </div>
+                                </div>
+                                <Settings size={18} className="text-gray-500" />
+                            </div>
+                        </Link>
+
+                        <button onClick={handleLogout} className="w-full py-4 bg-red-900/10 border border-red-900/30 text-red-400 font-bold rounded-xl hover:bg-red-900/20 transition flex items-center justify-center gap-2 text-sm">
+                            <LogOut size={16}/> Sign Out
+                        </button>
+                    </div>
+                )}
+
+                {activeTab === 'badges' && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {BADGES.map(badge => {
+                            const isUnlocked = userBadges.includes(badge.id);
+                            return (
+                                <div key={badge.id} className={`p-4 rounded-xl border flex flex-col items-center text-center gap-2 transition ${isUnlocked ? 'bg-[#111] border-yellow-500/30' : 'bg-[#111] border-white/5 opacity-50 grayscale'}`}>
+                                    <div className="text-3xl">{badge.icon}</div>
+                                    <div>
+                                        <p className={`text-xs font-bold ${isUnlocked ? 'text-white' : 'text-gray-500'}`}>{badge.name}</p>
+                                        <p className="text-[10px] text-gray-500 mt-1 leading-tight">{badge.description}</p>
+                                    </div>
+                                    {isUnlocked && <span className="text-[9px] font-bold text-yellow-500 uppercase bg-yellow-500/10 px-2 py-0.5 rounded">Unlocked</span>}
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+
+            </div>
         </div>
+
+        {/* KYC MODAL (Static) */}
+        {isKycModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setIsKycModalOpen(false)}>
+                <div className="bg-[#111] border border-white/10 w-full max-w-lg rounded-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/40">
+                        <h3 className="text-white font-bold flex items-center gap-2"><ShieldCheck size={18}/> Verification</h3>
+                        <button onClick={() => setIsKycModalOpen(false)}><X size={20} className="text-gray-500 hover:text-white"/></button>
+                    </div>
+                    
+                    <div className="p-6 overflow-y-auto">
+                        {kycStep === 1 && (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs text-gray-500 block mb-1">Full Legal Name</label>
+                                    <input type="text" value={kycForm.fullName} onChange={e => setKycForm({...kycForm, fullName: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 block mb-1">ID Number</label>
+                                    <input type="text" value={kycForm.idNumber} onChange={e => setKycForm({...kycForm, idNumber: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm outline-none" />
+                                </div>
+                            </div>
+                        )}
+                        {kycStep === 2 && (
+                            <div className="space-y-4">
+                                <div className="border-2 border-dashed border-white/10 rounded-xl p-6 text-center relative hover:bg-white/5 transition">
+                                    <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => e.target.files && setKycForm({...kycForm, frontImage: e.target.files[0]})} />
+                                    <p className="text-sm text-gray-400">{kycForm.frontImage ? kycForm.frontImage.name : "Upload Front ID"}</p>
+                                </div>
+                                <div className="border-2 border-dashed border-white/10 rounded-xl p-6 text-center relative hover:bg-white/5 transition">
+                                    <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => e.target.files && setKycForm({...kycForm, backImage: e.target.files[0]})} />
+                                    <p className="text-sm text-gray-400">{kycForm.backImage ? kycForm.backImage.name : "Upload Back ID"}</p>
+                                </div>
+                            </div>
+                        )}
+                        {kycStep === 3 && (
+                            <div className="text-center py-6">
+                                <p className="text-gray-300 text-sm">Ready to submit your documents for review?</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="p-4 border-t border-white/10 flex gap-3">
+                        {kycStep > 1 && <button onClick={() => setKycStep(s => s - 1)} className="px-4 py-2 bg-white/5 rounded text-white text-sm font-bold">Back</button>}
+                        <button 
+                            onClick={() => kycStep < 3 ? setKycStep(s => s + 1) : handleKycSubmit()} 
+                            disabled={kycUploading}
+                            className="flex-1 py-2 bg-white text-black rounded font-bold text-sm hover:bg-gray-200 transition flex items-center justify-center gap-2"
+                        >
+                            {kycUploading ? <Loader2 className="animate-spin" size={16}/> : kycStep === 3 ? 'Submit' : 'Next'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 };

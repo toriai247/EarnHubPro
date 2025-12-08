@@ -6,6 +6,7 @@ import { MarketTask } from '../../types';
 import { Trash2, Pause, Play, Eye, BarChart2 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import Loader from '../../components/Loader';
+import BalanceDisplay from '../../components/BalanceDisplay';
 import { Link } from 'react-router-dom';
 
 const ManageCampaigns: React.FC = () => {
@@ -72,7 +73,7 @@ const ManageCampaigns: React.FC = () => {
                                             {task.status}
                                         </span>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-1">{task.category} • Budget: ${(task.total_quantity * task.price_per_action).toFixed(2)}</p>
+                                    <p className="text-xs text-gray-400 mt-1">{task.category} • Budget: ৳{(task.total_quantity * task.price_per_action).toFixed(2)}</p>
                                 </div>
 
                                 <div className="w-full md:w-1/3">

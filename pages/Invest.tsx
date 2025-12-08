@@ -1,6 +1,6 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
+import SmartImage from '../components/SmartImage';
 import { supabase } from '../integrations/supabase/client';
 import { WalletData, Asset, UserAsset } from '../types';
 import { updateWallet, createTransaction, buyAsset, sellAsset, requestDelivery } from '../lib/actions';
@@ -224,7 +224,7 @@ const Invest: React.FC = () => {
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex items-center gap-3">
                                         {asset.image_url ? (
-                                            <img src={asset.image_url} className="w-10 h-10 object-contain rounded-md bg-white/5 p-1" />
+                                            <SmartImage src={asset.image_url} className="w-10 h-10 object-contain rounded-md bg-white/5 p-1" />
                                         ) : (
                                             <div className="w-10 h-10 bg-white/10 rounded-md flex items-center justify-center font-bold text-white">
                                                 {asset.name.charAt(0)}
@@ -286,7 +286,7 @@ const Invest: React.FC = () => {
                         return (
                             <GlassCard key={asset.id} className="border border-[#222] group hover:border-neon-green/30 transition">
                                 <div className="h-32 w-full bg-black/50 rounded-lg mb-4 overflow-hidden relative">
-                                    <img src={asset.image_url || 'https://via.placeholder.com/300x150'} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition duration-500" />
+                                    <SmartImage src={asset.image_url || 'https://via.placeholder.com/300x150'} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition duration-500" />
                                     <div className="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-neon-green border border-neon-green/20">
                                         {asset.profit_rate}% ROI
                                     </div>
@@ -331,7 +331,7 @@ const Invest: React.FC = () => {
                             <div className="flex justify-between items-start mb-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center p-2 border border-white/5">
-                                        <img src={asset.image_url} className="w-full h-full object-contain" />
+                                        <SmartImage src={asset.image_url} className="w-full h-full object-contain" />
                                     </div>
                                     <div>
                                         <h3 className="font-bold text-white text-lg">{asset.name}</h3>

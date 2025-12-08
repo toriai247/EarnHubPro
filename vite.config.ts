@@ -20,9 +20,20 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ["recharts"]
+    include: ["recharts", "lucide-react", "framer-motion"]
   },
   build: {
     outDir: 'dist',
+    sourcemap: false, // Disable sourcemaps in production to save build size
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['framer-motion', 'lucide-react', 'recharts', 'canvas-confetti'],
+          'vendor-db': ['@supabase/supabase-js'],
+        }
+      }
+    }
   }
 })

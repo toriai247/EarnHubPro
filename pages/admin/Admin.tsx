@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Calendar, Globe
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Calendar, Globe, MessageSquare
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -32,6 +32,7 @@ import ReferralControl from './ReferralControl';
 import VerificationRequest from './VerificationRequest';
 import DailyBonusControl from './DailyBonusControl';
 import SiteManagement from './SiteManagement';
+import ReviewManagement from './ReviewManagement';
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -53,6 +54,7 @@ const Admin: React.FC = () => {
     { id: 'noti_sender', icon: BellRing, label: 'Noti Sender', color: 'text-yellow-400', path: '/admin/noti_sender', roles: ['admin'] },
     { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400', path: '/admin/off_systems', roles: ['admin'] }, 
     { id: 'help_requests', icon: LifeBuoy, label: 'Support Inbox', color: 'text-blue-400', path: '/admin/help_requests', roles: ['admin', 'moderator'] },
+    { id: 'reviews', icon: MessageSquare, label: 'Reviews', color: 'text-pink-400', path: '/admin/reviews', roles: ['admin', 'moderator'] },
     { id: 'verification', icon: ShieldCheck, label: 'KYC Requests', color: 'text-emerald-400', path: '/admin/verification', roles: ['admin', 'moderator'] },
     { id: 'users', icon: Users, label: 'User Admin', path: '/admin/users', roles: ['admin', 'moderator'] },
     { id: 'referrals', icon: GitFork, label: 'Referral Tiers', color: 'text-green-400', path: '/admin/referrals', roles: ['admin'] },
@@ -174,6 +176,7 @@ const Admin: React.FC = () => {
           case 'noti_sender': return <NotiSender />;
           case 'off_systems': return <OffSystems />;
           case 'help_requests': return <HelpRequests />;
+          case 'reviews': return <ReviewManagement />;
           case 'verification': return <VerificationRequest />;
           case 'users': return <UserManagement onSelectUser={setSelectedUserId} />;
           case 'referrals': return <ReferralControl />; 

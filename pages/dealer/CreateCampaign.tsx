@@ -18,7 +18,7 @@ const CreateCampaign: React.FC = () => {
       url: '',
       category: 'website',
       quantity: 500,
-      pricePerAction: 0.10,
+      pricePerAction: 5.00, // Dealer Default BDT
       timer: 30
   });
 
@@ -35,7 +35,7 @@ const CreateCampaign: React.FC = () => {
       }
 
       const totalCost = form.quantity * form.pricePerAction;
-      if (!await confirm(`Launch Campaign? Cost: $${totalCost.toFixed(2)}`)) return;
+      if (!await confirm(`Launch Campaign? Cost: ৳${totalCost.toFixed(2)}`)) return;
 
       try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -44,7 +44,7 @@ const CreateCampaign: React.FC = () => {
           // Check balance (Dealers use Deposit Balance)
           const { data: wallet } = await supabase.from('wallets').select('deposit_balance').eq('user_id', session.user.id).single();
           if (!wallet || wallet.deposit_balance < totalCost) {
-              toast.error(`Insufficient Deposit Balance. Need $${totalCost.toFixed(2)}`);
+              toast.error(`Insufficient Deposit Balance. Need ৳${totalCost.toFixed(2)}`);
               return;
           }
 
@@ -112,8 +112,8 @@ const CreateCampaign: React.FC = () => {
                         <input required type="number" min="100" value={form.quantity} onChange={e => setForm({...form, quantity: parseInt(e.target.value)})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
                     </div>
                     <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Cost Per User ($)</label>
-                        <input required type="number" step="0.01" min="0.05" value={form.pricePerAction} onChange={e => setForm({...form, pricePerAction: parseFloat(e.target.value)})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
+                        <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Cost Per User (BDT)</label>
+                        <input required type="number" step="0.50" min="1.00" value={form.pricePerAction} onChange={e => setForm({...form, pricePerAction: parseFloat(e.target.value)})} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none" />
                     </div>
                 </div>
 
@@ -168,7 +168,7 @@ const CreateCampaign: React.FC = () => {
 
                 <div className="bg-amber-900/10 border border-amber-500/20 p-3 rounded-xl flex justify-between items-center mt-6">
                     <span className="text-xs text-amber-500 font-bold uppercase">Total Budget</span>
-                    <span className="text-xl font-bold text-white">${(form.quantity * form.pricePerAction).toFixed(2)}</span>
+                    <span className="text-xl font-bold text-white">৳{(form.quantity * form.pricePerAction).toFixed(2)}</span>
                 </div>
 
                 <button type="submit" className="w-full py-3 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 transition flex items-center justify-center gap-2 shadow-lg mt-4">

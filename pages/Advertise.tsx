@@ -26,7 +26,7 @@ const Advertise: React.FC = () => {
       url: '',
       category: 'social',
       quantity: 100,
-      pricePerAction: 0.05,
+      pricePerAction: 2.00, // Default 2 BDT
       timer: 15
   });
   
@@ -67,7 +67,7 @@ const Advertise: React.FC = () => {
       
       const totalBudget = form.quantity * form.pricePerAction;
       if (wallet.deposit_balance < totalBudget) {
-          toast.error(`Insufficient Deposit Balance. Need $${totalBudget.toFixed(2)}`);
+          toast.error(`Insufficient Deposit Balance. Need ৳${totalBudget.toFixed(2)}`);
           return;
       }
 
@@ -76,7 +76,7 @@ const Advertise: React.FC = () => {
           return;
       }
 
-      if (!await confirm(`Publish Campaign? Total Cost: $${totalBudget.toFixed(2)}`)) return;
+      if (!await confirm(`Publish Campaign? Total Cost: ৳${totalBudget.toFixed(2)}`)) return;
 
       try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -140,7 +140,9 @@ const Advertise: React.FC = () => {
             </div>
             <div className="bg-[#111] border border-[#222] px-4 py-2 rounded-xl text-right">
                 <p className="text-[10px] text-gray-500 font-bold uppercase">Ad Budget</p>
-                <p className="text-white font-bold font-mono"><BalanceDisplay amount={wallet?.deposit_balance || 0} /></p>
+                <p className="text-white font-bold font-mono">
+                    <BalanceDisplay amount={wallet?.deposit_balance || 0} isNative={true} />
+                </p>
             </div>
         </div>
 
@@ -192,8 +194,8 @@ const Advertise: React.FC = () => {
                                     <input required type="number" min="1" value={form.quantity} onChange={e => setForm({...form, quantity: parseInt(e.target.value)})} className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none" />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Cost/User</label>
-                                    <input required type="number" step="0.001" value={form.pricePerAction} onChange={e => setForm({...form, pricePerAction: parseFloat(e.target.value)})} className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none" />
+                                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Cost/User (BDT)</label>
+                                    <input required type="number" step="0.10" min="0.50" value={form.pricePerAction} onChange={e => setForm({...form, pricePerAction: parseFloat(e.target.value)})} className="w-full bg-black/40 border border-[#333] rounded-xl p-3 text-white text-sm focus:border-purple-500 outline-none" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Timer (s)</label>
@@ -259,7 +261,7 @@ const Advertise: React.FC = () => {
                         <div className="flex items-center justify-between border-t border-[#222] pt-4">
                             <div className="text-xs">
                                 <p className="text-gray-400">Total Cost</p>
-                                <p className="text-xl font-bold text-white">${(form.quantity * form.pricePerAction).toFixed(2)}</p>
+                                <p className="text-xl font-bold text-white">৳{(form.quantity * form.pricePerAction).toFixed(2)}</p>
                             </div>
                             <button 
                                 type="submit" 
@@ -304,6 +306,17 @@ const Advertise: React.FC = () => {
                                         className="h-full bg-purple-500" 
                                         style={{ width: `${((task.total_quantity - task.remaining_quantity) / task.total_quantity) * 100}%` }}
                                     ></div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 mb-4 bg-black/20 p-2 rounded text-center">
+                                <div>
+                                    <p className="text-[10px] text-gray-500 uppercase">Budget</p>
+                                    <p className="text-white font-mono text-sm">৳{(task.total_quantity * task.price_per_action).toFixed(2)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-gray-500 uppercase">User Reward</p>
+                                    <p className="text-white font-mono text-sm">৳{task.worker_reward.toFixed(2)}</p>
                                 </div>
                             </div>
 

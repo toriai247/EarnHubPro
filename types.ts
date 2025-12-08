@@ -18,6 +18,18 @@ export interface DailyBonusConfig {
     is_active: boolean;
 }
 
+export interface WebsiteReview {
+    id: string;
+    user_id: string;
+    rating: number;
+    category: 'bug' | 'suggestion' | 'compliment' | 'other';
+    comment: string;
+    is_public: boolean;
+    admin_reply?: string;
+    created_at: string;
+    profile?: UserProfile; // Joined
+}
+
 // NEW INVESTMENT TYPES
 export type AssetType = 'commodity' | 'currency' | 'business';
 
@@ -94,19 +106,10 @@ export interface MarketSubmission {
   created_at: string;
 }
 
-export interface TaskAttempt {
-    id: string;
-    task_id: string;
-    user_id: string;
-    attempts_count: number;
-    last_attempt_at: string;
-    is_locked: boolean;
-}
-
 export interface Transaction {
   id: string;
   user_id: string;
-  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer' | 'sponsorship' | 'asset_buy' | 'asset_sell';
+  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer' | 'sponsorship' | 'asset_buy' | 'asset_sell' | 'fee';
   amount: number;
   status: 'success' | 'pending' | 'failed';
   description?: string;
@@ -215,17 +218,14 @@ export interface WithdrawalSettings { id: string; min_withdraw: number; max_with
 export interface UserWithdrawMethod { id: string; user_id: string; method_name: string; account_number: string; is_auto_enabled: boolean; }
 export interface DepositBonus { id: string; title: string; tier_level: number; method_name?: string | null; bonus_percent: number; bonus_fixed: number; min_deposit: number; is_active: boolean; }
 export interface PaymentMethod { id: string; name: string; account_number: string; type: 'mobile_banking' | 'crypto' | 'bank'; instruction?: string; logo_url?: string; is_active: boolean; }
-export interface SpinItem { id?: string; label: string; value: number; probability: number; color: string; is_active: boolean; }
 export interface GameResult { id: string; gameId: string; gameName: string; bet: number; payout: number; profit: number; timestamp: number; details: string; }
 export interface AppNotification { id: string; title: string; message: string; type: 'info' | 'success' | 'warning' | 'error'; created_at: string; read: boolean; is_read?: boolean; }
 export interface BotProfile { id: string; name: string; avatar: string; is_active: boolean; }
+export interface SpinItem { id: string; label: string; value: number; probability: number; color: string; is_active: boolean; }
 export interface SystemConfig { id: string; is_tasks_enabled: boolean; is_games_enabled: boolean; is_invest_enabled: boolean; is_invite_enabled: boolean; is_video_enabled: boolean; is_deposit_enabled: boolean; is_withdraw_enabled: boolean; maintenance_mode: boolean; global_alert: string | null; p2p_transfer_fee_percent?: number; p2p_min_transfer?: number; is_activation_enabled?: boolean; activation_amount?: number; is_pwa_enabled?: boolean; }
 export interface HelpRequest { id: string; user_id?: string; email: string; message: string; status: 'pending' | 'resolved'; admin_response?: string; resolved_at?: string; created_at: string; }
 export interface KycRequest { id: string; user_id: string; full_name: string; id_type: string; id_number: string; front_image_url: string; back_image_url: string; status: 'pending' | 'approved' | 'rejected'; admin_note?: string; created_at: string; profile?: UserProfile; }
-export interface CrashGameState { id: number; status: 'BETTING' | 'FLYING' | 'CRASHED'; current_round_id: string; start_time: string; crash_point: number; total_bets_current_round: number; last_crash_point: number; }
-export interface CrashBet { id: string; round_id: string; user_id: string; amount: number; cashed_out_at: number | null; profit: number; avatar_url?: string; user_name?: string; wallet_type?: string; }
 export interface ReferralTier { id: string; level: number; commission_percent: number; type: 'deposit' | 'earning'; is_active: boolean; created_at?: string; }
-// Legacy Types kept for compatibility if needed, though mostly replaced
+// Legacy / Placeholder
 export interface InvestmentPlan { id: string; name: string; daily_return: number; duration: number; min_invest: number; total_roi: number; badge_tag?: string; description?: string; is_active?: boolean; }
-export interface ActiveInvestment { id: string; user_id: string; plan_id: string; plan_name: string; amount: number; daily_return: number; total_profit_percent: number; start_date: string; end_date: string; status: 'active' | 'completed' | 'cancelled'; total_earned: number; last_claim_at?: string; next_claim_at: string; }
 export interface Task { id: string; title: string; description?: string; reward: number; sponsor_rate?: number; icon: string; url?: string; difficulty: 'Easy' | 'Medium' | 'Hard'; frequency: 'once' | 'daily'; type: 'social' | 'video' | 'app' | 'website'; status?: 'available' | 'completed' | 'cooldown'; is_active?: boolean; created_at?: string; }
