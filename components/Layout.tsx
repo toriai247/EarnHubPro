@@ -182,13 +182,15 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       {!isVideoPage && (
         <header className="sticky top-0 z-40 bg-void/90 backdrop-blur-md border-b border-border-base px-4 py-3 flex justify-between items-center transition-colors duration-500">
           <div className="flex items-center gap-3">
-            {/* --- REFINED MENU BUTTON --- */}
+            {/* --- NEW STYLISH MENU BUTTON --- */}
             <button 
                 onClick={() => setIsMenuOpen(true)}
-                className="p-2.5 rounded-xl bg-[#111] border border-[#222] text-gray-400 hover:text-white hover:bg-[#1a1a1a] hover:border-[#333] active:scale-90 active:border-brand/50 active:text-brand transition-all duration-100 ease-out shadow-sm"
+                className="group relative flex flex-col justify-center items-end gap-[5px] p-3 rounded-xl bg-[#111] border border-[#222] hover:border-brand/30 hover:bg-brand/5 transition-all duration-300 active:scale-90"
                 aria-label="Open Menu"
             >
-                <Menu size={20} strokeWidth={3} />
+                <span className="w-5 h-0.5 bg-gray-400 rounded-full group-hover:w-6 group-hover:bg-brand transition-all duration-300"></span>
+                <span className="w-3 h-0.5 bg-gray-400 rounded-full group-hover:w-6 group-hover:bg-brand transition-all duration-300"></span>
+                <span className="w-4 h-0.5 bg-gray-400 rounded-full group-hover:w-6 group-hover:bg-brand transition-all duration-300"></span>
             </button>
             <Link to="/" className="flex items-center gap-2 active:scale-95 transition-transform">
                 <Logo size="sm" showText={true} />
