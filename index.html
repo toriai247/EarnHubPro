@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" class="default">
+<html lang="en" class="midnight">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#050505" />
+    <meta name="theme-color" content="#000000" />
     <meta name="description" content="Naxxivo - Fast, Secure Earning Dashboard">
     
     <!-- VERCEL CACHE CONTROL & PWA OPTIMIZATIONS -->
@@ -12,7 +12,7 @@
     <meta http-equiv="Expires" content="0" />
     
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="mobile-web-app-capable" content="yes">
     
     <title>Naxxivo</title>
@@ -131,6 +131,27 @@
         --radius-xl: 0.75rem;
         --radius-2xl: 1rem;
       }
+      
+      /* --- MIDNIGHT (DEFAULT - 002 YELLOW) --- */
+      /* Optimized for OLED. No gradients, True Black, High Contrast */
+      .midnight {
+        --bg-void: #000000;
+        --bg-card: #050505;
+        --bg-panel: #0A0A0A;
+        --bg-input: #111111;
+        --text-main: #FFFFFF;
+        --text-muted: #888888;
+        --text-highlight: #FACC15;
+        --border-base: #222222;
+        --border-highlight: #FACC15;
+        --color-brand: #FACC15; /* Yellow-400 */
+        --color-brand-hover: #EAB308; /* Yellow-500 */
+        --shadow-card: none;
+        --shadow-glow: none;
+        --radius-xl: 0.75rem;
+        --radius-2xl: 1rem;
+      }
+
       .default {
         --bg-void: #050505;
         --bg-card: #111111;
@@ -146,6 +167,7 @@
         --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
         --shadow-glow: 0 0 15px rgba(0, 85, 255, 0.3);
       }
+      
       .premium {
         --bg-void: #1a0b2e;
         --bg-card: rgba(255, 255, 255, 0.07);
@@ -182,23 +204,7 @@
         --radius-xl: 0.5rem;
         --radius-2xl: 0.5rem;
       }
-      .midnight {
-        --bg-void: #000000;
-        --bg-card: #121212;
-        --bg-panel: #1A1A1A;
-        --bg-input: #1A1A1A;
-        --text-main: #FFFFFF;
-        --text-muted: #A3A3A3;
-        --text-highlight: #FACC15;
-        --border-base: #333333;
-        --border-highlight: #FACC15;
-        --color-brand: #FACC15;
-        --color-brand-hover: #EAB308;
-        --shadow-card: none;
-        --shadow-glow: none;
-        --radius-xl: 0px;
-        --radius-2xl: 0px;
-      }
+      
       .terminal {
         --bg-void: #0C0C0C;
         --bg-card: #052E16;
@@ -318,26 +324,26 @@
         });
       }
     </script>
-    <script type="importmap">
+  <script type="importmap">
 {
   "imports": {
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
     "react/": "https://aistudiocdn.com/react@^19.2.1/",
     "react": "https://aistudiocdn.com/react@^19.2.1",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.25",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.86.2",
     "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
-    "path": "https://aistudiocdn.com/path@^0.12.7",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.25",
+    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.87.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.2",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
     "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4",
-    "recharts": "https://aistudiocdn.com/recharts@^2.15.0",
     "url": "https://aistudiocdn.com/url@^0.11.4"
   }
 }
 </script>
-  </head>
+</head>
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

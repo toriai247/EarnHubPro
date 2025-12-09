@@ -13,6 +13,7 @@ import FeatureAccessBlock from './components/FeatureAccessBlock';
 
 // --- LAZY LOADED COMPONENTS (Code Splitting) ---
 const Home = lazy(() => import('./pages/Home'));
+const Menu = lazy(() => import('./pages/Menu'));
 const Invest = lazy(() => import('./pages/Invest'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const Invite = lazy(() => import('./pages/Invite'));
@@ -169,6 +170,7 @@ const AppContent: React.FC = () => {
             
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
+            <Route path="/menu" element={<Menu />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/search" element={<SearchUsers />} />
             <Route path="/u/:uid" element={<PublicProfile />} />

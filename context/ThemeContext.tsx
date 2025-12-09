@@ -15,7 +15,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setThemeState] = useState<ThemeId>(() => {
     const saved = localStorage.getItem('eh_theme_id');
     const validThemes = ['default', 'premium', 'lite', 'midnight', 'terminal', 'solarized', 'dracula', 'material'];
-    return (validThemes.includes(saved as string)) ? (saved as ThemeId) : 'default';
+    // Default to 'midnight' (Yellow 002) if no preference saved
+    return (validThemes.includes(saved as string)) ? (saved as ThemeId) : 'midnight';
   });
 
   // Effect to handle root class changes

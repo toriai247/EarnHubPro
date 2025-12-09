@@ -91,9 +91,9 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505] p-4 font-sans selection:bg-electric-500 selection:text-white">
+    <div className="min-h-screen flex items-center justify-center bg-black p-4 font-sans selection:bg-yellow-500 selection:text-black">
       
-      {/* Static Background Pattern */}
+      {/* Static Background Pattern - Minimalist */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-20 pointer-events-none"></div>
 
       <div className="w-full max-w-md relative z-10">
@@ -101,17 +101,19 @@ const Login: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-                <Logo size="xl" />
+                <div className="w-12 h-12 bg-black border-2 border-yellow-500 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(250,204,21,0.2)]">
+                    <span className="text-2xl font-black text-yellow-500">N</span>
+                </div>
             </div>
-            <h1 className="text-2xl font-black text-white uppercase tracking-tight">Welcome Back</h1>
-            <p className="text-gray-500 text-sm font-bold">Secure Access Gateway</p>
+            <h1 className="text-2xl font-black text-white uppercase tracking-tight">Access Terminal</h1>
+            <p className="text-gray-500 text-sm font-bold">Secure ID 002</p>
         </div>
 
-        <div className="bg-[#111] border border-[#222] rounded-2xl p-6 shadow-2xl">
+        <div className="bg-[#050505] border border-[#222] rounded-2xl p-6 shadow-2xl">
             
             <form onSubmit={handleLogin} className="space-y-5">
               {error && (
-                <div className="bg-red-500/10 border border-red-500/50 p-3 rounded-lg flex items-start gap-3 text-red-400 text-sm font-bold">
+                <div className="bg-red-900/20 border border-red-500/50 p-3 rounded-lg flex items-start gap-3 text-red-400 text-sm font-bold">
                   <AlertCircle size={18} className="mt-0.5 shrink-0" />
                   <span className="flex-1">{error}</span>
                 </div>
@@ -129,7 +131,7 @@ const Login: React.FC = () => {
                     required
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                    className="w-full bg-black border border-[#333] rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-[#0a0a0a] transition-colors font-medium text-base"
+                    className="w-full bg-[#111] border border-[#333] rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 focus:bg-[#000] transition-colors font-medium text-base"
                     placeholder="name@example.com"
                   />
                 </div>
@@ -148,7 +150,7 @@ const Login: React.FC = () => {
                     required
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                    className="w-full bg-black border border-[#333] rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-electric-500 focus:bg-[#0a0a0a] transition-colors font-medium text-base"
+                    className="w-full bg-[#111] border border-[#333] rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500 focus:bg-[#000] transition-colors font-medium text-base"
                     placeholder="••••••••"
                   />
                 </div>
@@ -157,34 +159,34 @@ const Login: React.FC = () => {
               <button 
                 type="submit" 
                 disabled={isLoading || isBiometricLoading}
-                className="w-full py-4 bg-electric-600 hover:bg-electric-500 active:bg-electric-700 text-white rounded-xl font-black text-sm uppercase tracking-wider shadow-lg shadow-electric-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-600 text-black rounded-xl font-black text-sm uppercase tracking-wider shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isLoading ? <Loader2 className="animate-spin" size={20} /> : <><LogIn size={20} /> Authenticate</>}
               </button>
             </form>
 
             <div className="my-6 flex items-center">
-                <div className="flex-1 border-t border-[#333]"></div>
+                <div className="flex-1 border-t border-[#222]"></div>
                 <span className="px-3 text-[10px] font-bold text-gray-600 uppercase tracking-widest">Quick Access</span>
-                <div className="flex-1 border-t border-[#333]"></div>
+                <div className="flex-1 border-t border-[#222]"></div>
             </div>
 
             <button 
                 onClick={handleFingerprintLogin}
                 disabled={isLoading || isBiometricLoading}
-                className="w-full py-3 bg-[#1a1a1a] border border-[#333] hover:border-[#444] hover:bg-[#222] text-white rounded-xl font-bold flex items-center justify-center gap-3 uppercase text-xs tracking-wider transition-colors active:scale-[0.98]"
+                className="w-full py-3 bg-[#111] border border-[#333] hover:border-[#555] hover:bg-[#1a1a1a] text-white rounded-xl font-bold flex items-center justify-center gap-3 uppercase text-xs tracking-wider transition-colors active:scale-[0.98]"
             >
                 {isBiometricLoading ? (
-                    <><Loader2 className="animate-spin text-neon-green" size={18} /> Verifying...</>
+                    <><Loader2 className="animate-spin text-green-500" size={18} /> Verifying...</>
                 ) : (
-                    <><ScanFace size={20} className="text-neon-green" /> Biometric Login</>
+                    <><ScanFace size={20} className="text-green-500" /> Biometric Login</>
                 )}
             </button>
 
             <div className="mt-8 text-center">
               <p className="text-gray-500 text-sm font-bold">
                 New User?{' '}
-                <Link to="/signup" className="text-white hover:text-electric-400 underline decoration-2 underline-offset-4 transition inline-flex items-center gap-1">
+                <Link to="/signup" className="text-white hover:text-yellow-400 underline decoration-2 underline-offset-4 transition inline-flex items-center gap-1">
                   Create ID <ArrowRight size={14} />
                 </Link>
               </p>

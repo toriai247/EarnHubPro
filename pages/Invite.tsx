@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Users, Copy, Trophy, Crown, Share2, UserPlus, Calendar, Activity, Link as LinkIcon, TrendingUp, Search, Wallet, Percent, User } from 'lucide-react';
+import { Users, Copy, Trophy, Crown, Share2, UserPlus, Calendar, Activity, Link as LinkIcon, TrendingUp, Search, Wallet, Percent, User, MessageCircle, Megaphone, Check } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { ReferralStats } from '../types';
 import Skeleton from '../components/Skeleton';
@@ -26,6 +26,7 @@ const Invite: React.FC = () => {
   const [referredUsers, setReferredUsers] = useState<ReferredUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [copiedTemplateId, setCopiedTemplateId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -112,6 +113,43 @@ const Invite: React.FC = () => {
       }
   };
 
+  // --- MARKETING TEMPLATES ---
+  const MARKETING_TEMPLATES = [
+      {
+          id: 'bangla_post',
+          label: 'Facebook Post (Bangla)',
+          icon: Megaphone,
+          color: 'text-blue-400',
+          text: `🔥 ঘরে বসে প্রতিদিন ৫০০-১০০০ টাকা ইনকাম করতে চান? 💸\n\nNaxxivo তে জয়েন করুন আর স্মার্টফোন দিয়ে আয় করুন!\n✅ ভিডিও দেখুন, গেম খেলুন\n✅ পেমেন্ট বিকাশ/নগদ এ\n✅ ১০০% ট্রাস্টেড সাইট\n\nদেরি না করে এখনই জয়েন করুন 👇\n{{LINK}}\n\nরেফার কোড: {{CODE}}`
+      },
+      {
+          id: 'bangla_comment',
+          label: 'Short Comment (Bangla)',
+          icon: MessageCircle,
+          color: 'text-green-400',
+          text: `ভাই আমি এই সাইট থেকে পেমেন্ট পেয়েছি! 🔥 বিশ্বাস না হলে দেখে আসুন। কমেন্ট এর জন্য টাকা ইনকাম করতে চাইলে এখনি চলে আসেন। জয়েন লিংক: {{LINK}}`
+      },
+      {
+          id: 'english_hype',
+          label: 'Viral Caption (English)',
+          icon: TrendingUp,
+          color: 'text-red-400',
+          text: `🚀 Don't miss this opportunity! Best earning site of 2024. 🤑\n\nDaily payments, easy tasks. Join Naxxivo now and get signup bonus!\n\nLink: {{LINK}}\nCode: {{CODE}}`
+      }
+  ];
+
+  const copyTemplate = (id: string, text: string) => {
+      const link = getReferralLink();
+      const code = stats?.code || '';
+      const finalText = text.replace('{{LINK}}', link).replace('{{CODE}}', code);
+      
+      navigator.clipboard.writeText(finalText);
+      setCopiedTemplateId(id);
+      toast.success("Caption copied to clipboard!");
+      
+      setTimeout(() => setCopiedTemplateId(null), 2000);
+  };
+
   const filteredUsers = referredUsers.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   if (loading) {
@@ -175,6 +213,31 @@ const Invite: React.FC = () => {
                     <Share2 size={18} /> Share Link
                 </button>
             </GlassCard>
+
+            {/* MARKETING TEMPLATES SECTION */}
+            <div>
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Marketing Kit (Copy & Paste)</h3>
+                <div className="grid grid-cols-1 gap-3">
+                    {MARKETING_TEMPLATES.map((tmpl) => (
+                        <GlassCard key={tmpl.id} className="p-4 border border-[#222] hover:border-brand/30 transition group cursor-pointer" onClick={() => copyTemplate(tmpl.id, tmpl.text)}>
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center gap-2">
+                                    <tmpl.icon size={16} className={tmpl.color} />
+                                    <h4 className="text-sm font-bold text-white">{tmpl.label}</h4>
+                                </div>
+                                <div className={`text-xs font-bold px-2 py-1 rounded transition ${copiedTemplateId === tmpl.id ? 'bg-green-500 text-black' : 'bg-[#222] text-gray-400 group-hover:bg-brand group-hover:text-white'}`}>
+                                    {copiedTemplateId === tmpl.id ? <span className="flex items-center gap-1"><Check size={12}/> Copied</span> : 'Copy Text'}
+                                </div>
+                            </div>
+                            <div className="bg-[#111] p-3 rounded-lg border border-[#222]">
+                                <p className="text-xs text-gray-400 line-clamp-3 whitespace-pre-wrap font-medium">
+                                    {tmpl.text.replace('{{LINK}}', '[Your Link]').replace('{{CODE}}', stats.code)}
+                                </p>
+                            </div>
+                        </GlassCard>
+                    ))}
+                </div>
+            </div>
             
             <div className="grid grid-cols-2 gap-4">
                 <GlassCard className="text-center py-6">

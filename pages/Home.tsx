@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowDownLeft, ArrowUpRight, ArrowRightLeft, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play, 
-  Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText
+  Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText, Grid
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -72,26 +72,44 @@ const Home: React.FC = () => {
     show: { opacity: 1, y: 0 }
   };
 
-  // --- GUEST VIEW ---
+  // --- GUEST VIEW (Midnight 002 Style) ---
   if (isGuest) {
       return (
-        <div className="pb-0 pt-0 min-h-screen bg-void relative overflow-x-hidden font-sans selection:bg-brand selection:text-white flex flex-col justify-center items-center">
-             <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand/20 via-void to-void"></div>
-             <main className="relative z-10 px-6 max-w-md w-full space-y-8 text-center">
-                <div className="w-20 h-20 bg-brand rounded-2xl mx-auto flex items-center justify-center shadow-glow">
-                    <span className="text-4xl font-black text-white">N</span>
+        <div className="pb-0 pt-0 min-h-screen bg-black relative overflow-x-hidden font-sans selection:bg-yellow-500 selection:text-black flex flex-col justify-center items-center">
+             {/* True Black Background - No Gradient for OLED */}
+             <main className="relative z-10 px-6 max-w-md w-full space-y-10 text-center">
+                <div className="w-20 h-20 bg-black border-2 border-yellow-500 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_20px_rgba(250,204,21,0.2)]">
+                    <span className="text-4xl font-black text-yellow-500 tracking-tighter">N</span>
                 </div>
-                <div>
-                    <h1 className="text-4xl font-black text-white mb-2">Welcome to Naxxivo</h1>
-                    <p className="text-muted text-sm">The all-in-one platform for earning, gaming, and investing.</p>
+                <div className="space-y-2">
+                    <h1 className="text-4xl font-black text-white tracking-tight uppercase">
+                        Naxxivo <span className="text-yellow-500">002</span>
+                    </h1>
+                    <p className="text-gray-500 text-sm font-medium tracking-wide">
+                        The minimalist earning ecosystem.<br/>Fast. Secure. OLED Optimized.
+                    </p>
                 </div>
-                <div className="space-y-3 w-full">
-                    <Link to="/signup" className="block w-full py-4 bg-brand text-white font-bold rounded-xl shadow-lg hover:scale-[1.02] transition">
-                        Create Account
+                <div className="space-y-4 w-full pt-4">
+                    <Link to="/signup" className="block w-full py-4 bg-yellow-500 text-black font-black uppercase tracking-wider rounded-xl hover:bg-yellow-400 active:scale-95 transition-transform shadow-lg">
+                        Create ID
                     </Link>
-                    <Link to="/login" className="block w-full py-4 bg-card border border-border-base text-main font-bold rounded-xl">
-                        Log In
+                    <Link to="/login" className="block w-full py-4 bg-black border border-gray-800 text-white font-bold uppercase tracking-wider rounded-xl hover:border-yellow-500 hover:text-yellow-500 transition-colors">
+                        Access Account
                     </Link>
+                </div>
+                <div className="pt-8 flex justify-center gap-6 opacity-50">
+                    <div className="flex flex-col items-center gap-1">
+                        <Zap size={20} className="text-white"/>
+                        <span className="text-[10px] text-gray-500 uppercase font-bold">Fast</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                        <ShieldCheck size={20} className="text-white"/>
+                        <span className="text-[10px] text-gray-500 uppercase font-bold">Secure</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                        <Globe size={20} className="text-white"/>
+                        <span className="text-[10px] text-gray-500 uppercase font-bold">Global</span>
+                    </div>
                 </div>
              </main>
         </div>
@@ -115,9 +133,14 @@ const Home: React.FC = () => {
                       <h2 className="font-bold text-main leading-tight">{user?.name_1?.split(' ')[0]}</h2>
                   </div>
               </div>
-              <div className="px-3 py-1.5 bg-card border border-border-base rounded-full flex items-center gap-2">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  <span className="text-[10px] font-bold text-muted uppercase">Lvl {user?.level_1 || 1}</span>
+              <div className="flex items-center gap-2">
+                  <div className="px-3 py-1.5 bg-card border border-border-base rounded-full flex items-center gap-2">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      <span className="text-[10px] font-bold text-muted uppercase">Lvl {user?.level_1 || 1}</span>
+                  </div>
+                  <Link to="/menu" className="p-2 bg-card border border-border-base rounded-full text-muted hover:text-white transition active:scale-95">
+                      <Grid size={18} />
+                  </Link>
               </div>
           </div>
 
