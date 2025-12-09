@@ -77,9 +77,10 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const isGuest = !session;
 
   // Automatically close menu when route changes
+  // Using 'location' instead of 'location.pathname' ensures it triggers on all nav events
   useEffect(() => {
       setIsMenuOpen(false);
-  }, [location.pathname]);
+  }, [location]);
 
   // --- DEALER NAVIGATION ---
   const dealerNavItems = [
@@ -325,6 +326,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 onClick={() => setIsMenuOpen(false)}
               />
               <motion.div 
+                key="drawer-menu"
                 initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="relative w-[75%] max-w-[280px] bg-card h-full border-r border-border-base flex flex-col shadow-2xl"
