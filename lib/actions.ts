@@ -243,7 +243,14 @@ export const claimDailyBonus = async (userId: string, day: number) => {
     return reward;
 };
 
-export const createUserProfile = async (userId: string, email: string, fullName: string, referralCode?: string, currency: string = 'BDT') => {
+export const createUserProfile = async (
+    userId: string, 
+    email: string, 
+    fullName: string, 
+    referralCode?: string, 
+    currency: string = 'BDT',
+    themeId: string = 'default' 
+) => {
   if (!userId || !isValidUUID(userId)) return;
 
   const myRefCode = generateReferralCode();
@@ -267,7 +274,8 @@ export const createUserProfile = async (userId: string, email: string, fullName:
     ref_code_1: myRefCode,
     referred_by: referredBy,
     level_1: 1,
-    is_kyc_1: false
+    is_kyc_1: false,
+    theme_id: themeId
   }, { onConflict: 'id' });
 
   if (profileError) throw profileError;

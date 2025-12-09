@@ -1,11 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, Ticket, CheckCircle2, Globe } from 'lucide-react';
+import { Lock, Mail, User, ArrowRight, AlertCircle, Loader2, Ticket, CheckCircle2, Globe, Palette, Check } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
 import { CURRENCY_CONFIG } from '../constants';
 import Logo from '../components/Logo';
+
+const THEME_OPTIONS = [
+    { id: 'default', color: '#0055FF', name: 'Blue (Default)' },
+    { id: 'premium', color: '#8D4DFF', name: 'Premium' },
+    { id: 'midnight', color: '#FACC15', name: 'Gold' },
+    { id: 'terminal', color: '#22C55E', name: 'Hacker' },
+    { id: 'dracula', color: '#bd93f9', name: 'Dracula' },
+];
 
 const Signup: React.FC = () => {
   const [name, setName] = useState('');
@@ -13,6 +21,7 @@ const Signup: React.FC = () => {
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [currency, setCurrency] = useState('USD');
+  const [selectedTheme, setSelectedTheme] = useState('default');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -50,7 +59,15 @@ const Signup: React.FC = () => {
       if (data.user) {
         const finalCode = referralCode.trim().toUpperCase();
         try {
-           await createUserProfile(data.user.id, email, name, finalCode, currency);
+           // Pass the selectedTheme to the profile creator
+           await createUserProfile(data.user.id, email, name, finalCode, currency, selectedTheme);
+           
+           // Set theme locally immediately for smooth transition
+           localStorage.setItem('eh_theme_id', selectedTheme);
+           const root = window.document.documentElement;
+           root.classList.remove('default', 'premium', 'lite', 'midnight', 'terminal', 'solarized', 'dracula', 'material');
+           root.classList.add(selectedTheme);
+
            navigate('/');
         } catch (dbError: any) {
            console.error("DB Init Error:", dbError);
@@ -150,6 +167,7 @@ const Signup: React.FC = () => {
                 </div>
             </div>
 
+            {/* Currency & Referral */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                     <label className="text-xs font-bold uppercase text-gray-500 ml-1">Currency</label>
@@ -187,6 +205,27 @@ const Signup: React.FC = () => {
                         maxLength={10}
                         />
                     </div>
+                </div>
+            </div>
+
+            {/* Theme Selector */}
+            <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-gray-500 ml-1 flex items-center gap-1">
+                    <Palette size={12} /> Choose Interface Theme
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                    {THEME_OPTIONS.map(theme => (
+                        <div 
+                            key={theme.id}
+                            onClick={() => setSelectedTheme(theme.id)}
+                            className={`cursor-pointer rounded-lg border-2 p-1.5 transition-all flex flex-col items-center gap-1 ${selectedTheme === theme.id ? 'border-white bg-white/10' : 'border-[#333] bg-black hover:border-gray-500'}`}
+                        >
+                            <div className="w-6 h-6 rounded-full shadow-sm relative flex items-center justify-center" style={{ backgroundColor: theme.color }}>
+                                {selectedTheme === theme.id && <Check size={12} className="text-black font-bold"/>}
+                            </div>
+                            <span className="text-[9px] text-gray-400 font-bold text-center truncate w-full">{theme.name.split(' ')[0]}</span>
+                        </div>
+                    ))}
                 </div>
             </div>
 

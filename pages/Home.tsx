@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  ArrowDownLeft, ArrowUpRight, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play
+  ArrowDownLeft, ArrowUpRight, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play, 
+  Gamepad2, DollarSign, CheckCircle2, Award
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -137,7 +138,7 @@ const Home: React.FC = () => {
                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
              </div>
 
-             <main className="relative z-10 px-4 max-w-5xl mx-auto space-y-20 pt-safe-top">
+             <main className="relative z-10 px-4 max-w-5xl mx-auto space-y-24 pt-safe-top">
                 
                 {/* HERO SECTION */}
                 <header className="text-center pt-24 pb-8 flex flex-col items-center">
@@ -192,68 +193,117 @@ const Home: React.FC = () => {
                     </motion.div>
                 </header>
 
-                {/* BENTO GRID FEATURES */}
-                <section className="space-y-6">
+                {/* HOW IT WORKS */}
+                <section className="text-center space-y-12">
+                    <div className="space-y-2">
+                        <h2 className="text-2xl font-black text-white uppercase tracking-wider">How It Works</h2>
+                        <div className="h-1 w-16 bg-brand mx-auto rounded-full"></div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+                        {/* Connecting Line (Desktop) */}
+                        <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-gradient-to-r from-transparent via-white/20 to-transparent z-0"></div>
+
+                        {/* Step 1 */}
+                        <div className="relative z-10 flex flex-col items-center">
+                            <div className="w-24 h-24 bg-card border border-border-highlight rounded-2xl flex items-center justify-center mb-6 shadow-xl relative group">
+                                <div className="absolute inset-0 bg-brand/10 blur-xl group-hover:bg-brand/20 transition-all rounded-2xl"></div>
+                                <Smartphone size={40} className="text-brand relative z-10" />
+                                <div className="absolute -top-3 -right-3 w-8 h-8 bg-brand text-white font-bold rounded-full flex items-center justify-center border-4 border-void">1</div>
+                            </div>
+                            <h3 className="text-lg font-bold text-white mb-2">Create Account</h3>
+                            <p className="text-sm text-muted max-w-xs">Register in seconds. Choose your preferred currency and UI theme.</p>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="relative z-10 flex flex-col items-center">
+                            <div className="w-24 h-24 bg-card border border-border-highlight rounded-2xl flex items-center justify-center mb-6 shadow-xl relative group">
+                                <div className="absolute inset-0 bg-purple-500/10 blur-xl group-hover:bg-purple-500/20 transition-all rounded-2xl"></div>
+                                <Zap size={40} className="text-purple-400 relative z-10" />
+                                <div className="absolute -top-3 -right-3 w-8 h-8 bg-purple-500 text-white font-bold rounded-full flex items-center justify-center border-4 border-void">2</div>
+                            </div>
+                            <h3 className="text-lg font-bold text-white mb-2">Start Earning</h3>
+                            <p className="text-sm text-muted max-w-xs">Complete tasks, play games, or invest in assets to grow your balance.</p>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="relative z-10 flex flex-col items-center">
+                            <div className="w-24 h-24 bg-card border border-border-highlight rounded-2xl flex items-center justify-center mb-6 shadow-xl relative group">
+                                <div className="absolute inset-0 bg-emerald-500/10 blur-xl group-hover:bg-emerald-500/20 transition-all rounded-2xl"></div>
+                                <DollarSign size={40} className="text-emerald-400 relative z-10" />
+                                <div className="absolute -top-3 -right-3 w-8 h-8 bg-emerald-500 text-white font-bold rounded-full flex items-center justify-center border-4 border-void">3</div>
+                            </div>
+                            <h3 className="text-lg font-bold text-white mb-2">Withdraw Fast</h3>
+                            <p className="text-sm text-muted max-w-xs">Cash out your earnings instantly via Crypto or Local Mobile Banking.</p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* FEATURE PREVIEW */}
+                <section className="space-y-8">
+                    <div className="flex items-center justify-between px-4 md:px-0">
+                        <h2 className="text-xl font-black text-white uppercase tracking-wider">Explore Features</h2>
+                        <div className="flex gap-2">
+                            <span className="w-2 h-2 rounded-full bg-brand"></span>
+                            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        
-                        {/* Card 1: Speed */}
-                        <div className="md:col-span-2 p-6 rounded-3xl bg-gradient-to-br from-card to-void border border-border-base relative overflow-hidden group">
-                            <div className="absolute right-0 top-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity duration-500 transform group-hover:scale-110"><Smartphone size={160} /></div>
+                        {/* Feature 1: Tasks */}
+                        <div className="p-6 rounded-3xl bg-gradient-to-br from-card to-void border border-border-base relative overflow-hidden group hover:border-brand/50 transition-all">
+                            <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-transform group-hover:scale-110">
+                                <CheckCircle2 size={100} />
+                            </div>
                             <div className="relative z-10">
-                                <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4 border border-blue-500/20 text-blue-400">
-                                    <Zap size={24} />
+                                <div className="w-10 h-10 bg-brand/20 text-brand rounded-lg flex items-center justify-center mb-4">
+                                    <CheckCircle2 size={20} />
                                 </div>
-                                <h3 className="text-xl font-bold text-white mb-2">Native App Speed</h3>
-                                <p className="text-muted text-sm leading-relaxed max-w-md">
-                                    Our Progressive Web App (PWA) technology downloads core files to your device. This means near-instant loading, even on 3G networks.
+                                <h3 className="text-lg font-bold text-white mb-1">Micro Tasks</h3>
+                                <p className="text-xs text-muted leading-relaxed mb-4">
+                                    Earn by visiting websites, watching videos, or engaging with content. Simple and fast.
                                 </p>
+                                <div className="flex items-center gap-2 text-[10px] text-brand font-bold bg-brand/10 w-fit px-2 py-1 rounded">
+                                    <Zap size={10} /> Instant Reward
+                                </div>
                             </div>
                         </div>
 
-                        {/* Card 2: Security */}
-                        <div className="p-6 rounded-3xl bg-gradient-to-b from-card to-void border border-border-base relative overflow-hidden group">
-                             <div className="relative z-10 h-full flex flex-col">
-                                <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4 border border-emerald-500/20 text-emerald-400">
-                                    <ShieldCheck size={24} />
-                                </div>
-                                <h3 className="text-lg font-bold text-white mb-2">Encrypted</h3>
-                                <p className="text-muted text-sm leading-relaxed">
-                                    Bank-grade AES-256 encryption keeps your earnings and data safe.
-                                </p>
-                             </div>
-                        </div>
-
-                        {/* Card 3: Global */}
-                        <div className="p-6 rounded-3xl bg-gradient-to-br from-card to-void border border-border-base relative overflow-hidden group">
+                        {/* Feature 2: Games */}
+                        <div className="p-6 rounded-3xl bg-gradient-to-br from-card to-void border border-border-base relative overflow-hidden group hover:border-purple-500/50 transition-all">
+                            <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-transform group-hover:scale-110">
+                                <Gamepad2 size={100} />
+                            </div>
                             <div className="relative z-10">
-                                <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center mb-4 border border-purple-500/20 text-purple-400">
-                                    <Globe size={24} />
+                                <div className="w-10 h-10 bg-purple-500/20 text-purple-400 rounded-lg flex items-center justify-center mb-4">
+                                    <Gamepad2 size={20} />
                                 </div>
-                                <h3 className="text-lg font-bold text-white mb-2">Global Access</h3>
-                                <p className="text-muted text-sm leading-relaxed">
-                                    Works in 120+ countries with automated currency conversion.
+                                <h3 className="text-lg font-bold text-white mb-1">Game Zone</h3>
+                                <p className="text-xs text-muted leading-relaxed mb-4">
+                                    Play Crash, Dice, Spin Wheel and Ludo. Fair algorithms with high win rates.
                                 </p>
+                                <div className="flex items-center gap-2 text-[10px] text-purple-400 font-bold bg-purple-500/10 w-fit px-2 py-1 rounded">
+                                    <Award size={10} /> Play to Earn
+                                </div>
                             </div>
                         </div>
 
-                        {/* Card 4: Games */}
-                        <div className="md:col-span-2 p-6 rounded-3xl bg-gradient-to-r from-card to-void border border-border-base relative overflow-hidden group">
-                            <div className="relative z-10 flex items-center justify-between">
-                                <div>
-                                    <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center mb-4 border border-orange-500/20 text-orange-400">
-                                        <Play size={24} />
-                                    </div>
-                                    <h3 className="text-xl font-bold text-white mb-2">Play to Earn</h3>
-                                    <p className="text-muted text-sm leading-relaxed max-w-xs">
-                                        Turn your gaming skills into profit with our fair, automated game engine.
-                                    </p>
+                        {/* Feature 3: Invest */}
+                        <div className="p-6 rounded-3xl bg-gradient-to-br from-card to-void border border-border-base relative overflow-hidden group hover:border-emerald-500/50 transition-all">
+                            <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-transform group-hover:scale-110">
+                                <TrendingUp size={100} />
+                            </div>
+                            <div className="relative z-10">
+                                <div className="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center justify-center mb-4">
+                                    <TrendingUp size={20} />
                                 </div>
-                                <div className="hidden sm:block opacity-50 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0">
-                                    <div className="flex gap-2">
-                                        <div className="w-8 h-12 bg-orange-500/20 rounded-md animate-pulse"></div>
-                                        <div className="w-8 h-12 bg-orange-500/40 rounded-md animate-pulse delay-100"></div>
-                                        <div className="w-8 h-12 bg-orange-500/60 rounded-md animate-pulse delay-200"></div>
-                                    </div>
+                                <h3 className="text-lg font-bold text-white mb-1">Smart Invest</h3>
+                                <p className="text-xs text-muted leading-relaxed mb-4">
+                                    Invest in virtual assets or business crowdfunding for daily passive income.
+                                </p>
+                                <div className="flex items-center gap-2 text-[10px] text-emerald-400 font-bold bg-emerald-500/10 w-fit px-2 py-1 rounded">
+                                    <DollarSign size={10} /> Passive Income
                                 </div>
                             </div>
                         </div>
@@ -272,7 +322,7 @@ const Home: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Removed Footer Here (Used Global in Layout) */}
+                <div className="pb-12"></div>
 
              </main>
         </div>
