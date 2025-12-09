@@ -2,16 +2,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  Home, PieChart, Gamepad2, User, Bell, Trophy, Menu, X, 
-  ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, 
-  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle, Users, Palette, MessageSquare, WifiOff, RefreshCw
+  Home, User, Bell, 
+  Wallet, Briefcase, BarChart3, PlusCircle, Globe, Shield
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import BalanceDisplay from './BalanceDisplay';
 import { useSystem } from '../context/SystemContext';
 import MaintenanceScreen from './MaintenanceScreen';
 import SuspendedView from './SuspendedView';
-import { useUI } from '../context/UIContext';
 import Logo from './Logo';
 import ReviewModal from './ReviewModal';
 import Footer from './Footer'; 
@@ -20,33 +18,9 @@ import { UserProfile } from '../types';
 
 const GlobalAlertBanner = ({ message }: { message: string }) => {
     if (!message) return null;
-
-    let type = 'warning';
-    let cleanMessage = message;
-    let Icon = AlertTriangle;
-    let colorClass = 'bg-yellow-900/50 text-yellow-200 border-yellow-800';
-
-    if (message.startsWith('[URGENT]')) {
-        type = 'error';
-        cleanMessage = message.replace('[URGENT]', '').trim();
-        Icon = ShieldAlert;
-        colorClass = 'bg-red-900/50 text-red-200 border-red-800';
-    } else if (message.startsWith('[INFO]')) {
-        type = 'info';
-        cleanMessage = message.replace('[INFO]', '').trim();
-        Icon = Info;
-        colorClass = 'bg-blue-900/50 text-blue-200 border-blue-800';
-    } else if (message.startsWith('[SUCCESS]')) {
-        type = 'success';
-        cleanMessage = message.replace('[SUCCESS]', '').trim();
-        Icon = Info;
-        colorClass = 'bg-green-900/50 text-green-200 border-green-800';
-    }
-
     return (
-        <div className={`w-full px-4 py-2 text-xs font-bold uppercase border-b flex items-center justify-center gap-2 ${colorClass}`}>
-            <Icon size={14} />
-            <span>{cleanMessage}</span>
+        <div className="w-full px-4 py-2 text-xs font-bold uppercase border-b flex items-center justify-center gap-2 bg-yellow-900/50 text-yellow-200 border-yellow-800">
+            <span>{message}</span>
         </div>
     );
 };
@@ -59,26 +33,18 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { toast } = useUI();
-  const { isFeatureEnabled, config, lowDataMode, toggleLowDataMode } = useSystem();
+  const { isFeatureEnabled, config } = useSystem();
   const [balance, setBalance] = useState<number>(0);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [level, setLevel] = useState(1);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isModerator, setIsModerator] = useState(false);
   const [isDealer, setIsDealer] = useState(false); 
-  const [isStaff, setIsStaff] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   
   const isVideoPage = location.pathname === '/video';
   const isGuest = !session;
 
-  useEffect(() => {
-      setIsMenuOpen(false);
-  }, [location]);
-
+  // --- NAVIGATION CONFIGURATION ---
   const dealerNavItems = [
       { path: '/dealer/dashboard', icon: BarChart3, label: 'DASH' },
       { path: '/dealer/campaigns', icon: Briefcase, label: 'ADS' },
@@ -86,44 +52,23 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       { path: '/dealer/profile', icon: User, label: 'CORP' },
   ];
 
+  // SIMPLIFIED USER NAV - CORE PILLARS ONLY
   const userNavItems = [
-    { path: '/', icon: Home, label: 'HUB', enabled: true },
-    { path: '/tasks', icon: Globe, label: 'EARN', enabled: isFeatureEnabled('is_tasks_enabled'), protected: true },
-    { path: '/leaderboard', icon: Trophy, label: 'TOP', enabled: true },
-    { path: '/advertise', icon: Megaphone, label: 'ADS', enabled: true, protected: true },
-    { path: '/profile', icon: User, label: 'ME', enabled: true, protected: true },
+    { path: '/', icon: Home, label: 'Home', enabled: true },
+    { path: '/wallet', icon: Wallet, label: 'Wallet', enabled: true, protected: true },
+    { path: '/tasks', icon: Globe, label: 'Earn', enabled: isFeatureEnabled('is_tasks_enabled'), protected: true },
+    { path: '/profile', icon: User, label: 'Profile', enabled: true, protected: true },
   ].filter(i => i.enabled);
 
   const isDealerRoute = location.pathname.startsWith('/dealer');
   const activeNavItems = (isDealer && isDealerRoute) ? dealerNavItems : userNavItems;
 
-  const menuItems = [
-      ...((isAdmin || isModerator) ? [{ path: '/admin/dashboard', icon: LayoutDashboard, label: 'Admin Panel', enabled: true }] : []),
-      ...(isDealer ? [{ path: '/dealer/dashboard', icon: Briefcase, label: 'Dealer Console', enabled: true }] : []),
-      ...(isStaff ? [{ path: '/staff/dashboard', icon: Users, label: 'Influencer Hub', enabled: true }] : []),
-      { path: '/advertise', icon: Megaphone, label: 'Create Ads', enabled: true, protected: true },
-      { path: '/invest', icon: PieChart, label: 'Invest', enabled: isFeatureEnabled('is_invest_enabled'), protected: true },
-      { path: '/games', icon: Gamepad2, label: 'Games', enabled: isFeatureEnabled('is_games_enabled'), protected: true },
-      { path: '/search', icon: Search, label: 'Find User', enabled: true },
-      { path: '/send-money', icon: Send, label: 'Send Money', enabled: true, protected: true },
-      { path: '/exchange', icon: ArrowRightLeft, label: 'Currency Exchange', enabled: true, protected: true },
-      { path: '/transfer', icon: RefreshCw, label: 'Transfer Funds', enabled: true, protected: true },
-      { path: '/biometric-setup', icon: Fingerprint, label: 'Security Setup', enabled: true, protected: true },
-      { path: '/themes', icon: Palette, label: 'Themes', enabled: true },
-      { path: '/support', icon: Headphones, label: 'Support', enabled: true },
-      { path: '/faq', icon: HelpCircle, label: 'FAQ', enabled: true },
-      { path: '/terms', icon: FileText, label: 'Terms', enabled: true },
-  ].filter(i => i.enabled);
-
   useEffect(() => {
     if (!session) {
         setBalance(0);
         setUnreadCount(0);
-        setLevel(1);
-        setIsAdmin(false);
-        setIsModerator(false);
         setIsDealer(false);
-        setIsStaff(false);
+        setIsAdmin(false);
         return;
     }
 
@@ -139,11 +84,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 setIsSuspended(true);
                 return; 
             }
-            setLevel(profile.level_1 || 1);
-            setIsAdmin(!!(profile.admin_user || profile.role === 'admin'));
-            setIsModerator(profile.role === 'moderator');
             setIsDealer(!!profile.is_dealer);
-            setIsStaff(profile.role === 'staff');
+            setIsAdmin(profile.role === 'admin' || profile.role === 'moderator' || profile.admin_user === true);
         }
 
         const [walletRes, notifRes] = await Promise.allSettled([
@@ -169,19 +111,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
     return () => window.removeEventListener('wallet_updated', handleWalletUpdate);
   }, [location.pathname, session]);
 
-  const handleLogout = async () => {
-      await supabase.auth.signOut();
-      navigate('/login');
-  };
-
-  const handleMenuClose = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      setIsMenuOpen(false);
-  };
-
   if (isSuspended) return <SuspendedView session={session} />;
-  if (config?.maintenance_mode && !isAdmin) return <MaintenanceScreen />;
+  if (config?.maintenance_mode && !location.pathname.includes('/admin')) return <MaintenanceScreen />;
 
   return (
     <div className="min-h-screen flex flex-col bg-void text-main font-sans transition-colors duration-500">
@@ -191,18 +122,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       {!isVideoPage && (
         <header className="sticky top-0 z-40 bg-void/90 backdrop-blur-md border-b border-border-base px-4 py-3 flex justify-between items-center transition-colors duration-500">
           <div className="flex items-center gap-3">
-            <button 
-                onClick={() => setIsMenuOpen(true)}
-                className="group relative flex items-center justify-center w-11 h-11 rounded-xl bg-[#111] border border-[#222] hover:border-brand/50 hover:bg-brand/10 transition-all duration-300 active:scale-90"
-                aria-label="Open Menu"
-            >
-                <div className="grid grid-cols-2 gap-[3px] group-hover:gap-[4px] transition-all duration-300 p-1">
-                    <span className="w-[5px] h-[5px] rounded-[1px] bg-gray-400 group-hover:bg-brand transition-all duration-300"></span>
-                    <span className="w-[5px] h-[5px] rounded-[1px] bg-gray-400 group-hover:bg-white transition-all duration-300 delay-75"></span>
-                    <span className="w-[5px] h-[5px] rounded-[1px] bg-gray-400 group-hover:bg-white transition-all duration-300 delay-75"></span>
-                    <span className="w-[5px] h-[5px] rounded-[1px] bg-gray-400 group-hover:bg-brand transition-all duration-300"></span>
-                </div>
-            </button>
             <Link to="/" className="flex items-center gap-2 active:scale-95 transition-transform">
                 <Logo size="sm" showText={true} />
             </Link>
@@ -215,6 +134,18 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 </Link>
             ) : (
                 <>
+                    {/* Admin Icon */}
+                    {isAdmin && (
+                        <Link 
+                            to="/admin/dashboard" 
+                            className="p-2 text-muted hover:text-red-500 transition-colors active:scale-90"
+                            title="Admin Panel"
+                        >
+                            <Shield size={20} />
+                        </Link>
+                    )}
+
+                    {/* Dealer Toggle */}
                     {isDealer && (
                         <Link 
                             to={isDealerRoute ? "/" : "/dealer/dashboard"} 
@@ -224,10 +155,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                             <Briefcase size={20} />
                         </Link>
                     )}
-
-                    <Link to="/search" className="p-2 text-muted hover:text-main transition-colors active:scale-90 duration-200">
-                        <Search size={20} />
-                    </Link>
                     
                     <div className="hidden sm:flex px-2 py-1 bg-card border border-border-base rounded text-xs font-mono text-main transition-colors">
                         <BalanceDisplay amount={balance} isHeader={true} isNative={true} />
@@ -235,6 +162,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                     <Link to="/notifications" className="relative p-2 text-muted hover:text-main transition-colors active:scale-90 duration-200">
                       <Bell size={20} />
                       {unreadCount > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-brand rounded-full"></span>}
+                    </Link>
+                    <Link to="/profile" className="p-2 text-muted hover:text-main sm:hidden active:scale-90">
+                        <User size={20} />
                     </Link>
                 </>
             )}
@@ -246,9 +176,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.15, ease: "linear" }}
             className="w-full flex-1"
           >
@@ -259,8 +189,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         {!isVideoPage && <Footer onOpenReview={() => setShowReviewModal(true)} />}
       </main>
 
+      {/* BOTTOM NAV (Mobile) */}
       <nav className={`fixed bottom-0 left-0 right-0 z-30 sm:hidden border-t border-border-base pb-safe transition-colors duration-500 ${isDealerRoute ? 'bg-[#1a1500] border-amber-900/30' : 'bg-card'}`}>
-        <div className="flex justify-around items-center h-14">
+        <div className="flex justify-around items-center h-16">
           {activeNavItems.map((item) => {
             const isActive = location.pathname === item.path;
             const colorClass = isDealerRoute 
@@ -277,14 +208,15 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 }}
                 className={`flex flex-col items-center justify-center w-full h-full ${colorClass} active:scale-90 transition-transform duration-200`}
               >
-                <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[9px] font-bold mt-1 uppercase">{item.label}</span>
+                <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'drop-shadow-[0_0_8px_rgba(var(--color-brand),0.5)]' : ''} />
+                <span className="text-[10px] font-bold mt-1 uppercase">{item.label}</span>
               </Link>
             );
           })}
         </div>
       </nav>
 
+      {/* SIDE NAV (Desktop) */}
       <nav className={`hidden sm:flex fixed left-0 top-0 bottom-0 w-20 border-r border-border-base flex-col items-center py-6 z-30 transition-colors duration-500 ${isDealerRoute ? 'bg-[#0f0a00] border-amber-900/20' : 'bg-card'}`}>
         <div className="mb-8">
             <Logo size="sm" showText={false} />
@@ -313,89 +245,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
           })}
         </div>
       </nav>
-
-      {/* DRAWER MENU */}
-      <AnimatePresence>
-      {isMenuOpen && (
-          <div className="fixed inset-0 z-[100] flex">
-              <motion.div 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-                onClick={() => setIsMenuOpen(false)}
-              />
-              <motion.div 
-                key="drawer-menu"
-                initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="relative w-[75%] max-w-[280px] bg-card h-full border-r border-border-base flex flex-col shadow-2xl z-[101]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                  <div className="p-5 border-b border-border-base flex justify-between items-center bg-input/20">
-                      <div className="flex items-center gap-2">
-                          <Logo size="sm" showText={false} />
-                          <span className="font-black text-main tracking-tight">MENU</span>
-                      </div>
-                      <button 
-                        onClick={handleMenuClose} 
-                        className="p-2 bg-white/5 rounded-full text-muted hover:text-white hover:bg-red-500/20 active:scale-90 transition-all duration-200 z-50 pointer-events-auto"
-                        aria-label="Close Menu"
-                        type="button"
-                      >
-                          <X size={20}/>
-                      </button>
-                  </div>
-                  
-                  <div className="p-4 bg-input/50 flex items-center justify-between border-b border-border-base">
-                      <div className="flex items-center gap-3 text-sm font-medium text-main">
-                          <WifiOff size={18} className={lowDataMode ? 'text-brand' : 'text-muted'} />
-                          <span>Low Data Mode</span>
-                      </div>
-                      <button 
-                          onClick={toggleLowDataMode}
-                          className={`relative w-10 h-5 rounded-full transition-colors ${lowDataMode ? 'bg-brand' : 'bg-border-highlight'}`}
-                      >
-                          <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${lowDataMode ? 'translate-x-5' : ''}`} />
-                      </button>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
-                      {menuItems.map((item, idx) => {
-                          if (isGuest && (item as any).protected) return null;
-                          return (
-                              <Link 
-                                  key={idx} 
-                                  to={item.path} 
-                                  onClick={() => setIsMenuOpen(false)}
-                                  className="flex items-center gap-3 p-3.5 rounded-xl hover:bg-input text-sm font-medium text-muted hover:text-main mb-1 transition-all active:scale-95"
-                              >
-                                  <item.icon size={18} className="opacity-70" />
-                                  {item.label}
-                              </Link>
-                          );
-                      })}
-                      {!isGuest && (
-                          <button 
-                              onClick={() => { setIsMenuOpen(false); setShowReviewModal(true); }}
-                              className="flex w-full items-center gap-3 p-3.5 rounded-xl hover:bg-input text-sm font-medium text-muted hover:text-main mb-1 transition-all active:scale-95"
-                          >
-                              <MessageSquare size={18} className="opacity-70" /> Rate Us / Feedback
-                          </button>
-                      )}
-                  </div>
-                  <div className="p-4 border-t border-border-base flex flex-col gap-2 bg-input/10">
-                      {isGuest ? (
-                          <button onClick={() => { setIsMenuOpen(false); navigate('/login'); }} className="w-full py-3 bg-brand text-white font-bold text-sm rounded-xl shadow-lg active:scale-95 transition-transform">Sign In</button>
-                      ) : (
-                          <button onClick={handleLogout} className="w-full py-3 bg-input hover:bg-danger/20 hover:text-danger text-muted font-bold text-sm rounded-xl flex items-center justify-center gap-2 border border-border-base transition-colors active:scale-95">
-                              <LogOut size={16} /> Sign Out
-                          </button>
-                      )}
-                  </div>
-              </motion.div>
-          </div>
-      )}
-      </AnimatePresence>
 
       <ReviewModal isOpen={showReviewModal} onClose={() => setShowReviewModal(false)} />
     </div>

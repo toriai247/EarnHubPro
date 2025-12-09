@@ -2,14 +2,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  ArrowDownLeft, ArrowUpRight, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play, 
-  Gamepad2, DollarSign, CheckCircle2, Award
+  ArrowDownLeft, ArrowUpRight, ArrowRightLeft, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play, 
+  Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
 import DailyBonus from '../components/DailyBonus';
 import SmartImage from '../components/SmartImage';
-import { Activity, WalletData, UserProfile, WebsiteReview } from '../types';
+import { WalletData, UserProfile } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
 import { useSystem } from '../context/SystemContext';
@@ -21,26 +21,12 @@ const Home: React.FC = () => {
   const { isFeatureEnabled, config } = useSystem();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(true);
-  const [publicReviews, setPublicReviews] = useState<WebsiteReview[]>([]);
 
   useEffect(() => {
     fetchData();
-    fetchPublicReviews();
   }, []);
-
-  // SEO Update for Guest View
-  useEffect(() => {
-    if (isGuest) {
-      document.title = config?.hero_title || "Naxxivo - Fast & Secure Earning App";
-      const metaDesc = document.querySelector('meta[name="description"]');
-      if (metaDesc) {
-        metaDesc.setAttribute("content", config?.hero_description || "Download Naxxivo to earn real money. Tasks, Games, and Investments in one fast app.");
-      }
-    }
-  }, [isGuest, config]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -64,24 +50,11 @@ const Home: React.FC = () => {
          } catch (e) {}
       }
 
-      if (walletData) {
-        setWallet(walletData as WalletData);
-        
-        const [userRes, txRes] = await Promise.all([
-            supabase.from('profiles').select('*').eq('id', session.user.id).single(),
-            supabase.from('transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(5)
-        ]);
+      if (walletData) setWallet(walletData as WalletData);
+      
+      const { data: userRes } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+      if (userRes) setUser(userRes as UserProfile);
 
-        if (userRes.data) setUser(userRes.data as UserProfile);
-
-        if (txRes.data) {
-           const acts: Activity[] = txRes.data.map((t: any) => ({
-              id: t.id, title: t.description || t.type, type: t.type, amount: t.amount,
-              time: t.created_at, timestamp: new Date(t.created_at).getTime(), status: t.status
-            }));
-            setActivities(acts);
-        }
-      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -89,361 +62,161 @@ const Home: React.FC = () => {
     }
   };
 
-  const fetchPublicReviews = async () => {
-      const { data } = await supabase
-          .from('website_reviews')
-          .select('*')
-          .eq('is_public', true)
-          .order('rating', { ascending: false })
-          .limit(5);
-      
-      if (data && data.length > 0) {
-          const userIds = data.map((r: any) => r.user_id).filter(Boolean);
-          const { data: profiles } = await supabase.from('profiles').select('id, name_1, avatar_1').in('id', userIds);
-          const profileMap = new Map(profiles?.map((p: any) => [p.id, p]));
-          
-          setPublicReviews(data.map((r: any) => ({
-              ...r,
-              profile: profileMap.get(r.user_id)
-          })));
-      }
-  };
-
   const container = {
     hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.08 } }
+    show: { opacity: 1, transition: { staggerChildren: 0.05 } }
   };
 
   const item = {
-    hidden: { opacity: 0, y: 15 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 200, damping: 20 } }
+    hidden: { opacity: 0, y: 10 },
+    show: { opacity: 1, y: 0 }
   };
 
-  if (loading) return (
-      <div className="min-h-screen flex items-center justify-center bg-void">
-          <div className="w-8 h-8 border-4 border-brand border-t-transparent rounded-full animate-spin"></div>
-      </div>
-  );
-
+  // --- GUEST VIEW ---
   if (isGuest) {
       return (
-        <div className="pb-0 pt-0 min-h-screen bg-void relative overflow-x-hidden font-sans selection:bg-brand selection:text-white">
-             
-             {/* 1. Performance Background Layers */}
-             <div className="fixed inset-0 z-0 pointer-events-none">
-                 <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] bg-purple-900/10 blur-[150px] rounded-full mix-blend-screen" />
-                 <div className="absolute top-[30%] right-[-20%] w-[60%] h-[60%] bg-blue-900/10 blur-[150px] rounded-full mix-blend-screen" />
-                 <div className="absolute bottom-[-10%] left-[10%] w-[50%] h-[50%] bg-emerald-900/5 blur-[120px] rounded-full mix-blend-screen" />
-                 {/* Grain Texture for depth */}
-                 <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
-             </div>
-
-             <main className="relative z-10 px-4 max-w-5xl mx-auto space-y-24 pt-safe-top">
-                
-                {/* HERO SECTION */}
-                <header className="text-center pt-24 pb-8 flex flex-col items-center">
-                    <motion.div 
-                        initial={{ opacity: 0, y: 30, scale: 0.95 }} 
-                        animate={{ opacity: 1, y: 0, scale: 1 }} 
-                        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                        className="w-full"
-                    >
-                        {/* Status Chip */}
-                        <div className="inline-flex items-center gap-2 py-1.5 px-3 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8 shadow-glow">
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                            </span>
-                            <span className="text-[10px] font-bold text-white uppercase tracking-widest">
-                                Ecosystem V4.0 Online
-                            </span>
-                        </div>
-                        
-                        {/* Dynamic Headline */}
-                        <h1 className="text-5xl sm:text-7xl font-black text-white leading-[0.95] tracking-tight mb-6 text-balance drop-shadow-2xl">
-                            {config?.hero_title ? config.hero_title : (
-                                <>
-                                    THE <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand to-purple-400">FASTEST</span><br/>
-                                    WAY TO EARN.
-                                </>
-                            )}
-                        </h1>
-                        
-                        <p className="text-muted text-base sm:text-lg max-w-lg mx-auto leading-relaxed font-medium text-balance mb-10">
-                            {config?.hero_description || "Secure investments, instant tasks, and competitive gaming. Download content directly to your device for lightning speed."}
-                        </p>
-
-                        {/* High Performance CTAs */}
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full max-w-sm mx-auto">
-                            <Link 
-                                to="/signup" 
-                                className="group relative w-full py-4 bg-brand text-white font-black text-sm uppercase tracking-wider rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-glow flex items-center justify-center gap-2 overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover:animate-shimmer transition-none" />
-                                <Zap size={18} className="fill-white" />
-                                <span className="relative z-10">Start Earning</span>
-                            </Link>
-                            <Link 
-                                to="/login" 
-                                className="w-full py-4 bg-card border border-border-highlight text-main font-bold text-sm uppercase tracking-wider rounded-xl hover:bg-input transition flex items-center justify-center gap-2 backdrop-blur-xl"
-                            >
-                                Login
-                            </Link>
-                        </div>
-                    </motion.div>
-                </header>
-
-                {/* HOW IT WORKS */}
-                <section className="text-center space-y-12">
-                    <div className="space-y-2">
-                        <h2 className="text-2xl font-black text-white uppercase tracking-wider">How It Works</h2>
-                        <div className="h-1 w-16 bg-brand mx-auto rounded-full"></div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-                        {/* Connecting Line (Desktop) */}
-                        <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-gradient-to-r from-transparent via-white/20 to-transparent z-0"></div>
-
-                        {/* Step 1 */}
-                        <div className="relative z-10 flex flex-col items-center">
-                            <div className="w-24 h-24 bg-card border border-border-highlight rounded-2xl flex items-center justify-center mb-6 shadow-xl relative group">
-                                <div className="absolute inset-0 bg-brand/10 blur-xl group-hover:bg-brand/20 transition-all rounded-2xl"></div>
-                                <Smartphone size={40} className="text-brand relative z-10" />
-                                <div className="absolute -top-3 -right-3 w-8 h-8 bg-brand text-white font-bold rounded-full flex items-center justify-center border-4 border-void">1</div>
-                            </div>
-                            <h3 className="text-lg font-bold text-white mb-2">Create Account</h3>
-                            <p className="text-sm text-muted max-w-xs">Register in seconds. Choose your preferred currency and UI theme.</p>
-                        </div>
-
-                        {/* Step 2 */}
-                        <div className="relative z-10 flex flex-col items-center">
-                            <div className="w-24 h-24 bg-card border border-border-highlight rounded-2xl flex items-center justify-center mb-6 shadow-xl relative group">
-                                <div className="absolute inset-0 bg-purple-500/10 blur-xl group-hover:bg-purple-500/20 transition-all rounded-2xl"></div>
-                                <Zap size={40} className="text-purple-400 relative z-10" />
-                                <div className="absolute -top-3 -right-3 w-8 h-8 bg-purple-500 text-white font-bold rounded-full flex items-center justify-center border-4 border-void">2</div>
-                            </div>
-                            <h3 className="text-lg font-bold text-white mb-2">Start Earning</h3>
-                            <p className="text-sm text-muted max-w-xs">Complete tasks, play games, or invest in assets to grow your balance.</p>
-                        </div>
-
-                        {/* Step 3 */}
-                        <div className="relative z-10 flex flex-col items-center">
-                            <div className="w-24 h-24 bg-card border border-border-highlight rounded-2xl flex items-center justify-center mb-6 shadow-xl relative group">
-                                <div className="absolute inset-0 bg-emerald-500/10 blur-xl group-hover:bg-emerald-500/20 transition-all rounded-2xl"></div>
-                                <DollarSign size={40} className="text-emerald-400 relative z-10" />
-                                <div className="absolute -top-3 -right-3 w-8 h-8 bg-emerald-500 text-white font-bold rounded-full flex items-center justify-center border-4 border-void">3</div>
-                            </div>
-                            <h3 className="text-lg font-bold text-white mb-2">Withdraw Fast</h3>
-                            <p className="text-sm text-muted max-w-xs">Cash out your earnings instantly via Crypto or Local Mobile Banking.</p>
-                        </div>
-                    </div>
-                </section>
-
-                {/* FEATURE PREVIEW */}
-                <section className="space-y-8">
-                    <div className="flex items-center justify-between px-4 md:px-0">
-                        <h2 className="text-xl font-black text-white uppercase tracking-wider">Explore Features</h2>
-                        <div className="flex gap-2">
-                            <span className="w-2 h-2 rounded-full bg-brand"></span>
-                            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Feature 1: Tasks */}
-                        <div className="p-6 rounded-3xl bg-gradient-to-br from-card to-void border border-border-base relative overflow-hidden group hover:border-brand/50 transition-all">
-                            <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-transform group-hover:scale-110">
-                                <CheckCircle2 size={100} />
-                            </div>
-                            <div className="relative z-10">
-                                <div className="w-10 h-10 bg-brand/20 text-brand rounded-lg flex items-center justify-center mb-4">
-                                    <CheckCircle2 size={20} />
-                                </div>
-                                <h3 className="text-lg font-bold text-white mb-1">Micro Tasks</h3>
-                                <p className="text-xs text-muted leading-relaxed mb-4">
-                                    Earn by visiting websites, watching videos, or engaging with content. Simple and fast.
-                                </p>
-                                <div className="flex items-center gap-2 text-[10px] text-brand font-bold bg-brand/10 w-fit px-2 py-1 rounded">
-                                    <Zap size={10} /> Instant Reward
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Feature 2: Games */}
-                        <div className="p-6 rounded-3xl bg-gradient-to-br from-card to-void border border-border-base relative overflow-hidden group hover:border-purple-500/50 transition-all">
-                            <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-transform group-hover:scale-110">
-                                <Gamepad2 size={100} />
-                            </div>
-                            <div className="relative z-10">
-                                <div className="w-10 h-10 bg-purple-500/20 text-purple-400 rounded-lg flex items-center justify-center mb-4">
-                                    <Gamepad2 size={20} />
-                                </div>
-                                <h3 className="text-lg font-bold text-white mb-1">Game Zone</h3>
-                                <p className="text-xs text-muted leading-relaxed mb-4">
-                                    Play Crash, Dice, Spin Wheel and Ludo. Fair algorithms with high win rates.
-                                </p>
-                                <div className="flex items-center gap-2 text-[10px] text-purple-400 font-bold bg-purple-500/10 w-fit px-2 py-1 rounded">
-                                    <Award size={10} /> Play to Earn
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Feature 3: Invest */}
-                        <div className="p-6 rounded-3xl bg-gradient-to-br from-card to-void border border-border-base relative overflow-hidden group hover:border-emerald-500/50 transition-all">
-                            <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-transform group-hover:scale-110">
-                                <TrendingUp size={100} />
-                            </div>
-                            <div className="relative z-10">
-                                <div className="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-lg flex items-center justify-center mb-4">
-                                    <TrendingUp size={20} />
-                                </div>
-                                <h3 className="text-lg font-bold text-white mb-1">Smart Invest</h3>
-                                <p className="text-xs text-muted leading-relaxed mb-4">
-                                    Invest in virtual assets or business crowdfunding for daily passive income.
-                                </p>
-                                <div className="flex items-center gap-2 text-[10px] text-emerald-400 font-bold bg-emerald-500/10 w-fit px-2 py-1 rounded">
-                                    <DollarSign size={10} /> Passive Income
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* LIVE STATS SCROLL */}
-                <div className="overflow-hidden py-4 border-y border-white/5 bg-black/20">
-                    <div className="flex gap-8 items-center animate-marquee whitespace-nowrap text-xs font-mono text-muted uppercase">
-                        <span><span className="text-emerald-400">●</span> 5,230 Users Online</span>
-                        <span><span className="text-brand">●</span> $14,200 Paid Today</span>
-                        <span><span className="text-purple-400">●</span> 98% Win Rate</span>
-                        <span><span className="text-yellow-400">●</span> Server Latency: 24ms</span>
-                        <span><span className="text-emerald-400">●</span> 5,230 Users Online</span>
-                        <span><span className="text-brand">●</span> $14,200 Paid Today</span>
-                    </div>
+        <div className="pb-0 pt-0 min-h-screen bg-void relative overflow-x-hidden font-sans selection:bg-brand selection:text-white flex flex-col justify-center items-center">
+             <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand/20 via-void to-void"></div>
+             <main className="relative z-10 px-6 max-w-md w-full space-y-8 text-center">
+                <div className="w-20 h-20 bg-brand rounded-2xl mx-auto flex items-center justify-center shadow-glow">
+                    <span className="text-4xl font-black text-white">N</span>
                 </div>
-
-                <div className="pb-12"></div>
-
+                <div>
+                    <h1 className="text-4xl font-black text-white mb-2">Welcome to Naxxivo</h1>
+                    <p className="text-muted text-sm">The all-in-one platform for earning, gaming, and investing.</p>
+                </div>
+                <div className="space-y-3 w-full">
+                    <Link to="/signup" className="block w-full py-4 bg-brand text-white font-bold rounded-xl shadow-lg hover:scale-[1.02] transition">
+                        Create Account
+                    </Link>
+                    <Link to="/login" className="block w-full py-4 bg-card border border-border-base text-main font-bold rounded-xl">
+                        Log In
+                    </Link>
+                </div>
              </main>
         </div>
       );
   }
 
-  // --- USER DASHBOARD VIEW (LOGGED IN) ---
+  // --- USER DASHBOARD (GRID LAYOUT) ---
   return (
-    <MotionDiv variants={container} initial="hidden" animate="show" className="space-y-6 px-4 pb-2 pt-2">
+    <MotionDiv variants={container} initial="hidden" animate="show" className="space-y-6 pb-20 pt-2">
       {user && <DailyBonus userId={user.id} />}
 
-      <MotionDiv variants={item} className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-card border border-border-base rounded-full flex items-center justify-center relative overflow-hidden">
-                  <SmartImage src={user?.avatar_1 || undefined} alt={user?.name_1 || "User"} className="w-full h-full object-cover" fallbackSrc={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name_1}`} />
-              </div>
-              <div>
-                  <h2 className="font-bold text-main leading-tight text-base">{user?.name_1 || 'User'}</h2>
-                  <div className="flex items-center gap-2">
-                      <span className="text-[10px] bg-brand/10 text-brand px-1.5 py-0.5 rounded font-bold uppercase">Lvl {user?.level_1 || 1}</span>
-                      <span className="text-[10px] text-muted">{user?.rank_1 || 'Rookie'}</span>
+      {/* 1. Header & Balance */}
+      <MotionDiv variants={item} className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full overflow-hidden border border-border-base bg-card">
+                      <SmartImage src={user?.avatar_1} alt="User" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                      <p className="text-xs text-muted">Welcome back,</p>
+                      <h2 className="font-bold text-main leading-tight">{user?.name_1?.split(' ')[0]}</h2>
                   </div>
               </div>
+              <div className="px-3 py-1.5 bg-card border border-border-base rounded-full flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  <span className="text-[10px] font-bold text-muted uppercase">Lvl {user?.level_1 || 1}</span>
+              </div>
           </div>
-          <Link to="/profile" className="p-2 bg-card border border-border-base rounded-xl text-muted hover:text-main transition">
-              <ArrowRight size={18} />
-          </Link>
+
+          <GlassCard className="p-5 border-brand/30 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10"><DollarSign size={80} /></div>
+              <p className="text-[10px] text-muted font-bold uppercase mb-1">Total Assets</p>
+              <h1 className="text-3xl font-black text-main tracking-tight mb-4">
+                  <BalanceDisplay amount={wallet?.balance || 0} />
+              </h1>
+              <div className="flex gap-2">
+                  <Link to="/deposit" className="flex-1 py-2 bg-brand text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-lg active:scale-95 transition">
+                      <ArrowDownLeft size={14}/> Deposit
+                  </Link>
+                  <Link to="/withdraw" className="flex-1 py-2 bg-white/10 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition">
+                      <ArrowUpRight size={14}/> Withdraw
+                  </Link>
+              </div>
+          </GlassCard>
       </MotionDiv>
 
+      {/* 2. Earning Zone */}
       <MotionDiv variants={item}>
-        <GlassCard className="p-6 relative overflow-hidden border-brand/30">
-            {/* Ambient Background Glow */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-brand/20 blur-[50px] rounded-full pointer-events-none"></div>
-            
-            <div className="flex justify-between items-start mb-6 relative z-10">
-                <div>
-                    <p className="text-[10px] text-muted font-bold uppercase mb-1 tracking-wider">Total Balance</p>
-                    <h1 className="text-3xl sm:text-4xl font-black text-main tracking-tight"><BalanceDisplay amount={wallet?.balance || 0} /></h1>
-                </div>
-                <div className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-lg text-[10px] font-bold border border-emerald-500/20 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> LIVE
-                </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-6 relative z-10">
-                <div className="bg-black/30 p-3 rounded-xl border border-white/5 backdrop-blur-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                        <ArrowDownLeft size={12} className="text-blue-400" />
-                        <p className="text-[9px] text-muted uppercase font-bold">Invested</p>
-                    </div>
-                    <p className="font-bold text-white text-sm font-mono"><BalanceDisplay amount={wallet?.deposit || 0} /></p>
-                </div>
-                <div className="bg-black/30 p-3 rounded-xl border border-white/5 backdrop-blur-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                        <ArrowUpRight size={12} className="text-emerald-400" />
-                        <p className="text-[9px] text-muted uppercase font-bold">Earnings</p>
-                    </div>
-                    <p className="font-bold text-emerald-400 text-sm font-mono">+<BalanceDisplay amount={wallet?.total_earning || 0} /></p>
-                </div>
-            </div>
-
-            <div className="flex gap-3 relative z-10">
-                {isFeatureEnabled('is_deposit_enabled') ? (
-                    <Link to="/deposit" className="flex-1 py-3.5 bg-brand text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-brand-hover shadow-lg shadow-brand/20 transition active:scale-95">
-                      <ArrowDownLeft size={16} /> Deposit
-                    </Link>
-                ) : <button disabled className="flex-1 py-3.5 bg-input text-muted rounded-xl font-bold text-sm cursor-not-allowed opacity-50">Deposit</button>}
-                
-                {isFeatureEnabled('is_withdraw_enabled') ? (
-                    <Link to="/withdraw" className="flex-1 py-3.5 bg-card border border-border-base text-main font-bold text-sm rounded-xl flex items-center justify-center gap-2 hover:bg-input transition active:scale-95">
-                      <ArrowUpRight size={16} /> Withdraw
-                    </Link>
-                ) : <button disabled className="flex-1 py-3.5 bg-input text-muted rounded-xl font-bold text-sm cursor-not-allowed opacity-50">Withdraw</button>}
-            </div>
-        </GlassCard>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 px-1">Earning Zone</h3>
+          <div className="grid grid-cols-4 gap-2">
+              <ShortcutItem to="/tasks" icon={Briefcase} color="text-yellow-400" bg="bg-yellow-400/10" label="Tasks" />
+              <ShortcutItem to="/invest" icon={TrendingUp} color="text-green-400" bg="bg-green-400/10" label="Invest" />
+              <ShortcutItem to="/video" icon={Play} color="text-red-400" bg="bg-red-400/10" label="Watch" />
+              <ShortcutItem to="/invite" icon={Users} color="text-blue-400" bg="bg-blue-400/10" label="Invite" />
+          </div>
       </MotionDiv>
 
+      {/* 3. Entertainment */}
       <MotionDiv variants={item}>
-        <div className="grid grid-cols-4 gap-3">
-            {[
-                { name: 'Invite', icon: 'INVITE 4K.jpg', path: '/invite', enabled: isFeatureEnabled('is_invite_enabled') },
-                { name: 'Games', icon: 'GAMES 4K.jpg', path: '/games', enabled: isFeatureEnabled('is_games_enabled') },
-                { name: 'Rank', icon: 'RANK 4K.jpg', path: '/leaderboard', enabled: true },
-                { name: 'Tasks', icon: 'TASKS 4K.jpg', path: '/tasks', enabled: isFeatureEnabled('is_tasks_enabled') }
-            ].map((nav, i) => nav.enabled && (
-              <Link key={i} to={nav.path} className="flex flex-col items-center gap-2 group cursor-pointer active:scale-95 transition-transform">
-                <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-md border border-border-base bg-card relative">
-                    <SmartImage src={`https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/${nav.icon}`} alt={nav.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                </div>
-                <span className="text-[10px] font-bold text-muted uppercase group-hover:text-brand transition-colors">{nav.name}</span>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 px-1">Entertainment</h3>
+          <div className="grid grid-cols-2 gap-3">
+              <Link to="/games" className="p-4 rounded-2xl bg-gradient-to-br from-purple-900/40 to-card border border-purple-500/20 flex items-center justify-between group">
+                  <div className="flex flex-col">
+                      <span className="font-bold text-white mb-1">Game Hub</span>
+                      <span className="text-[10px] text-gray-400">Play & Win</span>
+                  </div>
+                  <Gamepad2 size={24} className="text-purple-400 group-hover:scale-110 transition" />
               </Link>
-            ))}
-        </div>
+              <Link to="/leaderboard" className="p-4 rounded-2xl bg-gradient-to-br from-amber-900/40 to-card border border-amber-500/20 flex items-center justify-between group">
+                  <div className="flex flex-col">
+                      <span className="font-bold text-white mb-1">Top Ranked</span>
+                      <span className="text-[10px] text-gray-400">Leaderboard</span>
+                  </div>
+                  <Award size={24} className="text-amber-400 group-hover:scale-110 transition" />
+              </Link>
+          </div>
       </MotionDiv>
 
+      {/* 4. Financial Utilities */}
       <MotionDiv variants={item}>
-         <div className="flex justify-between items-center mb-3 px-1">
-            <h3 className="text-xs font-bold text-muted uppercase tracking-wider">Live Activity</h3>
-            <Link to="/wallet" className="text-[10px] text-brand font-bold hover:underline">View All</Link>
-         </div>
-         <div className="space-y-2">
-            {activities.length === 0 ? <p className="text-xs text-muted px-1 italic">No recent activity found.</p> : activities.map((act) => (
-                <div key={act.id} className="flex justify-between items-center p-3.5 bg-card border border-border-base rounded-xl hover:bg-input transition-colors">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${['withdraw', 'game_loss', 'invest'].includes(act.type) ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                            {['withdraw', 'game_loss', 'invest'].includes(act.type) ? <ArrowUpRight size={14}/> : <ArrowDownLeft size={14}/>}
-                        </div>
-                        <div>
-                            <p className="font-bold text-xs text-main uppercase">{act.title}</p>
-                            <p className="text-[10px] text-muted">{new Date(act.time).toLocaleDateString()}</p>
-                        </div>
-                    </div>
-                    <span className={`text-xs font-mono font-bold ${['withdraw', 'game_loss', 'invest'].includes(act.type) ? 'text-main' : 'text-emerald-400'}`}>
-                        {['withdraw', 'game_loss', 'invest'].includes(act.type) ? '-' : '+'}<BalanceDisplay amount={act.amount} />
-                    </span>
-                </div>
-            ))}
-         </div>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 px-1">Financial</h3>
+          <div className="grid grid-cols-3 gap-2">
+              <div className="bg-card border border-border-base p-3 rounded-xl flex flex-col items-center gap-2" onClick={() => {}}>
+                  <Link to="/send-money" className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
+                      <Send size={18} />
+                  </Link>
+                  <span className="text-[10px] font-bold text-gray-400">Send</span>
+              </div>
+              <div className="bg-card border border-border-base p-3 rounded-xl flex flex-col items-center gap-2">
+                  <Link to="/exchange" className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                      <ArrowRightLeft size={18} />
+                  </Link>
+                  <span className="text-[10px] font-bold text-gray-400">Exchange</span>
+              </div>
+              <div className="bg-card border border-border-base p-3 rounded-xl flex flex-col items-center gap-2">
+                  <Link to="/transfer" className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400">
+                      <RefreshCw size={18} />
+                  </Link>
+                  <span className="text-[10px] font-bold text-gray-400">Transfer</span>
+              </div>
+          </div>
       </MotionDiv>
+
+      {/* 5. Support & More */}
+      <MotionDiv variants={item}>
+          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 px-1">More</h3>
+          <div className="grid grid-cols-4 gap-2">
+              <ShortcutItem to="/search" icon={Search} color="text-gray-300" bg="bg-white/5" label="Search" />
+              <ShortcutItem to="/support" icon={HelpCircle} color="text-gray-300" bg="bg-white/5" label="Help" />
+              <ShortcutItem to="/faq" icon={FileText} color="text-gray-300" bg="bg-white/5" label="FAQ" />
+              <ShortcutItem to="/terms" icon={ShieldCheck} color="text-gray-300" bg="bg-white/5" label="Legal" />
+          </div>
+      </MotionDiv>
+
     </MotionDiv>
   );
 };
+
+const ShortcutItem = ({ to, icon: Icon, color, bg, label }: { to: string, icon: any, color: string, bg: string, label: string }) => (
+    <Link to={to} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-card border border-border-base hover:bg-input transition active:scale-95">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${bg} ${color}`}>
+            <Icon size={18} />
+        </div>
+        <span className="text-[10px] font-bold text-main">{label}</span>
+    </Link>
+);
 
 export default Home;
