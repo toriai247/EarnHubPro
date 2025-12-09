@@ -110,7 +110,7 @@ const Profile: React.FC = () => {
         {/* Profile Header Card */}
         <GlassCard className="flex items-center gap-4 bg-gradient-to-r from-card to-void border-border-highlight">
             <div className="w-20 h-20 rounded-full border-2 border-brand p-0.5">
-                <SmartImage src={user?.avatar_1} className="w-full h-full rounded-full object-cover bg-black" />
+                <SmartImage src={user?.avatar_1 || undefined} className="w-full h-full rounded-full object-cover bg-black" />
             </div>
             <div className="flex-1">
                 <h2 className="text-xl font-bold text-main">{user?.name_1}</h2>

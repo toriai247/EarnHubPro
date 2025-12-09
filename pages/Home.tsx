@@ -108,7 +108,7 @@ const Home: React.FC = () => {
           <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full overflow-hidden border border-border-base bg-card">
-                      <SmartImage src={user?.avatar_1} alt="User" className="w-full h-full object-cover" />
+                      <SmartImage src={user?.avatar_1 || undefined} alt="User" className="w-full h-full object-cover" />
                   </div>
                   <div>
                       <p className="text-xs text-muted">Welcome back,</p>
