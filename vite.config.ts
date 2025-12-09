@@ -7,7 +7,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // Removed "@" alias to prevent resolution conflicts in web container environment
+      // Use __dirname for the root directory in a flat structure
+      '@': path.resolve(__dirname),
     },
   },
   server: {
@@ -20,14 +21,17 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ["recharts", "lucide-react", "framer-motion"]
+    include: ["recharts", "lucide-react", "framer-motion", "@supabase/supabase-js"]
   },
   build: {
     outDir: 'dist',
-    sourcemap: false, // Disable sourcemaps in production to save build size
+    sourcemap: false,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-ui': ['framer-motion', 'lucide-react', 'recharts', 'canvas-confetti'],

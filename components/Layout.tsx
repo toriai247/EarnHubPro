@@ -14,11 +14,10 @@ import SuspendedView from './SuspendedView';
 import { useUI } from '../context/UIContext';
 import Logo from './Logo';
 import ReviewModal from './ReviewModal';
-import Footer from './Footer'; // Import Footer
+import Footer from './Footer'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '../types';
 
-// Static Alert Banner
 const GlobalAlertBanner = ({ message }: { message: string }) => {
     if (!message) return null;
 
@@ -76,13 +75,10 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const isVideoPage = location.pathname === '/video';
   const isGuest = !session;
 
-  // Automatically close menu when route changes
-  // Using 'location' instead of 'location.pathname' ensures it triggers on all nav events
   useEffect(() => {
       setIsMenuOpen(false);
   }, [location]);
 
-  // --- DEALER NAVIGATION ---
   const dealerNavItems = [
       { path: '/dealer/dashboard', icon: BarChart3, label: 'DASH' },
       { path: '/dealer/campaigns', icon: Briefcase, label: 'ADS' },
@@ -90,7 +86,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       { path: '/dealer/profile', icon: User, label: 'CORP' },
   ];
 
-  // Normal User Navigation
   const userNavItems = [
     { path: '/', icon: Home, label: 'HUB', enabled: true },
     { path: '/tasks', icon: Globe, label: 'EARN', enabled: isFeatureEnabled('is_tasks_enabled'), protected: true },
@@ -99,8 +94,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
     { path: '/profile', icon: User, label: 'ME', enabled: true, protected: true },
   ].filter(i => i.enabled);
 
-  // Determine active nav based on role
-  // If user is dealer and currently in /dealer route, show dealer nav
   const isDealerRoute = location.pathname.startsWith('/dealer');
   const activeNavItems = (isDealer && isDealerRoute) ? dealerNavItems : userNavItems;
 
@@ -113,7 +106,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       { path: '/games', icon: Gamepad2, label: 'Games', enabled: isFeatureEnabled('is_games_enabled'), protected: true },
       { path: '/search', icon: Search, label: 'Find User', enabled: true },
       { path: '/send-money', icon: Send, label: 'Send Money', enabled: true, protected: true },
-      { path: '/exchange', icon: ArrowRightLeft, label: 'Currency Exchange', enabled: true, protected: true }, // Added Exchange
+      { path: '/exchange', icon: ArrowRightLeft, label: 'Currency Exchange', enabled: true, protected: true },
       { path: '/transfer', icon: RefreshCw, label: 'Transfer Funds', enabled: true, protected: true },
       { path: '/biometric-setup', icon: Fingerprint, label: 'Security Setup', enabled: true, protected: true },
       { path: '/themes', icon: Palette, label: 'Themes', enabled: true },
@@ -135,36 +128,38 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
     }
 
     const fetchData = async () => {
-      // Explicitly cast the returned data
-      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-      const profile = data as UserProfile | null;
-      
-      if (profile) {
-          if (profile.is_suspended) {
-              setIsSuspended(true);
-              return; 
-          }
-          setLevel(profile.level_1);
-          // Fallback to admin_user boolean if role is undefined
-          setIsAdmin(profile.admin_user || profile.role === 'admin');
-          setIsModerator(profile.role === 'moderator');
-          setIsDealer(profile.is_dealer || false);
-          setIsStaff(profile.role === 'staff');
-      }
+      try {
+        const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+        if (error) return; 
 
-      // Fetch appropriate wallet balance
-      // If Dealer, maybe show Deposit Balance? For now showing Main.
-      const [walletRes, notifRes] = await Promise.allSettled([
-        supabase.from('wallets').select('balance').eq('user_id', session.user.id).single(),
-        supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('is_read', false),
-      ]);
+        const profile = data as UserProfile | null;
+        
+        if (profile) {
+            if (profile.is_suspended) {
+                setIsSuspended(true);
+                return; 
+            }
+            setLevel(profile.level_1 || 1);
+            setIsAdmin(!!(profile.admin_user || profile.role === 'admin'));
+            setIsModerator(profile.role === 'moderator');
+            setIsDealer(!!profile.is_dealer);
+            setIsStaff(profile.role === 'staff');
+        }
 
-      if (walletRes.status === 'fulfilled' && (walletRes.value as any).data) {
-          setBalance((walletRes.value as any).data.balance);
-      }
-      if (notifRes.status === 'fulfilled') {
-          // @ts-ignore
-          setUnreadCount((notifRes.value as any).count || 0);
+        const [walletRes, notifRes] = await Promise.allSettled([
+          supabase.from('wallets').select('balance').eq('user_id', session.user.id).single(),
+          supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('is_read', false),
+        ]);
+
+        if (walletRes.status === 'fulfilled' && (walletRes.value as any).data) {
+            setBalance((walletRes.value as any).data.balance || 0);
+        }
+        if (notifRes.status === 'fulfilled') {
+            // @ts-ignore
+            setUnreadCount((notifRes.value as any).count || 0);
+        }
+      } catch (err) {
+        console.error("Layout data fetch error:", err);
       }
     };
 
@@ -179,6 +174,12 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       navigate('/login');
   };
 
+  const handleMenuClose = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setIsMenuOpen(false);
+  };
+
   if (isSuspended) return <SuspendedView session={session} />;
   if (config?.maintenance_mode && !isAdmin) return <MaintenanceScreen />;
 
@@ -190,15 +191,17 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       {!isVideoPage && (
         <header className="sticky top-0 z-40 bg-void/90 backdrop-blur-md border-b border-border-base px-4 py-3 flex justify-between items-center transition-colors duration-500">
           <div className="flex items-center gap-3">
-            {/* --- NEW STYLISH MENU BUTTON --- */}
             <button 
                 onClick={() => setIsMenuOpen(true)}
-                className="group relative flex flex-col justify-center items-end gap-[5px] p-3 rounded-xl bg-[#111] border border-[#222] hover:border-brand/30 hover:bg-brand/5 transition-all duration-300 active:scale-90"
+                className="group relative flex items-center justify-center w-11 h-11 rounded-xl bg-[#111] border border-[#222] hover:border-brand/50 hover:bg-brand/10 transition-all duration-300 active:scale-90"
                 aria-label="Open Menu"
             >
-                <span className="w-5 h-0.5 bg-gray-400 rounded-full group-hover:w-6 group-hover:bg-brand transition-all duration-300"></span>
-                <span className="w-3 h-0.5 bg-gray-400 rounded-full group-hover:w-6 group-hover:bg-brand transition-all duration-300"></span>
-                <span className="w-4 h-0.5 bg-gray-400 rounded-full group-hover:w-6 group-hover:bg-brand transition-all duration-300"></span>
+                <div className="grid grid-cols-2 gap-[3px] group-hover:gap-[4px] transition-all duration-300 p-1">
+                    <span className="w-[5px] h-[5px] rounded-[1px] bg-gray-400 group-hover:bg-brand transition-all duration-300"></span>
+                    <span className="w-[5px] h-[5px] rounded-[1px] bg-gray-400 group-hover:bg-white transition-all duration-300 delay-75"></span>
+                    <span className="w-[5px] h-[5px] rounded-[1px] bg-gray-400 group-hover:bg-white transition-all duration-300 delay-75"></span>
+                    <span className="w-[5px] h-[5px] rounded-[1px] bg-gray-400 group-hover:bg-brand transition-all duration-300"></span>
+                </div>
             </button>
             <Link to="/" className="flex items-center gap-2 active:scale-95 transition-transform">
                 <Logo size="sm" showText={true} />
@@ -212,7 +215,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 </Link>
             ) : (
                 <>
-                    {/* Switch View Button for Dealers */}
                     {isDealer && (
                         <Link 
                             to={isDealerRoute ? "/" : "/dealer/dashboard"} 
@@ -254,11 +256,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
           </motion.div>
         </AnimatePresence>
         
-        {/* GLOBAL FOOTER */}
         {!isVideoPage && <Footer onOpenReview={() => setShowReviewModal(true)} />}
       </main>
 
-      {/* MOBILE NAV */}
       <nav className={`fixed bottom-0 left-0 right-0 z-30 sm:hidden border-t border-border-base pb-safe transition-colors duration-500 ${isDealerRoute ? 'bg-[#1a1500] border-amber-900/30' : 'bg-card'}`}>
         <div className="flex justify-around items-center h-14">
           {activeNavItems.map((item) => {
@@ -285,7 +285,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         </div>
       </nav>
 
-      {/* DESKTOP SIDEBAR */}
       <nav className={`hidden sm:flex fixed left-0 top-0 bottom-0 w-20 border-r border-border-base flex-col items-center py-6 z-30 transition-colors duration-500 ${isDealerRoute ? 'bg-[#0f0a00] border-amber-900/20' : 'bg-card'}`}>
         <div className="mb-8">
             <Logo size="sm" showText={false} />
@@ -329,7 +328,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 key="drawer-menu"
                 initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="relative w-[75%] max-w-[280px] bg-card h-full border-r border-border-base flex flex-col shadow-2xl"
+                className="relative w-[75%] max-w-[280px] bg-card h-full border-r border-border-base flex flex-col shadow-2xl z-[101]"
                 onClick={(e) => e.stopPropagation()}
               >
                   <div className="p-5 border-b border-border-base flex justify-between items-center bg-input/20">
@@ -338,15 +337,15 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                           <span className="font-black text-main tracking-tight">MENU</span>
                       </div>
                       <button 
-                        onClick={() => setIsMenuOpen(false)} 
-                        className="p-2 bg-white/5 rounded-full text-muted hover:text-white hover:bg-red-500/20 active:scale-90 transition-all duration-200"
+                        onClick={handleMenuClose} 
+                        className="p-2 bg-white/5 rounded-full text-muted hover:text-white hover:bg-red-500/20 active:scale-90 transition-all duration-200 z-50 pointer-events-auto"
                         aria-label="Close Menu"
+                        type="button"
                       >
                           <X size={20}/>
                       </button>
                   </div>
                   
-                  {/* Low Data Mode Toggle */}
                   <div className="p-4 bg-input/50 flex items-center justify-between border-b border-border-base">
                       <div className="flex items-center gap-3 text-sm font-medium text-main">
                           <WifiOff size={18} className={lowDataMode ? 'text-brand' : 'text-muted'} />
@@ -375,7 +374,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                               </Link>
                           );
                       })}
-                      {/* Review Trigger Button */}
                       {!isGuest && (
                           <button 
                               onClick={() => { setIsMenuOpen(false); setShowReviewModal(true); }}
