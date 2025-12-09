@@ -114,7 +114,7 @@ const Tasks: React.FC = () => {
      });
 
      // Default remaining to active
-     allTasks.forEach(t => {
+     allTasks.forEach((t: any) => {
          if(!statusMap[t.id]) statusMap[t.id] = 'active';
      });
 

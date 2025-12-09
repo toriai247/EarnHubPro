@@ -287,7 +287,7 @@ const Home: React.FC = () => {
       <MotionDiv variants={item} className="flex items-center justify-between">
           <div className="flex items-center gap-3">
               <div className="w-11 h-11 bg-card border border-border-base rounded-full flex items-center justify-center relative overflow-hidden">
-                  <SmartImage src={user?.avatar_1} alt={user?.name_1 || "User"} className="w-full h-full object-cover" fallbackSrc={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name_1}`} />
+                  <SmartImage src={user?.avatar_1 || undefined} alt={user?.name_1 || "User"} className="w-full h-full object-cover" fallbackSrc={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name_1}`} />
               </div>
               <div>
                   <h2 className="font-bold text-main leading-tight text-base">{user?.name_1 || 'User'}</h2>
