@@ -94,7 +94,23 @@ export interface MarketTask {
   requirements?: TaskRequirement[]; 
   timer_seconds?: number; 
   status: 'active' | 'paused' | 'completed' | 'banned';
+  company_name?: string;
+  is_featured?: boolean;
   created_at: string;
+}
+
+export interface VideoAd {
+    id: string;
+    creator_id: string;
+    title: string;
+    video_url: string;
+    thumbnail_url?: string;
+    duration: number;
+    total_budget: number;
+    remaining_budget: number;
+    cost_per_view: number;
+    status: 'active' | 'paused' | 'completed';
+    created_at: string;
 }
 
 export interface MarketSubmission {
@@ -135,9 +151,9 @@ export interface WalletData {
   deposit: number;
   withdrawable: number;
   total_earning: number;
-  referral_earnings?: number;
   today_earning: number;
   pending_withdraw: number;
+  referral_earnings: number;
   currency?: string;
 }
 

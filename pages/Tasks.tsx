@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
-  CheckCircle2, RefreshCw, Smartphone, PlayCircle, Share2, 
-  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, UploadCloud, ArrowRight, Flame, BadgeCheck, Building2, Star, User
+  BadgeCheck, RefreshCw, Smartphone, Youtube, Share2, 
+  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, UploadCloud, ArrowRight, Flame, Building2, Star, User, MousePointerClick, Download, MessageCircle, ShieldAlert, CheckCircle2
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { MarketTask } from '../types';
@@ -52,26 +52,30 @@ const Tasks: React.FC = () => {
      };
   }, []);
 
-  // Timer Logic
+  // Optimized Timer Logic
   useEffect(() => {
-      if (taskStep === 'timer' && countDown > 0) {
+      if (taskStep === 'timer') {
           if (tabFocused) {
               timerRef.current = setInterval(() => {
                   setCountDown(prev => {
                       if (prev <= 1) {
-                          setTaskStep('verify');
-                          if (timerRef.current) clearInterval(timerRef.current);
+                          clearInterval(timerRef.current);
+                          // Defer state update to next tick to avoid render conflicts
+                          setTimeout(() => setTaskStep('verify'), 0);
                           return 0;
                       }
                       return prev - 1;
                   });
               }, 1000);
           } else {
+              // Pause timer if tab not focused
               if (timerRef.current) clearInterval(timerRef.current);
           }
+      } else {
+          if (timerRef.current) clearInterval(timerRef.current);
       }
       return () => { if(timerRef.current) clearInterval(timerRef.current); };
-  }, [taskStep, countDown, tabFocused]);
+  }, [taskStep, tabFocused]); // Removed countDown dependency to prevent re-renders
 
   const fetchTasks = async () => {
      setLoading(true);
@@ -104,7 +108,7 @@ const Tasks: React.FC = () => {
      // Map Submissions
      mySubs?.forEach((s: any) => {
          if (s.status === 'approved' || s.status === 'pending') {
-             statusMap[s.task_id] = 'approved'; // Treat pending as completed for UI simplicity or differentiate
+             statusMap[s.task_id] = 'approved'; 
          }
      });
 
@@ -258,10 +262,12 @@ const Tasks: React.FC = () => {
 
   const getTaskIcon = (category: string) => {
       switch(category) {
-          case 'social': return <Share2 size={20} className="text-blue-400"/>;
-          case 'video': return <PlayCircle size={20} className="text-red-400"/>;
-          case 'app': return <Smartphone size={20} className="text-purple-400"/>;
-          default: return <Globe size={20} className="text-green-400"/>;
+          case 'social': return <MessageCircle size={24} className="text-blue-400"/>;
+          case 'video': return <Youtube size={24} className="text-red-500"/>;
+          case 'app': return <Download size={24} className="text-purple-400"/>;
+          case 'website': return <MousePointerClick size={24} className="text-cyan-400"/>;
+          case 'seo': return <Search size={24} className="text-orange-400"/>;
+          default: return <Globe size={24} className="text-green-400"/>;
       }
   };
 
@@ -294,7 +300,7 @@ const Tasks: React.FC = () => {
           </div>
 
           <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
-              {['all', 'social', 'video', 'seo', 'app'].map(f => (
+              {['all', 'social', 'video', 'seo', 'app', 'website'].map(f => (
                   <button 
                     key={f}
                     onClick={() => setFilter(f)}
@@ -325,11 +331,11 @@ const Tasks: React.FC = () => {
                 if (status === 'active') {
                     cardStyle = "border-[#222] bg-[#111] hover:bg-[#1a1a1a] hover:border-white/10";
                 } else if (status === 'locked') {
-                    cardStyle = "border-red-900/30 bg-red-950/10";
+                    cardStyle = "border-red-900/20 bg-red-950/10 grayscale";
                     opacity = "opacity-70";
                 } else if (status === 'approved') {
-                    cardStyle = "border-green-900/30 bg-green-950/10";
-                    opacity = "opacity-60";
+                    cardStyle = "border-green-900/20 bg-green-950/10";
+                    opacity = "opacity-80";
                 }
 
                 return (
@@ -340,36 +346,42 @@ const Tasks: React.FC = () => {
                         className={`cursor-pointer relative ${opacity}`}
                         onClick={() => handleOpenTask(task)}
                     >
-                        <GlassCard className={`flex items-center justify-between p-4 group transition border relative overflow-hidden ${cardStyle}`}>
+                        <GlassCard className={`flex items-center justify-between p-4 group transition border relative overflow-hidden rounded-2xl ${cardStyle}`}>
                             
                             {/* BADGES */}
                             <div className="absolute top-0 right-0 flex">
                                 {status === 'locked' && (
-                                    <div className="bg-red-500 text-white text-[8px] font-black px-2 py-0.5 rounded-bl-lg flex items-center gap-1">
-                                        <Lock size={8} /> LOCKED
+                                    <div className="bg-red-500/90 backdrop-blur-md text-white text-[9px] font-black px-3 py-1 rounded-bl-xl flex items-center gap-1.5 shadow-lg border-l border-b border-red-400">
+                                        <ShieldAlert size={10} /> FAILED
                                     </div>
                                 )}
                                 {status === 'approved' && (
-                                    <div className="bg-green-600 text-white text-[8px] font-black px-2 py-0.5 rounded-bl-lg flex items-center gap-1">
-                                        <CheckCircle2 size={8} /> DONE
+                                    <div className="bg-emerald-500/90 backdrop-blur-md text-white text-[9px] font-black px-3 py-1 rounded-bl-xl flex items-center gap-1.5 shadow-lg border-l border-b border-emerald-400">
+                                        <BadgeCheck size={10} /> VERIFIED
                                     </div>
                                 )}
                                 {status === 'active' && isHot && (
-                                    <div className="bg-gradient-to-l from-red-600 to-orange-500 text-white text-[8px] font-black px-2 py-0.5 rounded-bl-lg flex items-center gap-1 shadow-lg">
-                                        <Flame size={8} fill="currentColor"/> HOT
+                                    <div className="bg-gradient-to-l from-red-600 to-orange-500 text-white text-[9px] font-black px-3 py-1 rounded-bl-xl flex items-center gap-1 shadow-lg">
+                                        <Flame size={10} fill="currentColor"/> HOT
                                     </div>
                                 )}
                             </div>
 
                             <div className="flex items-center gap-4">
                                 {/* Icon Box */}
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center border shrink-0 relative ${status === 'locked' ? 'bg-red-900/20 border-red-500/20' : 'bg-black/30 border-[#333]'}`}>
-                                    {status === 'locked' ? <Lock size={20} className="text-red-500"/> : getTaskIcon(task.category)}
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shrink-0 relative transition-all duration-300 ${
+                                    status === 'locked' ? 'bg-red-500/10 border-red-500/30' : 
+                                    status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/30' : 
+                                    'bg-white/5 border-white/10 group-hover:border-white/20 group-hover:bg-white/10'
+                                }`}>
+                                    {status === 'locked' ? <ShieldAlert size={24} className="text-red-500"/> : 
+                                     status === 'approved' ? <BadgeCheck size={24} className="text-emerald-500 fill-emerald-500/20"/> :
+                                     getTaskIcon(task.category)}
                                 </div>
                                 
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-1.5">
-                                        <h3 className={`font-bold text-sm truncate pr-4 ${status === 'approved' ? 'text-gray-500 line-through' : 'text-white'}`}>{task.title}</h3>
+                                        <h3 className={`font-bold text-sm truncate pr-4 ${status === 'approved' ? 'text-gray-400 line-through decoration-emerald-500/50' : 'text-white'}`}>{task.title}</h3>
                                         
                                         {/* INTERACTIVE SPONSOR BADGE */}
                                         {task.company_name && (
@@ -393,8 +405,8 @@ const Tasks: React.FC = () => {
 
                             {/* Reward Display */}
                             {status === 'active' && (
-                                <div className="flex flex-col items-end gap-2 shrink-0 pt-2">
-                                    <div className="bg-green-900/20 border border-green-500/30 px-3 py-1 rounded-lg">
+                                <div className="flex flex-col items-end gap-2 shrink-0 pt-2 pl-2">
+                                    <div className="bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-xl">
                                         <p className="text-green-400 font-black text-xs"><BalanceDisplay amount={task.worker_reward} decimals={3} /></p>
                                     </div>
                                 </div>
@@ -411,7 +423,7 @@ const Tasks: React.FC = () => {
           {selectedTask && (
              <motion.div 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 bg-black/90 flex items-end sm:items-center justify-center p-4" 
+                className="fixed inset-0 z-50 bg-black/90 flex items-end sm:items-center justify-center p-4 backdrop-blur-sm" 
                 onClick={closeModal}
              >
                  <motion.div 
@@ -419,14 +431,15 @@ const Tasks: React.FC = () => {
                     className="bg-[#111] w-full max-w-lg rounded-t-3xl sm:rounded-3xl border border-[#333] p-6 pb-10 sm:pb-6 relative overflow-hidden shadow-2xl max-h-[90vh] flex flex-col" 
                     onClick={(e) => e.stopPropagation()}
                  >
-                     <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-white z-10"><X size={20} /></button>
+                     <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-white z-10 p-2 bg-white/5 rounded-full"><X size={20} /></button>
 
                      {/* STEP 1: DETAILS */}
                      {taskStep === 'details' && (
                          <div className="flex flex-col h-full">
                             <div className="flex flex-col items-center text-center mb-6">
-                                <div className="w-20 h-20 bg-[#222] rounded-3xl flex items-center justify-center text-4xl border border-[#333] shadow-lg mb-4 text-white">
+                                <div className="w-20 h-20 bg-[#1a1a1a] rounded-3xl flex items-center justify-center text-4xl border border-[#333] shadow-lg mb-4 text-white relative">
                                     {getTaskIcon(selectedTask.category)}
+                                    <div className="absolute -bottom-2 -right-2 bg-green-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg">READY</div>
                                 </div>
                                 <h2 className="text-xl font-display font-bold text-white leading-tight mb-2 flex items-center gap-2">
                                     {selectedTask.title}
@@ -439,7 +452,7 @@ const Tasks: React.FC = () => {
                                         Reward: <BalanceDisplay amount={selectedTask.worker_reward} decimals={3} />
                                     </div>
                                     <div className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                                        Sponsor Rate: <BalanceDisplay amount={selectedTask.price_per_action} decimals={2} />
+                                        Time: {selectedTask.timer_seconds}s
                                     </div>
                                 </div>
                             </div>
@@ -482,7 +495,7 @@ const Tasks: React.FC = () => {
                                     onClick={handleStartTask} 
                                     className="py-3.5 bg-white text-black font-black rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2 uppercase tracking-wide shadow-lg"
                                 >
-                                    Accept Task <ArrowRight size={18}/>
+                                    Start Now <ArrowRight size={18}/>
                                 </button>
                             </div>
                          </div>
@@ -530,7 +543,7 @@ const Tasks: React.FC = () => {
                                              <button
                                                 key={idx}
                                                 onClick={() => setSelectedOption(idx)}
-                                                className={`p-3 rounded-xl text-sm text-left transition border ${selectedOption === idx ? 'bg-purple-600 border-purple-500 text-white' : 'bg-[#1a1a1a] border-[#333] text-gray-300 hover:bg-[#222]'}`}
+                                                className={`p-3 rounded-xl text-sm text-left transition border ${selectedOption === idx ? 'bg-purple-600 border-purple-500 text-white shadow-lg' : 'bg-[#1a1a1a] border-[#333] text-gray-300 hover:bg-[#222]'}`}
                                              >
                                                  {opt}
                                              </button>
@@ -542,7 +555,7 @@ const Tasks: React.FC = () => {
                              <button 
                                 onClick={handleSubmit}
                                 disabled={(verifyMode === 'quiz' && selectedOption === null) || isSubmitting}
-                                className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 disabled:opacity-50 mt-4 flex items-center justify-center gap-2"
+                                className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 disabled:opacity-50 mt-4 flex items-center justify-center gap-2 shadow-lg shadow-green-900/20"
                             >
                                  {isSubmitting ? <Loader2 className="animate-spin"/> : 'Submit Verification'}
                             </button>
@@ -580,7 +593,7 @@ const Tasks: React.FC = () => {
               >
                   <motion.div 
                       initial={{ scale: 0.8, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 20 }}
-                      className="bg-[#111] border border-blue-500/30 w-full max-w-sm rounded-2xl p-6 relative shadow-2xl overflow-hidden"
+                      className="bg-[#111] border border-blue-500/30 w-full max-w-sm rounded-3xl p-6 relative shadow-2xl overflow-hidden"
                       onClick={e => e.stopPropagation()}
                   >
                       {/* Glow FX */}

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowDownLeft, ArrowUpRight, ArrowRightLeft, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play, 
-  Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText, Grid
+  Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText, Grid, Eye, EyeOff, History, Wallet, Megaphone
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -23,6 +23,7 @@ const Home: React.FC = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(true);
+  const [showBalance, setShowBalance] = useState(true);
 
   useEffect(() => {
     fetchData();
@@ -76,7 +77,6 @@ const Home: React.FC = () => {
   if (isGuest) {
       return (
         <div className="pb-0 pt-0 min-h-screen bg-black relative overflow-x-hidden font-sans selection:bg-yellow-500 selection:text-black flex flex-col justify-center items-center">
-             {/* True Black Background - No Gradient for OLED */}
              <main className="relative z-10 px-6 max-w-md w-full space-y-10 text-center">
                 <div className="w-20 h-20 bg-black border-2 border-yellow-500 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_20px_rgba(250,204,21,0.2)]">
                     <span className="text-4xl font-black text-yellow-500 tracking-tighter">N</span>
@@ -116,116 +116,126 @@ const Home: React.FC = () => {
       );
   }
 
-  // --- USER DASHBOARD (GRID LAYOUT) ---
+  // --- USER DASHBOARD ---
   return (
-    <MotionDiv variants={container} initial="hidden" animate="show" className="space-y-6 pb-20 pt-2">
+    <MotionDiv variants={container} initial="hidden" animate="show" className="space-y-8 pb-24 pt-4 px-4 sm:px-0">
+      
       {user && <DailyBonus userId={user.id} />}
 
-      {/* 1. Header & Balance */}
-      <MotionDiv variants={item} className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
+      {/* 1. ASSET CARD */}
+      <MotionDiv variants={item}>
+          <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full overflow-hidden border border-border-base bg-card">
+                  <div className="w-10 h-10 rounded-full border border-white/10 bg-white/5 overflow-hidden">
                       <SmartImage src={user?.avatar_1 || undefined} alt="User" className="w-full h-full object-cover" />
                   </div>
                   <div>
-                      <p className="text-xs text-muted">Welcome back,</p>
-                      <h2 className="font-bold text-main leading-tight">{user?.name_1?.split(' ')[0]}</h2>
+                      <p className="text-xs text-gray-400">Hello,</p>
+                      <h2 className="font-bold text-white leading-none">{user?.name_1?.split(' ')[0]}</h2>
                   </div>
               </div>
-              <div className="flex items-center gap-2">
-                  <div className="px-3 py-1.5 bg-card border border-border-base rounded-full flex items-center gap-2">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                      <span className="text-[10px] font-bold text-muted uppercase">Lvl {user?.level_1 || 1}</span>
-                  </div>
-                  <Link to="/menu" className="p-2 bg-card border border-border-base rounded-full text-muted hover:text-white transition active:scale-95">
-                      <Grid size={18} />
-                  </Link>
-              </div>
+              <Link to="/menu" className="p-2 bg-white/5 rounded-full border border-white/5 text-gray-300 hover:text-white transition">
+                  <Grid size={20} />
+              </Link>
           </div>
 
-          <GlassCard className="p-5 border-brand/30 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-10"><DollarSign size={80} /></div>
-              <p className="text-[10px] text-muted font-bold uppercase mb-1">Total Assets</p>
-              <h1 className="text-3xl font-black text-main tracking-tight mb-4">
-                  <BalanceDisplay amount={wallet?.balance || 0} />
-              </h1>
-              <div className="flex gap-2">
-                  <Link to="/deposit" className="flex-1 py-2 bg-brand text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-lg active:scale-95 transition">
-                      <ArrowDownLeft size={14}/> Deposit
-                  </Link>
-                  <Link to="/withdraw" className="flex-1 py-2 bg-white/10 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 border border-white/10 active:scale-95 transition">
-                      <ArrowUpRight size={14}/> Withdraw
-                  </Link>
+          <GlassCard className="p-6 border-yellow-500/20 bg-gradient-to-br from-yellow-900/10 to-black relative overflow-hidden shadow-2xl">
+              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><DollarSign size={120} /></div>
+              
+              <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-2">
+                      <p className="text-[10px] text-yellow-500/80 font-bold uppercase tracking-widest flex items-center gap-1">
+                          Total Balance
+                      </p>
+                      <button onClick={() => setShowBalance(!showBalance)} className="text-gray-500 hover:text-white transition">
+                          {showBalance ? <Eye size={16}/> : <EyeOff size={16}/>}
+                      </button>
+                  </div>
+                  
+                  <h1 className="text-4xl font-black text-white tracking-tight mb-6 font-mono">
+                      {showBalance ? <BalanceDisplay amount={wallet?.balance || 0} /> : '****'}
+                  </h1>
+
+                  <div className="grid grid-cols-2 gap-3">
+                      <Link to="/deposit" className="py-3 bg-green-500 text-black rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-green-400 transition active:scale-95 shadow-lg shadow-green-900/20">
+                          <ArrowDownLeft size={16} strokeWidth={3}/> Deposit
+                      </Link>
+                      <Link to="/withdraw" className="py-3 bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 border border-white/10 hover:bg-white/20 transition active:scale-95">
+                          <ArrowUpRight size={16} strokeWidth={3}/> Withdraw
+                      </Link>
+                  </div>
               </div>
           </GlassCard>
       </MotionDiv>
 
-      {/* 2. Earning Zone */}
+      {/* 2. QUICK OPERATIONS ROW */}
       <MotionDiv variants={item}>
-          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 px-1">Earning Zone</h3>
-          <div className="grid grid-cols-4 gap-2">
-              <ShortcutItem to="/tasks" icon={Briefcase} color="text-yellow-400" bg="bg-yellow-400/10" label="Tasks" />
-              <ShortcutItem to="/invest" icon={TrendingUp} color="text-green-400" bg="bg-green-400/10" label="Invest" />
-              <ShortcutItem to="/video" icon={Play} color="text-red-400" bg="bg-red-400/10" label="Watch" />
-              <ShortcutItem to="/invite" icon={Users} color="text-blue-400" bg="bg-blue-400/10" label="Invite" />
+          <div className="flex justify-between gap-2 overflow-x-auto no-scrollbar pb-2">
+              <QuickAction to="/send-money" icon={Send} label="Send" color="text-blue-400" />
+              <QuickAction to="/transfer" icon={RefreshCw} label="Transfer" color="text-purple-400" />
+              <QuickAction to="/exchange" icon={ArrowRightLeft} label="Exchange" color="text-green-400" />
+              <QuickAction to="/wallet" icon={History} label="History" color="text-orange-400" />
           </div>
       </MotionDiv>
 
-      {/* 3. Entertainment */}
+      {/* 3. START EARNING */}
       <MotionDiv variants={item}>
-          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 px-1">Entertainment</h3>
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Zap size={12} className="text-yellow-500" /> Start Earning
+          </h3>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+              <Link to="/tasks" className="p-4 bg-[#111] border border-white/5 rounded-2xl hover:border-yellow-500/30 transition group relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition"><Briefcase size={40}/></div>
+                  <Briefcase size={24} className="text-yellow-500 mb-2" />
+                  <h4 className="font-bold text-white text-sm">Tasks</h4>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Micro Jobs</p>
+              </Link>
+              <Link to="/invest" className="p-4 bg-[#111] border border-white/5 rounded-2xl hover:border-green-500/30 transition group relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition"><TrendingUp size={40}/></div>
+                  <TrendingUp size={24} className="text-green-500 mb-2" />
+                  <h4 className="font-bold text-white text-sm">Invest</h4>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Grow Assets</p>
+              </Link>
+          </div>
+          <Link to="/video" className="block w-full p-4 bg-gradient-to-r from-red-900/20 to-black border border-red-500/20 rounded-2xl flex items-center justify-between hover:border-red-500/40 transition">
+              <div className="flex items-center gap-3">
+                  <div className="p-2 bg-red-500/10 rounded-lg text-red-500"><Play size={20} /></div>
+                  <div>
+                      <h4 className="font-bold text-white text-sm">Watch & Earn</h4>
+                      <p className="text-[10px] text-gray-400">Get paid for viewing ads</p>
+                  </div>
+              </div>
+              <ArrowRight size={16} className="text-gray-600" />
+          </Link>
+      </MotionDiv>
+
+      {/* 4. PLAY ZONE */}
+      <MotionDiv variants={item}>
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Gamepad2 size={12} className="text-purple-500" /> Play Zone
+          </h3>
           <div className="grid grid-cols-2 gap-3">
-              <Link to="/games" className="p-4 rounded-2xl bg-gradient-to-br from-purple-900/40 to-card border border-purple-500/20 flex items-center justify-between group">
-                  <div className="flex flex-col">
-                      <span className="font-bold text-white mb-1">Game Hub</span>
-                      <span className="text-[10px] text-gray-400">Play & Win</span>
-                  </div>
-                  <Gamepad2 size={24} className="text-purple-400 group-hover:scale-110 transition" />
+              <Link to="/games" className="p-4 bg-gradient-to-br from-purple-900/20 to-black border border-purple-500/20 rounded-2xl hover:scale-[1.02] transition">
+                  <Gamepad2 size={24} className="text-purple-400 mb-2" />
+                  <h4 className="font-bold text-white text-sm">Game Hub</h4>
+                  <p className="text-[10px] text-gray-500">Win Real Cash</p>
               </Link>
-              <Link to="/leaderboard" className="p-4 rounded-2xl bg-gradient-to-br from-amber-900/40 to-card border border-amber-500/20 flex items-center justify-between group">
-                  <div className="flex flex-col">
-                      <span className="font-bold text-white mb-1">Top Ranked</span>
-                      <span className="text-[10px] text-gray-400">Leaderboard</span>
-                  </div>
-                  <Award size={24} className="text-amber-400 group-hover:scale-110 transition" />
+              <Link to="/leaderboard" className="p-4 bg-gradient-to-br from-amber-900/20 to-black border border-amber-500/20 rounded-2xl hover:scale-[1.02] transition">
+                  <Award size={24} className="text-amber-400 mb-2" />
+                  <h4 className="font-bold text-white text-sm">Top 10</h4>
+                  <p className="text-[10px] text-gray-500">Weekly Winners</p>
               </Link>
           </div>
       </MotionDiv>
 
-      {/* 4. Financial Utilities */}
+      {/* 5. ESSENTIALS GRID */}
       <MotionDiv variants={item}>
-          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 px-1">Financial</h3>
-          <div className="grid grid-cols-3 gap-2">
-              <div className="bg-card border border-border-base p-3 rounded-xl flex flex-col items-center gap-2" onClick={() => {}}>
-                  <Link to="/send-money" className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
-                      <Send size={18} />
-                  </Link>
-                  <span className="text-[10px] font-bold text-gray-400">Send</span>
-              </div>
-              <div className="bg-card border border-border-base p-3 rounded-xl flex flex-col items-center gap-2">
-                  <Link to="/exchange" className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                      <ArrowRightLeft size={18} />
-                  </Link>
-                  <span className="text-[10px] font-bold text-gray-400">Exchange</span>
-              </div>
-              <div className="bg-card border border-border-base p-3 rounded-xl flex flex-col items-center gap-2">
-                  <Link to="/transfer" className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400">
-                      <RefreshCw size={18} />
-                  </Link>
-                  <span className="text-[10px] font-bold text-gray-400">Transfer</span>
-              </div>
-          </div>
-      </MotionDiv>
-
-      {/* 5. Support & More */}
-      <MotionDiv variants={item}>
-          <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 px-1">More</h3>
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Essentials</h3>
           <div className="grid grid-cols-4 gap-2">
-              <ShortcutItem to="/search" icon={Search} color="text-gray-300" bg="bg-white/5" label="Search" />
-              <ShortcutItem to="/support" icon={HelpCircle} color="text-gray-300" bg="bg-white/5" label="Help" />
-              <ShortcutItem to="/faq" icon={FileText} color="text-gray-300" bg="bg-white/5" label="FAQ" />
-              <ShortcutItem to="/terms" icon={ShieldCheck} color="text-gray-300" bg="bg-white/5" label="Legal" />
+              <GridItem to="/invite" icon={Users} label="Invite" />
+              <GridItem to="/profile" icon={CheckCircle2} label="Profile" />
+              <GridItem to="/support" icon={HelpCircle} label="Help" />
+              <GridItem to="/menu" icon={Grid} label="More" />
           </div>
       </MotionDiv>
 
@@ -233,12 +243,19 @@ const Home: React.FC = () => {
   );
 };
 
-const ShortcutItem = ({ to, icon: Icon, color, bg, label }: { to: string, icon: any, color: string, bg: string, label: string }) => (
-    <Link to={to} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-card border border-border-base hover:bg-input transition active:scale-95">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${bg} ${color}`}>
-            <Icon size={18} />
+const QuickAction = ({ to, icon: Icon, label, color }: { to: string, icon: any, label: string, color: string }) => (
+    <Link to={to} className="flex flex-col items-center gap-2 min-w-[70px] group">
+        <div className="w-12 h-12 rounded-full bg-[#111] border border-white/5 flex items-center justify-center group-hover:bg-white/5 transition shadow-lg">
+            <Icon size={20} className={color} />
         </div>
-        <span className="text-[10px] font-bold text-main">{label}</span>
+        <span className="text-[10px] font-bold text-gray-400 uppercase group-hover:text-white transition">{label}</span>
+    </Link>
+);
+
+const GridItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
+    <Link to={to} className="flex flex-col items-center justify-center p-3 bg-[#111] border border-white/5 rounded-xl hover:bg-white/5 transition active:scale-95">
+        <Icon size={20} className="text-gray-300 mb-1" />
+        <span className="text-[10px] font-bold text-gray-400">{label}</span>
     </Link>
 );
 
