@@ -4,6 +4,7 @@ import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { PaymentMethod } from '../../types';
 import { Plus, Save, Trash2, Edit2, Power } from 'lucide-react';
+import ImageSelector from '../../components/ImageSelector';
 
 const PaymentSettings: React.FC = () => {
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
@@ -89,10 +90,14 @@ const PaymentSettings: React.FC = () => {
                         <label className="text-xs text-gray-400 block mb-1">Instructions</label>
                         <input type="text" value={form.instruction} onChange={e => setForm({...form, instruction: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-neon-green outline-none" placeholder="e.g. Send Money (Personal)" />
                     </div>
-                    <div>
-                        <label className="text-xs text-gray-400 block mb-1">Logo URL (Optional)</label>
-                        <input type="text" value={form.logo_url} onChange={e => setForm({...form, logo_url: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-neon-green outline-none" placeholder="https://..." />
-                    </div>
+                    
+                    <ImageSelector 
+                        label="Logo / Icon"
+                        value={form.logo_url} 
+                        onChange={(val) => setForm({...form, logo_url: val})} 
+                        placeholder="Select or Upload Logo"
+                    />
+
                     <button type="submit" className="w-full py-3 bg-neon-green text-black font-bold rounded-xl hover:bg-emerald-400 flex items-center justify-center gap-2">
                         {editingId ? <Save size={18}/> : <Plus size={18}/>} {editingId ? 'Update' : 'Create'}
                     </button>

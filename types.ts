@@ -170,6 +170,7 @@ export interface UserProfile {
   badges_1?: string[];
   sec_2fa_1?: boolean;
   admin_user?: boolean;
+  theme_id?: string;
   created_at: string;
 }
 

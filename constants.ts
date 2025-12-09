@@ -46,9 +46,9 @@ export const TASKS: Task[] = [
 ];
 
 export const GAMES: Game[] = [
-  { id: '1', name: 'Space Crash', image: 'https://picsum.photos/100/100?random=1', players: 4203, type: 'crash' },
-  { id: '2', name: 'Royal Wheel', image: 'https://picsum.photos/100/100?random=2', players: 1205, type: 'wheel' },
-  { id: '3', name: 'Mystery Box', image: 'https://picsum.photos/100/100?random=3', players: 850, type: 'slots' },
+  { id: '1', name: 'Space Crash', image: '/images/games/crash.jpg', players: 4203, type: 'crash' },
+  { id: '2', name: 'Royal Wheel', image: '/images/games/spin.jpg', players: 1205, type: 'wheel' },
+  { id: '3', name: 'Mystery Box', image: '/images/games/box.jpg', players: 850, type: 'slots' },
 ];
 
 export const TRANSACTIONS: Transaction[] = [

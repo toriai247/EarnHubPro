@@ -41,14 +41,18 @@ const CreateCampaign: React.FC = () => {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) return;
 
-          // Check balance (Dealers use Deposit Balance)
+          // 1. Fetch Profile for Company Name
+          const { data: profile } = await supabase.from('profiles').select('name_1, is_dealer').eq('id', session.user.id).single();
+          const companyName = profile?.name_1 || 'Dealer';
+
+          // 2. Check balance (Dealers use Deposit Balance)
           const { data: wallet } = await supabase.from('wallets').select('deposit_balance').eq('user_id', session.user.id).single();
           if (!wallet || wallet.deposit_balance < totalCost) {
               toast.error(`Insufficient Deposit Balance. Need ৳${totalCost.toFixed(2)}`);
               return;
           }
 
-          // Deduct & Create
+          // 3. Deduct & Create
           await updateWallet(session.user.id, totalCost, 'decrement', 'deposit_balance');
           await createTransaction(session.user.id, 'invest', totalCost, `Dealer Ad: ${form.title}`);
 
@@ -71,7 +75,9 @@ const CreateCampaign: React.FC = () => {
               proof_type: 'ai_quiz',
               quiz_config: quizConfig,
               timer_seconds: form.timer,
-              status: 'active'
+              status: 'active',
+              company_name: companyName, // Added column
+              is_featured: false // Default false
           });
 
           if (error) throw error;

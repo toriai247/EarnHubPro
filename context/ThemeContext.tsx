@@ -1,7 +1,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../integrations/supabase/client';
 
-export type ThemeId = 'default' | 'premium';
+export type ThemeId = 'default' | 'premium' | 'lite' | 'midnight' | 'terminal' | 'solarized' | 'dracula' | 'material';
 
 interface ThemeContextType {
   theme: ThemeId;
@@ -13,24 +14,49 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeId>(() => {
     const saved = localStorage.getItem('eh_theme_id');
-    return (saved === 'default' || saved === 'premium') ? saved : 'default';
+    const validThemes = ['default', 'premium', 'lite', 'midnight', 'terminal', 'solarized', 'dracula', 'material'];
+    return (validThemes.includes(saved as string)) ? (saved as ThemeId) : 'default';
   });
 
+  // Effect to handle root class changes
   useEffect(() => {
     const root = window.document.documentElement;
-    
-    // Remove all known theme classes
-    root.classList.remove('default', 'premium');
-    
-    // Add selected theme class
+    root.classList.remove('default', 'premium', 'lite', 'midnight', 'terminal', 'solarized', 'dracula', 'material');
     root.classList.add(theme);
-    
-    // Save to local storage
     localStorage.setItem('eh_theme_id', theme);
   }, [theme]);
 
-  const setTheme = (newTheme: ThemeId) => {
+  // Effect to load theme from DB on auth state change
+  useEffect(() => {
+    const loadThemeFromDB = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            const { data } = await supabase
+                .from('profiles')
+                .select('theme_id')
+                .eq('id', session.user.id)
+                .maybeSingle();
+            
+            if (data?.theme_id) {
+                const dbTheme = data.theme_id as ThemeId;
+                const validThemes = ['default', 'premium', 'lite', 'midnight', 'terminal', 'solarized', 'dracula', 'material'];
+                if (validThemes.includes(dbTheme)) {
+                    setThemeState(dbTheme);
+                }
+            }
+        }
+    };
+    loadThemeFromDB();
+  }, []);
+
+  const setTheme = async (newTheme: ThemeId) => {
     setThemeState(newTheme);
+    
+    // Save to DB if logged in
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+        await supabase.from('profiles').update({ theme_id: newTheme }).eq('id', session.user.id);
+    }
   };
 
   return (

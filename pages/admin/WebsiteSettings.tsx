@@ -5,6 +5,7 @@ import { supabase } from '../../integrations/supabase/client';
 import { SystemConfig } from '../../types';
 import { Save, Loader2, Settings, Smartphone, Lock, AlertTriangle, Eye, Image as ImageIcon } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
+import ImageSelector from '../../components/ImageSelector';
 
 const WebsiteSettings: React.FC = () => {
   const { toast } = useUI();
@@ -96,16 +97,13 @@ const WebsiteSettings: React.FC = () => {
                             className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-blue-500 outline-none h-20 resize-none"
                         />
                     </div>
-                    <div>
-                        <label className="text-xs font-bold text-gray-400 mb-1 block">Background Image URL (Optional)</label>
-                        <input 
-                            type="text"
-                            value={config.hero_image_url || ''}
-                            onChange={e => setConfig({...config, hero_image_url: e.target.value})}
-                            placeholder="https://... (Leave empty for default gradient)"
-                            className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-blue-500 outline-none"
-                        />
-                    </div>
+                    
+                    <ImageSelector
+                        label="Background Image (Optional)"
+                        value={config.hero_image_url || ''}
+                        onChange={(val) => setConfig({...config, hero_image_url: val})}
+                        placeholder="Select or Upload Background"
+                    />
                 </div>
             </div>
 

@@ -6,10 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#050505" />
     <meta name="description" content="Naxxivo - Fast, Secure Earning Dashboard">
+    
+    <!-- PWA OPTIMIZATIONS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    
     <title>Naxxivo</title>
     <link rel="manifest" href="/manifest.json" />
-    <link id="favicon" rel="icon" type="image/jpeg" href="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/3d%20(1)%20UP.jpg" />
-    <link rel="apple-touch-icon" href="https://tyhujeggtfpbkpywtrox.supabase.co/storage/v1/object/public/Png%20icons/3d%20(1)%20UP.jpg" />
+    <!-- CHANGED: Local path for favicon -->
+    <link id="favicon" rel="icon" type="image/png" href="/images/favicon.png" />
+    <link rel="apple-touch-icon" href="/images/logo.png" />
     
     <!-- PERFORMANCE OPTIMIZATIONS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,23 +36,16 @@
               display: ['Inter', 'sans-serif'],
             },
             colors: {
-              // Semantic Backgrounds
               'void': 'var(--bg-void)',
               'card': 'var(--bg-card)',
               'panel': 'var(--bg-panel)',
               'input': 'var(--bg-input)',
               'surface': 'var(--bg-card)', 
-
-              // Semantic Text
               'main': 'var(--text-main)',
               'muted': 'var(--text-muted)',
               'highlight': 'var(--text-highlight)',
-
-              // Semantic Borders
               'border-base': 'var(--border-base)',
               'border-highlight': 'var(--border-highlight)',
-
-              // Functional Colors
               'brand': {
                 DEFAULT: 'var(--color-brand)',
                 hover: 'var(--color-brand-hover)',
@@ -85,7 +85,7 @@
                 'scanline': 'scanline 8s linear infinite',
                 'spin-slow': 'spin 12s linear infinite',
                 'float': 'float 6s ease-in-out infinite',
-                'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+                'gradient-x': 'gradient-x 5s ease infinite',
             },
             keyframes: {
                 'bounce-subtle': {
@@ -104,10 +104,16 @@
                     '0%, 100%': { transform: 'translateY(0)' },
                     '50%': { transform: 'translateY(-10px)' },
                 },
-                fadeInUp: {
-                    '0%': { opacity: '0', transform: 'translateY(20px)' },
-                    '100%': { opacity: '1', transform: 'translateY(0)' },
-                }
+                'gradient-x': {
+                    '0%, 100%': {
+                        'background-size': '200% 200%',
+                        'background-position': 'left center'
+                    },
+                    '50%': {
+                        'background-size': '200% 200%',
+                        'background-position': 'right center'
+                    },
+                },
             }
           }
         }
@@ -115,54 +121,147 @@
     </script>
     <style>
       :root {
-        /* GLOBAL DEFAULTS */
         --radius-xl: 0.75rem;
         --radius-2xl: 1rem;
       }
-
-      /* === THEME 1: DARK BLUE (DEFAULT) === */
       .default {
         --bg-void: #050505;
         --bg-card: #111111;
         --bg-panel: #0A0A0A;
         --bg-input: #1A1A1A;
-
         --text-main: #E5E7EB;
         --text-muted: #9CA3AF;
         --text-highlight: #FFFFFF;
-
         --border-base: #262626;
         --border-highlight: #404040;
-
         --color-brand: #0055FF;
         --color-brand-hover: #0044CC;
-
         --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
         --shadow-glow: 0 0 15px rgba(0, 85, 255, 0.3);
       }
-
-      /* === THEME 2: PREMIUM PURPLE (FUTURISTIC) === */
       .premium {
-        --bg-void: #1a0b2e; /* Fallback color */
-        --bg-card: rgba(255, 255, 255, 0.07); /* Glassmorphism */
+        --bg-void: #1a0b2e;
+        --bg-card: rgba(255, 255, 255, 0.07);
         --bg-panel: rgba(20, 10, 40, 0.6);
         --bg-input: rgba(0, 0, 0, 0.2);
-
         --text-main: #FFFFFF;
-        --text-muted: #d4c4ed; /* Soft Purple Grey */
+        --text-muted: #d4c4ed;
         --text-highlight: #FFFFFF;
-
-        --border-base: rgba(141, 77, 255, 0.2); /* Accent Low Opacity */
+        --border-base: rgba(141, 77, 255, 0.2);
         --border-highlight: rgba(141, 77, 255, 0.5);
-
-        --color-brand: #8D4DFF; /* Accent Color */
-        --color-brand-hover: #6A30D9; /* Secondary */
-
+        --color-brand: #8D4DFF;
+        --color-brand-hover: #6A30D9;
         --shadow-card: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
         --shadow-glow: 0 0 25px rgba(141, 77, 255, 0.5);
-        
-        --radius-xl: 1.5rem; /* Rounder corners */
+        --radius-xl: 1.5rem;
         --radius-2xl: 2rem;
+      }
+      
+      /* --- FAST / NO EFFECT THEMES --- */
+      .lite {
+        --bg-void: #F3F4F6;
+        --bg-card: #FFFFFF;
+        --bg-panel: #E5E7EB;
+        --bg-input: #FFFFFF;
+        --text-main: #111827;
+        --text-muted: #4B5563;
+        --text-highlight: #000000;
+        --border-base: #D1D5DB;
+        --border-highlight: #9CA3AF;
+        --color-brand: #2563EB;
+        --color-brand-hover: #1D4ED8;
+        --shadow-card: none;
+        --shadow-glow: none;
+        --radius-xl: 0.5rem;
+        --radius-2xl: 0.5rem;
+      }
+      .midnight {
+        --bg-void: #000000;
+        --bg-card: #121212;
+        --bg-panel: #1A1A1A;
+        --bg-input: #1A1A1A;
+        --text-main: #FFFFFF;
+        --text-muted: #A3A3A3;
+        --text-highlight: #FACC15;
+        --border-base: #333333;
+        --border-highlight: #FACC15;
+        --color-brand: #FACC15;
+        --color-brand-hover: #EAB308;
+        --shadow-card: none;
+        --shadow-glow: none;
+        --radius-xl: 0px;
+        --radius-2xl: 0px;
+      }
+      .terminal {
+        --bg-void: #0C0C0C;
+        --bg-card: #052E16;
+        --bg-panel: #022C22;
+        --bg-input: #064E3B;
+        --text-main: #22C55E;
+        --text-muted: #4ADE80;
+        --text-highlight: #86EFAC;
+        --border-base: #14532D;
+        --border-highlight: #22C55E;
+        --color-brand: #22C55E;
+        --color-brand-hover: #16A34A;
+        --shadow-card: none;
+        --shadow-glow: none;
+        --radius-xl: 0px;
+        --radius-2xl: 0px;
+      }
+      
+      .solarized {
+        --bg-void: #002b36;
+        --bg-card: #073642;
+        --bg-panel: #002b36;
+        --bg-input: #073642;
+        --text-main: #93a1a1;
+        --text-muted: #586e75;
+        --text-highlight: #eee8d5;
+        --border-base: #073642;
+        --border-highlight: #2aa198;
+        --color-brand: #268bd2;
+        --color-brand-hover: #2aa198;
+        --shadow-card: 0 1px 3px 0 rgba(0,0,0,0.1);
+        --shadow-glow: 0 0 10px rgba(38,139,210,0.2);
+        --radius-xl: 0.25rem;
+        --radius-2xl: 0.5rem;
+      }
+
+      .dracula {
+        --bg-void: #282a36;
+        --bg-card: #44475a;
+        --bg-panel: #282a36;
+        --bg-input: #44475a;
+        --text-main: #f8f8f2;
+        --text-muted: #6272a4;
+        --text-highlight: #50fa7b;
+        --border-base: #6272a4;
+        --border-highlight: #bd93f9;
+        --color-brand: #bd93f9;
+        --color-brand-hover: #ff79c6;
+        --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-glow: 0 0 15px rgba(189, 147, 249, 0.4);
+        --radius-xl: 0.5rem;
+        --radius-2xl: 0.75rem;
+      }
+
+      .material {
+        --bg-void: #121212;
+        --bg-card: #1E1E1E;
+        --bg-panel: #1E1E1E;
+        --bg-input: #2C2C2C;
+        --text-main: #E0E0E0;
+        --text-muted: #A0A0A0;
+        --text-highlight: #FFFFFF;
+        --border-base: #333333;
+        --border-highlight: #BB86FC;
+        --color-brand: #BB86FC;
+        --color-brand-hover: #3700B3;
+        --shadow-card: 0 1px 5px rgba(0,0,0,0.2), 0 3px 4px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.14);
+        --shadow-glow: 0 0 8px rgba(187,134,252,0.3);
+        --radius-xl: 4px;
+        --radius-2xl: 8px;
       }
 
       body {
@@ -171,76 +270,66 @@
         -webkit-font-smoothing: antialiased;
         transition: background 0.5s ease, color 0.5s ease;
       }
-
-      /* Premium Gradient Background */
       .premium body {
         background: linear-gradient(135deg, #1a0b2e 0%, #3B2CC9 50%, #0f0518 100%);
         background-attachment: fixed;
       }
-      
-      /* Premium Glass Effect */
       .premium .bg-card {
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.1);
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
       }
-
-      /* Eliminate Scrollbar for cleaner look */
-      ::-webkit-scrollbar {
-        width: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: var(--border-highlight);
-        border-radius: 3px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: var(--text-muted);
-      }
-
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
       
+      /* --- PERFORMANCE OVERRIDES FOR FAST THEMES --- */
+      html.lite *, html.midnight *, html.terminal * {
+          transition: none !important;
+          animation: none !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          box-shadow: none !important;
+      }
+      /* Restore basic hover for usability only color */
+      html.lite button:hover, html.midnight button:hover, html.terminal button:hover {
+          opacity: 0.8;
+      }
+
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border-highlight); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
       .pt-safe { padding-top: env(safe-area-inset-top); }
-
-      /* Utility */
       .text-balance { text-wrap: balance; }
     </style>
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    });
-  }
-</script>
-<script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.25",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.86.2",
-    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
-    "path": "https://aistudiocdn.com/path@^0.12.7",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
-    "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4",
-    "recharts": "https://aistudiocdn.com/recharts@^2.15.0"
-  }
-}
-</script>
-</head>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
+    <script type="importmap">
+    {
+      "imports": {
+        "react/": "https://aistudiocdn.com/react@^19.2.1/",
+        "react": "https://aistudiocdn.com/react@^19.2.1",
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+        "vite": "https://aistudiocdn.com/vite@^7.2.6",
+        "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.25",
+        "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+        "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.86.2",
+        "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
+        "path": "https://aistudiocdn.com/path@^0.12.7",
+        "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+        "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4",
+        "recharts": "https://aistudiocdn.com/recharts@^2.15.0"
+      }
+    }
+    </script>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

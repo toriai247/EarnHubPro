@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Calendar, Globe, MessageSquare
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Calendar, Globe, MessageSquare, Image
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -33,6 +33,7 @@ import VerificationRequest from './VerificationRequest';
 import DailyBonusControl from './DailyBonusControl';
 import SiteManagement from './SiteManagement';
 import ReviewManagement from './ReviewManagement';
+import ImageManager from './ImageManager';
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -60,6 +61,7 @@ const Admin: React.FC = () => {
     { id: 'referrals', icon: GitFork, label: 'Referral Tiers', color: 'text-green-400', path: '/admin/referrals', roles: ['admin'] },
     { id: 'tasks', icon: CheckCircle, label: 'Task Coord', path: '/admin/tasks', roles: ['admin'] },
     { id: 'sites', icon: Globe, label: 'Site Publisher', color: 'text-indigo-400', path: '/admin/sites', roles: ['admin'] },
+    { id: 'images', icon: Image, label: 'Image Assets', color: 'text-pink-400', path: '/admin/images', roles: ['admin'] },
     { id: 'spin', icon: PieChart, label: 'Spin Control', path: '/admin/spin', roles: ['admin'] },
     { id: 'daily_bonus', icon: Calendar, label: 'Daily Login', color: 'text-pink-400', path: '/admin/daily_bonus', roles: ['admin'] },
     { id: 'payment', icon: Banknote, label: 'Payment Methods', path: '/admin/payment', roles: ['admin'] },
@@ -182,6 +184,7 @@ const Admin: React.FC = () => {
           case 'referrals': return <ReferralControl />; 
           case 'tasks': return <TaskManagement />;
           case 'sites': return <SiteManagement />;
+          case 'images': return <ImageManager />;
           case 'spin': return <SpinSettings />;
           case 'daily_bonus': return <DailyBonusControl />;
           case 'payment': return <PaymentSettings />;

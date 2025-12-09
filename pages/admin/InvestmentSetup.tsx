@@ -6,6 +6,7 @@ import { Asset } from '../../types';
 import { Plus, Edit, Trash2, Save, X, TrendingUp, DollarSign, Loader2, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../../context/UIContext';
+import ImageSelector from '../../components/ImageSelector';
 
 const InvestmentSetup: React.FC = () => {
   const { toast, confirm } = useUI();
@@ -184,10 +185,11 @@ const InvestmentSetup: React.FC = () => {
                                 <input required type="number" step="0.01" value={form.current_price} onChange={e => setForm({...form, current_price: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white outline-none" />
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-bold text-gray-400 mb-1">Image URL</label>
-                                <input type="text" value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white outline-none" placeholder="https://..." />
-                            </div>
+                            <ImageSelector 
+                                label="Asset Image"
+                                value={form.image_url} 
+                                onChange={(val) => setForm({...form, image_url: val})} 
+                            />
 
                             {form.type === 'business' && (
                                 <div className="space-y-4 border-t border-white/10 pt-4">

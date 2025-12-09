@@ -2,10 +2,11 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
-import { RefreshCw, ShieldAlert, Zap, AlertCircle, Activity, CheckCircle, Grid, Settings, Plus, Trash2, User, Search, Crosshair, Bot, Edit2, Save, X } from 'lucide-react';
+import { RefreshCw, ShieldAlert, Zap, AlertCircle, Activity, CheckCircle, Grid, Settings, Plus, Trash2, User, Search, Crosshair, Bot, Edit2, Save, X, Play, Users, Dice1 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BalanceDisplay from '../../components/BalanceDisplay';
 import { BotProfile } from '../../types';
+import ImageSelector from '../../components/ImageSelector';
 
 const MotionDiv = motion.div as any;
 
@@ -345,7 +346,7 @@ const GameControl: React.FC = () => {
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                      {bots.map(bot => (
                          <GlassCard key={bot.id} className="flex items-center gap-4 group relative border-white/5 hover:border-purple-500/30">
-                             <img src={bot.avatar} alt={bot.name} className="w-12 h-12 rounded-full border-2 border-white/10" />
+                             <img src={bot.avatar} alt={bot.name} className="w-12 h-12 rounded-full border-2 border-white/10 object-cover" />
                              <div className="flex-1">
                                  <h4 className="font-bold text-white">{bot.name}</h4>
                                  <span className={`text-[10px] px-2 py-0.5 rounded ${bot.is_active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
@@ -384,10 +385,12 @@ const GameControl: React.FC = () => {
                                  <input required type="text" value={botForm.name} onChange={e => setBotForm({...botForm, name: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" />
                              </div>
                              
-                             <div>
-                                 <label className="text-xs text-gray-400 block mb-1">Avatar URL (Optional)</label>
-                                 <input type="text" value={botForm.avatar} onChange={e => setBotForm({...botForm, avatar: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none" placeholder="https://..." />
-                             </div>
+                             <ImageSelector
+                                label="Bot Avatar"
+                                value={botForm.avatar} 
+                                onChange={(val) => setBotForm({...botForm, avatar: val})}
+                                placeholder="Select or Upload Avatar"
+                             />
 
                              <div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg">
                                  <input type="checkbox" checked={botForm.is_active} onChange={e => setBotForm({...botForm, is_active: e.target.checked})} className="w-5 h-5 accent-purple-500" />

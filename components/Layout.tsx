@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, PieChart, Gamepad2, User, Bell, Trophy, Menu, X, 
   ArrowRightLeft, Wallet, HelpCircle, FileText, Headphones, LogOut, 
-  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle, Users, Palette, MessageSquare, WifiOff
+  ChevronRight, Fingerprint, LayoutDashboard, Send, Search, LogIn, Megaphone, ShieldAlert, Info, AlertTriangle, Globe, Briefcase, BarChart3, PlusCircle, Users, Palette, MessageSquare, WifiOff, RefreshCw
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import BalanceDisplay from './BalanceDisplay';
@@ -14,6 +14,7 @@ import SuspendedView from './SuspendedView';
 import { useUI } from '../context/UIContext';
 import Logo from './Logo';
 import ReviewModal from './ReviewModal';
+import Footer from './Footer'; // Import Footer
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '../types';
 
@@ -75,6 +76,11 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const isVideoPage = location.pathname === '/video';
   const isGuest = !session;
 
+  // Automatically close menu when route changes
+  useEffect(() => {
+      setIsMenuOpen(false);
+  }, [location.pathname]);
+
   // --- DEALER NAVIGATION ---
   const dealerNavItems = [
       { path: '/dealer/dashboard', icon: BarChart3, label: 'DASH' },
@@ -106,7 +112,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       { path: '/games', icon: Gamepad2, label: 'Games', enabled: isFeatureEnabled('is_games_enabled'), protected: true },
       { path: '/search', icon: Search, label: 'Find User', enabled: true },
       { path: '/send-money', icon: Send, label: 'Send Money', enabled: true, protected: true },
-      { path: '/transfer', icon: ArrowRightLeft, label: 'Transfer Funds', enabled: true, protected: true },
+      { path: '/exchange', icon: ArrowRightLeft, label: 'Currency Exchange', enabled: true, protected: true }, // Added Exchange
+      { path: '/transfer', icon: RefreshCw, label: 'Transfer Funds', enabled: true, protected: true },
       { path: '/biometric-setup', icon: Fingerprint, label: 'Security Setup', enabled: true, protected: true },
       { path: '/themes', icon: Palette, label: 'Themes', enabled: true },
       { path: '/support', icon: Headphones, label: 'Support', enabled: true },
@@ -232,7 +239,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         </header>
       )}
 
-      <main className={`flex-1 ${!isVideoPage ? 'pt-4' : ''} w-full max-w-5xl mx-auto sm:px-4 sm:pl-24 overflow-x-hidden`}>
+      <main className={`flex-1 ${!isVideoPage ? 'pt-4' : ''} w-full max-w-5xl mx-auto sm:px-4 sm:pl-24 overflow-x-hidden flex flex-col`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
@@ -240,11 +247,14 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.15, ease: "linear" }}
-            className="w-full h-full"
+            className="w-full flex-1"
           >
             {children}
           </motion.div>
         </AnimatePresence>
+        
+        {/* GLOBAL FOOTER */}
+        {!isVideoPage && <Footer onOpenReview={() => setShowReviewModal(true)} />}
       </main>
 
       {/* MOBILE NAV */}
@@ -307,7 +317,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
       {/* DRAWER MENU */}
       <AnimatePresence>
       {isMenuOpen && (
-          <div className="fixed inset-0 z-50 flex">
+          <div className="fixed inset-0 z-[100] flex">
               <motion.div 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
@@ -318,6 +328,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="relative w-[75%] max-w-[280px] bg-card h-full border-r border-border-base flex flex-col shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
               >
                   <div className="p-5 border-b border-border-base flex justify-between items-center bg-input/20">
                       <div className="flex items-center gap-2">
@@ -327,6 +338,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                       <button 
                         onClick={() => setIsMenuOpen(false)} 
                         className="p-2 bg-white/5 rounded-full text-muted hover:text-white hover:bg-red-500/20 active:scale-90 transition-all duration-200"
+                        aria-label="Close Menu"
                       >
                           <X size={20}/>
                       </button>

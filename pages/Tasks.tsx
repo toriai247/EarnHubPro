@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
-  CheckCircle2, ExternalLink, RefreshCw, Smartphone, PlayCircle, Share2, 
-  Globe, Search, Loader2, Star, PenTool, Lock, X, Clock, AlertTriangle, ShieldCheck, HelpCircle, Bot, UploadCloud
+  CheckCircle2, RefreshCw, Smartphone, PlayCircle, Share2, 
+  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, UploadCloud, ArrowRight, Flame, BadgeCheck, Building2, Star, User
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { MarketTask } from '../types';
@@ -13,14 +13,16 @@ import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type TaskStatus = 'todo' | 'pending' | 'approved' | 'rejected' | 'locked';
+type TaskStatus = 'active' | 'pending' | 'approved' | 'rejected' | 'locked';
 
 const Tasks: React.FC = () => {
   const { toast } = useUI();
   const [loading, setLoading] = useState(true);
-  const [tasks, setTasks] = useState<MarketTask[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]); 
   const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({});
-  const [selectedTask, setSelectedTask] = useState<MarketTask | null>(null);
+  
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [selectedSponsor, setSelectedSponsor] = useState<any | null>(null); // For Sponsor Modal
   const [filter, setFilter] = useState('all');
   
   // Task Execution State
@@ -57,7 +59,7 @@ const Tasks: React.FC = () => {
               timerRef.current = setInterval(() => {
                   setCountDown(prev => {
                       if (prev <= 1) {
-                          setTaskStep('verify'); // Move to Verification
+                          setTaskStep('verify');
                           if (timerRef.current) clearInterval(timerRef.current);
                           return 0;
                       }
@@ -67,8 +69,6 @@ const Tasks: React.FC = () => {
           } else {
               if (timerRef.current) clearInterval(timerRef.current);
           }
-      } else {
-          if (timerRef.current) clearInterval(timerRef.current);
       }
       return () => { if(timerRef.current) clearInterval(timerRef.current); };
   }, [taskStep, countDown, tabFocused]);
@@ -78,12 +78,11 @@ const Tasks: React.FC = () => {
      const { data: { session } } = await supabase.auth.getSession();
      if(!session) return;
 
-     // 1. Get Active Tasks
+     // 1. Get All Tasks (Active in system)
      const { data: allTasks } = await supabase
         .from('marketplace_tasks')
         .select('*')
         .eq('status', 'active')
-        .gt('remaining_quantity', 0)
         .order('worker_reward', {ascending: false});
      
      if (!allTasks) { setLoading(false); return; }
@@ -102,23 +101,39 @@ const Tasks: React.FC = () => {
      
      const statusMap: Record<string, TaskStatus> = {};
      
-     attempts?.forEach((a: any) => {
-         if (a.is_locked) statusMap[a.task_id] = 'locked';
+     // Map Submissions
+     mySubs?.forEach((s: any) => {
+         if (s.status === 'approved' || s.status === 'pending') {
+             statusMap[s.task_id] = 'approved'; // Treat pending as completed for UI simplicity or differentiate
+         }
      });
 
-     mySubs?.forEach((s: any) => {
-         if (s.status === 'approved') statusMap[s.task_id] = 'approved';
-         else if (s.status === 'pending') statusMap[s.task_id] = 'pending';
+     // Map Locks
+     attempts?.forEach((a: any) => { 
+         if (a.is_locked) statusMap[a.task_id] = 'locked'; 
+     });
+
+     // Default remaining to active
+     allTasks.forEach(t => {
+         if(!statusMap[t.id]) statusMap[t.id] = 'active';
      });
 
      setTaskStatuses(statusMap);
-     setTasks(allTasks as MarketTask[]);
+     setTasks(allTasks);
      setLoading(false);
   };
 
-  const handleOpenTask = async (task: MarketTask) => {
-      const status = taskStatuses[task.id] || 'todo';
-      if (status !== 'todo') return; 
+  const handleOpenTask = async (task: any) => {
+      const status = taskStatuses[task.id];
+      
+      if (status === 'locked') {
+          toast.error("This task is locked due to failed attempts.");
+          return;
+      }
+      if (status === 'approved') {
+          toast.info("You have already completed this task.");
+          return;
+      }
 
       setSelectedTask(task);
       setTaskStep('details');
@@ -135,6 +150,18 @@ const Tasks: React.FC = () => {
               setAttemptsLeft(2);
           }
       }
+  };
+
+  // Open Sponsor Details
+  const handleOpenSponsor = (e: React.MouseEvent, task: any) => {
+      e.stopPropagation(); // Prevent opening task modal
+      setSelectedSponsor({
+          name: task.company_name || 'Verified Partner',
+          id: task.creator_id,
+          joined: '2024',
+          trustScore: 98,
+          totalPayouts: task.total_quantity * task.worker_reward
+      });
   };
 
   const handleStartTask = () => {
@@ -154,28 +181,14 @@ const Tasks: React.FC = () => {
       let isManualReview = false;
       let failReason = "Incorrect Answer";
 
-      // LOGIC FOR QUIZ
       if (verifyMode === 'quiz' && selectedOption !== null) {
           const quiz = selectedTask.quiz_config;
           if (quiz && selectedOption === quiz.correct_index) {
               isSuccess = true;
           }
-      } 
-      // LOGIC FOR IMAGE
-      else if (verifyMode === 'image' && screenshot) {
-          try {
-              // 1. Upload
-              const fileExt = screenshot.name.split('.').pop();
-              const fileName = `subs/${session.user.id}_${selectedTask.id}_${Date.now()}.${fileExt}`;
-              const { error: uploadError } = await supabase.storage.from('task-proofs').upload(fileName, screenshot);
-              if (uploadError) throw uploadError;
-              
-              // Image submissions are always sent to manual review now (AI Removed)
-              isManualReview = true;
-              isSuccess = true; // Technically submission successful, but pending approval
-          } catch (e: any) {
-              failReason = "Upload Error";
-          }
+      } else if (verifyMode === 'image' && screenshot) {
+          isManualReview = true;
+          isSuccess = true; 
       }
 
       if (isSuccess) {
@@ -191,13 +204,11 @@ const Tasks: React.FC = () => {
               });
 
               if (!isManualReview) {
-                  // Instant Approval (Quiz)
                   await supabase.rpc('decrement_task_quantity', { task_id: selectedTask.id });
                   await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'earning_balance');
                   await createTransaction(session.user.id, 'earn', selectedTask.worker_reward, `Task: ${selectedTask.title}`);
                   toast.success("Verified! Reward Credited.");
               } else {
-                  // Manual Review
                   toast.success("Submitted for Review.");
               }
               
@@ -209,7 +220,6 @@ const Tasks: React.FC = () => {
               toast.error("Error: " + e.message);
           }
       } else {
-          // Failure Path (Only for Quiz Mismatch)
           const newAttempts = attemptsLeft - 1;
           setAttemptsLeft(newAttempts);
           
@@ -251,41 +261,22 @@ const Tasks: React.FC = () => {
           case 'social': return <Share2 size={20} className="text-blue-400"/>;
           case 'video': return <PlayCircle size={20} className="text-red-400"/>;
           case 'app': return <Smartphone size={20} className="text-purple-400"/>;
-          case 'seo': return <Search size={20} className="text-orange-400"/>;
           default: return <Globe size={20} className="text-green-400"/>;
       }
   };
 
-  const getStatusBadge = (status: TaskStatus) => {
-      switch (status) {
-          case 'approved':
-              return (
-                  <div className="flex items-center gap-1 bg-green-900/30 text-green-400 px-2 py-1 rounded text-[10px] font-bold uppercase border border-green-500/30">
-                      <CheckCircle2 size={12} /> Completed
-                  </div>
-              );
-          case 'pending':
-              return (
-                  <div className="flex items-center gap-1 bg-yellow-900/30 text-yellow-400 px-2 py-1 rounded text-[10px] font-bold uppercase border border-yellow-500/30">
-                      <Clock size={12} /> In Review
-                  </div>
-              );
-          case 'locked':
-              return (
-                  <div className="flex items-center gap-1 bg-red-900/30 text-red-400 px-2 py-1 rounded text-[10px] font-bold uppercase border border-red-500/30">
-                      <Lock size={12} /> Locked
-                  </div>
-              );
-          default:
-              return (
-                  <div className="flex items-center gap-1 bg-white/10 text-white px-2 py-1 rounded text-[10px] font-bold uppercase border border-white/10">
-                      To Do
-                  </div>
-              );
-      }
-  };
-
   const filteredTasks = tasks.filter(t => filter === 'all' || t.category === filter);
+
+  // Sorting: Active first, then Locked, then Completed
+  const sortedTasks = filteredTasks.sort((a, b) => {
+      const statusA = taskStatuses[a.id];
+      const statusB = taskStatuses[b.id];
+      if (statusA === statusB) return 0;
+      if (statusA === 'active') return -1;
+      if (statusB === 'active') return 1;
+      if (statusA === 'locked') return -1;
+      return 1;
+  });
 
   if (loading) return <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6"><Skeleton className="w-48 h-8 mb-4 mx-4" /></div>;
 
@@ -317,45 +308,97 @@ const Tasks: React.FC = () => {
 
       {/* TASK LIST */}
       <div className="space-y-3 px-4 sm:px-0">
-          {filteredTasks.length === 0 ? (
+          {sortedTasks.length === 0 ? (
               <div className="text-center py-16 bg-[#111] rounded-2xl border border-[#222] text-gray-500">
                   <Globe size={40} className="mb-4 opacity-50 mx-auto" />
-                  <p>No tasks available.</p>
+                  <p>No active tasks available.</p>
               </div>
           ) : (
-              filteredTasks.map((task) => {
-                const status = taskStatuses[task.id] || 'todo';
-                const isActionable = status === 'todo';
+              sortedTasks.map((task) => {
+                const status = taskStatuses[task.id];
+                const isHot = task.worker_reward > 5 || task.is_featured;
+                
+                // Style Logic
+                let cardStyle = "border-[#222] bg-[#0f0f0f]";
+                let opacity = "opacity-100";
+                
+                if (status === 'active') {
+                    cardStyle = "border-[#222] bg-[#111] hover:bg-[#1a1a1a] hover:border-white/10";
+                } else if (status === 'locked') {
+                    cardStyle = "border-red-900/30 bg-red-950/10";
+                    opacity = "opacity-70";
+                } else if (status === 'approved') {
+                    cardStyle = "border-green-900/30 bg-green-950/10";
+                    opacity = "opacity-60";
+                }
 
                 return (
                     <motion.div 
                         key={task.id} 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className={`cursor-pointer ${!isActionable ? 'opacity-60' : ''}`}
+                        className={`cursor-pointer relative ${opacity}`}
                         onClick={() => handleOpenTask(task)}
                     >
-                        <GlassCard className={`flex items-center justify-between p-4 group transition border ${isActionable ? 'border-[#222] hover:bg-[#1a1a1a]' : 'border-[#222] bg-[#0f0f0f]'}`}>
+                        <GlassCard className={`flex items-center justify-between p-4 group transition border relative overflow-hidden ${cardStyle}`}>
+                            
+                            {/* BADGES */}
+                            <div className="absolute top-0 right-0 flex">
+                                {status === 'locked' && (
+                                    <div className="bg-red-500 text-white text-[8px] font-black px-2 py-0.5 rounded-bl-lg flex items-center gap-1">
+                                        <Lock size={8} /> LOCKED
+                                    </div>
+                                )}
+                                {status === 'approved' && (
+                                    <div className="bg-green-600 text-white text-[8px] font-black px-2 py-0.5 rounded-bl-lg flex items-center gap-1">
+                                        <CheckCircle2 size={8} /> DONE
+                                    </div>
+                                )}
+                                {status === 'active' && isHot && (
+                                    <div className="bg-gradient-to-l from-red-600 to-orange-500 text-white text-[8px] font-black px-2 py-0.5 rounded-bl-lg flex items-center gap-1 shadow-lg">
+                                        <Flame size={8} fill="currentColor"/> HOT
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-xl bg-black/30 flex items-center justify-center border border-[#333] shrink-0 relative">
-                                    {getTaskIcon(task.category)}
-                                    {status === 'approved' && <div className="absolute -top-1 -right-1 bg-green-500 text-black rounded-full p-0.5"><CheckCircle2 size={10}/></div>}
+                                {/* Icon Box */}
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center border shrink-0 relative ${status === 'locked' ? 'bg-red-900/20 border-red-500/20' : 'bg-black/30 border-[#333]'}`}>
+                                    {status === 'locked' ? <Lock size={20} className="text-red-500"/> : getTaskIcon(task.category)}
                                 </div>
+                                
                                 <div className="min-w-0">
-                                    <h3 className="font-bold text-white text-sm truncate pr-4">{task.title}</h3>
+                                    <div className="flex items-center gap-1.5">
+                                        <h3 className={`font-bold text-sm truncate pr-4 ${status === 'approved' ? 'text-gray-500 line-through' : 'text-white'}`}>{task.title}</h3>
+                                        
+                                        {/* INTERACTIVE SPONSOR BADGE */}
+                                        {task.company_name && (
+                                            <div 
+                                                onClick={(e) => handleOpenSponsor(e, task)}
+                                                className="bg-blue-500/10 hover:bg-blue-500/30 text-blue-400 p-0.5 rounded-full cursor-pointer transition"
+                                                title="Verified Sponsor"
+                                            >
+                                                <BadgeCheck size={14} fill="currentColor" className="text-blue-500" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    
                                     <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                                        <span className="capitalize">{task.category}</span>
+                                        {task.company_name && <span className="text-gray-400 font-medium">{task.company_name}</span>}
                                         <span>•</span>
-                                        <span>{task.timer_seconds}s</span>
+                                        <span className="flex items-center gap-1"><Clock size={10}/> {task.timer_seconds}s</span>
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end gap-2 shrink-0">
-                                {getStatusBadge(status)}
-                                <div className="bg-green-900/20 border border-green-500/30 px-3 py-1 rounded-lg">
-                                    <p className="text-green-400 font-black text-xs"><BalanceDisplay amount={task.worker_reward} decimals={3} /></p>
+
+                            {/* Reward Display */}
+                            {status === 'active' && (
+                                <div className="flex flex-col items-end gap-2 shrink-0 pt-2">
+                                    <div className="bg-green-900/20 border border-green-500/30 px-3 py-1 rounded-lg">
+                                        <p className="text-green-400 font-black text-xs"><BalanceDisplay amount={task.worker_reward} decimals={3} /></p>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </GlassCard>
                     </motion.div>
                 );
@@ -363,7 +406,7 @@ const Tasks: React.FC = () => {
           )}
       </div>
 
-      {/* TASK EXECUTION MODAL */}
+      {/* TASK DETAILS MODAL */}
       <AnimatePresence>
           {selectedTask && (
              <motion.div 
@@ -373,39 +416,76 @@ const Tasks: React.FC = () => {
              >
                  <motion.div 
                     initial={{ y: 50 }} animate={{ y: 0 }} exit={{ y: 50 }}
-                    className="bg-[#111] w-full max-w-lg rounded-t-3xl sm:rounded-3xl border border-[#333] p-6 pb-10 sm:pb-6 relative overflow-hidden shadow-2xl" 
+                    className="bg-[#111] w-full max-w-lg rounded-t-3xl sm:rounded-3xl border border-[#333] p-6 pb-10 sm:pb-6 relative overflow-hidden shadow-2xl max-h-[90vh] flex flex-col" 
                     onClick={(e) => e.stopPropagation()}
                  >
-                     <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={20} /></button>
+                     <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-white z-10"><X size={20} /></button>
 
                      {/* STEP 1: DETAILS */}
                      {taskStep === 'details' && (
-                         <>
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-16 h-16 bg-[#222] rounded-2xl flex items-center justify-center text-3xl border border-[#333] shrink-0">
+                         <div className="flex flex-col h-full">
+                            <div className="flex flex-col items-center text-center mb-6">
+                                <div className="w-20 h-20 bg-[#222] rounded-3xl flex items-center justify-center text-4xl border border-[#333] shadow-lg mb-4 text-white">
                                     {getTaskIcon(selectedTask.category)}
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-white leading-tight">{selectedTask.title}</h2>
-                                    <p className="text-gray-400 text-xs mt-1">Reward: <span className="text-green-400 font-bold">${selectedTask.worker_reward}</span></p>
+                                <h2 className="text-xl font-display font-bold text-white leading-tight mb-2 flex items-center gap-2">
+                                    {selectedTask.title}
+                                    {selectedTask.company_name && <BadgeCheck size={20} className="text-blue-400" fill="black"/>}
+                                </h2>
+                                <p className="text-gray-500 text-xs mb-3">{selectedTask.company_name ? `Verified Offer from ${selectedTask.company_name}` : 'Marketplace Task'}</p>
+                                
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    <div className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                        Reward: <BalanceDisplay amount={selectedTask.worker_reward} decimals={3} />
+                                    </div>
+                                    <div className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                        Sponsor Rate: <BalanceDisplay amount={selectedTask.price_per_action} decimals={2} />
+                                    </div>
                                 </div>
                             </div>
-                            
-                            <div className="bg-blue-900/10 border border-blue-500/20 p-4 rounded-xl mb-6">
-                                <h4 className="text-blue-400 font-bold text-xs uppercase mb-2 flex items-center gap-2">
-                                    <Bot size={14}/> Task Instructions
-                                </h4>
-                                <ul className="text-xs text-gray-300 space-y-1">
-                                    <li>1. Click "Start Task" to open the link.</li>
-                                    <li>2. Stay on the page for <span className="text-white font-bold">{selectedTask.timer_seconds} seconds</span>.</li>
-                                    <li>3. Verify by <strong>Answering a Quiz</strong> or <strong>Uploading a Screenshot</strong>.</li>
-                                </ul>
+
+                            <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
+                                <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                    <h4 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-2">Instructions</h4>
+                                    <p className="text-gray-300 text-sm leading-relaxed">
+                                        {selectedTask.description || "Complete the actions below to verify this task and claim your reward instantly."}
+                                    </p>
+                                </div>
+
+                                <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                    <h4 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-3">Steps</h4>
+                                    <ul className="space-y-3">
+                                        <li className="flex items-start gap-3 text-sm text-gray-300">
+                                            <div className="mt-0.5 min-w-[16px]"><CheckCircle2 size={16} className="text-blue-500" /></div>
+                                            <span>Visit the target link provided.</span>
+                                        </li>
+                                        <li className="flex items-start gap-3 text-sm text-gray-300">
+                                            <div className="mt-0.5 min-w-[16px]"><Clock size={16} className="text-orange-500" /></div>
+                                            <span>Stay on the page for <strong className="text-white">{selectedTask.timer_seconds} seconds</strong>.</span>
+                                        </li>
+                                        <li className="flex items-start gap-3 text-sm text-gray-300">
+                                            <div className="mt-0.5 min-w-[16px]"><ShieldCheck size={16} className="text-purple-500" /></div>
+                                            <span>Complete the verification quiz.</span>
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
 
-                            <button onClick={handleStartTask} className="w-full py-4 bg-white text-black font-black rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2 uppercase tracking-wide">
-                                Start Task <ExternalLink size={18}/>
-                            </button>
-                         </>
+                            <div className="grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-white/10">
+                                <button 
+                                    onClick={closeModal} 
+                                    className="py-3.5 bg-[#222] text-gray-400 font-bold rounded-xl hover:bg-[#333] hover:text-white transition"
+                                >
+                                    Dismiss
+                                </button>
+                                <button 
+                                    onClick={handleStartTask} 
+                                    className="py-3.5 bg-white text-black font-black rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2 uppercase tracking-wide shadow-lg"
+                                >
+                                    Accept Task <ArrowRight size={18}/>
+                                </button>
+                            </div>
+                         </div>
                      )}
 
                      {/* STEP 2: TIMER */}
@@ -425,16 +505,10 @@ const Tasks: React.FC = () => {
                              </div>
                              <h3 className="text-xl font-bold text-white mb-2">Analyzing Content...</h3>
                              <p className="text-gray-400 text-sm">Please keep the task tab open and active.</p>
-                             
-                             {!tabFocused && (
-                                 <div className="mt-4 bg-red-900/20 text-red-400 px-3 py-2 rounded-lg inline-flex items-center gap-2 text-xs font-bold border border-red-500/30 animate-pulse">
-                                     <AlertTriangle size={14}/> Timer Paused! Go back to task tab.
-                                 </div>
-                             )}
                          </div>
                      )}
 
-                     {/* STEP 3: VERIFY (QUIZ OR IMAGE) */}
+                     {/* STEP 3: VERIFY (QUIZ) */}
                      {taskStep === 'verify' && (
                          <div className="space-y-4">
                              <div className="flex justify-between items-center mb-2">
@@ -446,19 +520,13 @@ const Tasks: React.FC = () => {
                                 </span>
                              </div>
 
-                             {/* Toggle Method */}
-                             <div className="flex bg-black/40 p-1 rounded-lg border border-[#333]">
-                                 <button onClick={() => setVerifyMode('quiz')} className={`flex-1 py-2 text-xs font-bold rounded transition ${verifyMode === 'quiz' ? 'bg-[#333] text-white' : 'text-gray-500'}`}>Answer Quiz</button>
-                                 <button onClick={() => setVerifyMode('image')} className={`flex-1 py-2 text-xs font-bold rounded transition ${verifyMode === 'image' ? 'bg-[#333] text-white' : 'text-gray-500'}`}>Upload Proof</button>
-                             </div>
-                             
                              {verifyMode === 'quiz' ? (
                                  <>
                                      <p className="text-white text-sm font-medium bg-black/40 p-4 rounded-xl border border-[#333]">
                                          {selectedTask.quiz_config?.question || "No quiz configured. Upload proof instead."}
                                      </p>
                                      <div className="grid gap-2">
-                                         {selectedTask.quiz_config?.options.map((opt, idx) => (
+                                         {selectedTask.quiz_config?.options.map((opt: string, idx: number) => (
                                              <button
                                                 key={idx}
                                                 onClick={() => setSelectedOption(idx)}
@@ -469,33 +537,15 @@ const Tasks: React.FC = () => {
                                          ))}
                                      </div>
                                  </>
-                             ) : (
-                                 <div className="text-center">
-                                     <label className="block w-full border-2 border-dashed border-[#333] hover:border-purple-500/50 rounded-xl p-8 cursor-pointer bg-black/20 transition relative">
-                                         <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files && setScreenshot(e.target.files[0])} />
-                                         {screenshot ? (
-                                             <div className="flex flex-col items-center text-green-400">
-                                                 <CheckCircle2 size={32} className="mb-2"/>
-                                                 <span className="text-xs font-bold">{screenshot.name}</span>
-                                             </div>
-                                         ) : (
-                                             <div className="flex flex-col items-center text-gray-500">
-                                                 <UploadCloud size={32} className="mb-2"/>
-                                                 <span className="text-xs">Tap to upload Proof</span>
-                                             </div>
-                                         )}
-                                     </label>
-                                     <p className="text-xs text-gray-500 mt-2">Screenshot submissions require manual review.</p>
-                                 </div>
-                             )}
+                             ) : null}
 
                              <button 
                                 onClick={handleSubmit}
-                                disabled={(verifyMode === 'quiz' && selectedOption === null) || (verifyMode === 'image' && !screenshot) || isSubmitting}
+                                disabled={(verifyMode === 'quiz' && selectedOption === null) || isSubmitting}
                                 className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 disabled:opacity-50 mt-4 flex items-center justify-center gap-2"
                             >
                                  {isSubmitting ? <Loader2 className="animate-spin"/> : 'Submit Verification'}
-                             </button>
+                            </button>
                          </div>
                      )}
 
@@ -517,6 +567,61 @@ const Tasks: React.FC = () => {
 
                  </motion.div>
              </motion.div>
+          )}
+      </AnimatePresence>
+
+      {/* SPONSOR DETAILS MODAL */}
+      <AnimatePresence>
+          {selectedSponsor && (
+              <motion.div 
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+                  onClick={() => setSelectedSponsor(null)}
+              >
+                  <motion.div 
+                      initial={{ scale: 0.8, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.8, y: 20 }}
+                      className="bg-[#111] border border-blue-500/30 w-full max-w-sm rounded-2xl p-6 relative shadow-2xl overflow-hidden"
+                      onClick={e => e.stopPropagation()}
+                  >
+                      {/* Glow FX */}
+                      <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl"></div>
+                      
+                      <div className="flex flex-col items-center text-center">
+                          <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-4 border border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.2)]">
+                              <Building2 size={36} className="text-blue-400" />
+                          </div>
+                          
+                          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                              {selectedSponsor.name}
+                              <BadgeCheck size={20} className="text-blue-500" fill="white" />
+                          </h2>
+                          <div className="mt-1 bg-blue-500/10 text-blue-300 text-[10px] font-bold px-3 py-1 rounded-full border border-blue-500/20 uppercase tracking-wider">
+                              Verified Partner
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 w-full mt-6">
+                              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                                  <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Trust Score</p>
+                                  <div className="flex items-center justify-center gap-1 text-green-400 font-black text-lg">
+                                      <Star size={16} fill="currentColor"/> {selectedSponsor.trustScore}%
+                                  </div>
+                              </div>
+                              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                                  <p className="text-gray-500 text-[10px] uppercase font-bold mb-1">Total Payouts</p>
+                                  <p className="text-white font-mono font-bold text-lg">
+                                      <BalanceDisplay amount={selectedSponsor.totalPayouts} compact />
+                                  </p>
+                              </div>
+                          </div>
+
+                          <div className="mt-6 w-full">
+                              <button onClick={() => setSelectedSponsor(null)} className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition">
+                                  Close
+                              </button>
+                          </div>
+                      </div>
+                  </motion.div>
+              </motion.div>
           )}
       </AnimatePresence>
     </div>

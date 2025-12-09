@@ -502,20 +502,56 @@ const Profile: React.FC = () => {
                 )}
 
                 {activeTab === 'badges' && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {BADGES.map(badge => {
-                            const isUnlocked = userBadges.includes(badge.id);
-                            return (
-                                <div key={badge.id} className={`p-4 rounded-xl border flex flex-col items-center text-center gap-2 transition ${isUnlocked ? 'bg-[#111] border-yellow-500/30' : 'bg-[#111] border-white/5 opacity-50 grayscale'}`}>
-                                    <div className="text-3xl">{badge.icon}</div>
-                                    <div>
-                                        <p className={`text-xs font-bold ${isUnlocked ? 'text-white' : 'text-gray-500'}`}>{badge.name}</p>
-                                        <p className="text-[10px] text-gray-500 mt-1 leading-tight">{badge.description}</p>
-                                    </div>
-                                    {isUnlocked && <span className="text-[9px] font-bold text-yellow-500 uppercase bg-yellow-500/10 px-2 py-0.5 rounded">Unlocked</span>}
-                                </div>
-                            )
-                        })}
+                    <div className="space-y-4 animate-fade-in">
+                        <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 p-4 rounded-xl border border-white/10 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-white font-bold text-sm">Achievement Progress</h3>
+                                <p className="text-xs text-gray-400">Unlock badges to show off your status.</p>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-2xl font-black text-white">{userBadges.length}</span>
+                                <span className="text-sm text-gray-500 font-bold">/{BADGES.length}</span>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {BADGES.map(badge => {
+                                const isUnlocked = userBadges.includes(badge.id);
+                                return (
+                                    <GlassCard 
+                                        key={badge.id} 
+                                        className={`relative overflow-hidden flex flex-col items-center text-center p-4 transition-all duration-300 ${
+                                            isUnlocked 
+                                            ? 'border-yellow-500/30 bg-yellow-900/5 shadow-[0_0_15px_rgba(234,179,8,0.1)]' 
+                                            : 'border-white/5 bg-white/5 opacity-70 hover:opacity-100'
+                                        }`}
+                                    >
+                                        {!isUnlocked && (
+                                            <div className="absolute top-2 right-2 text-gray-600">
+                                                <Lock size={14} />
+                                            </div>
+                                        )}
+                                        
+                                        <div className={`text-4xl mb-3 ${isUnlocked ? 'scale-110 drop-shadow-md' : 'grayscale opacity-50'}`}>
+                                            {badge.icon}
+                                        </div>
+                                        
+                                        <h4 className={`text-sm font-bold mb-1 ${isUnlocked ? 'text-white' : 'text-gray-400'}`}>
+                                            {badge.name}
+                                        </h4>
+                                        <p className="text-[10px] text-gray-500 leading-tight px-2">
+                                            {badge.description}
+                                        </p>
+
+                                        {isUnlocked && (
+                                            <div className="mt-3 text-[9px] font-black text-yellow-500 uppercase bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">
+                                                Unlocked
+                                            </div>
+                                        )}
+                                    </GlassCard>
+                                )
+                            })}
+                        </div>
                     </div>
                 )}
 

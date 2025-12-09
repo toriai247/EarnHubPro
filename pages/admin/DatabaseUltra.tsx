@@ -27,6 +27,37 @@ const TABLE_LIST = [
 const SQL_TOOLS = {
     setup: [
         {
+            title: 'Upgrade: Asset Storage (Images)',
+            desc: 'Creates the site-assets bucket for uploading icons and logos.',
+            sql: `
+-- Create 'site-assets' bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('site-assets', 'site-assets', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'])
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- Enable RLS (if not already enabled)
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Anyone can view
+DROP POLICY IF EXISTS "Public View Site Assets" ON storage.objects;
+CREATE POLICY "Public View Site Assets" ON storage.objects FOR SELECT USING (bucket_id = 'site-assets');
+
+-- Policy: Only Admins can upload/manage (Simplified for now to Auth users to ensure functionality, can tighten later)
+DROP POLICY IF EXISTS "Auth Manage Site Assets" ON storage.objects;
+CREATE POLICY "Auth Manage Site Assets" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'site-assets' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Auth Delete Site Assets" ON storage.objects;
+CREATE POLICY "Auth Delete Site Assets" ON storage.objects FOR DELETE USING (bucket_id = 'site-assets' AND auth.role() = 'authenticated');
+`
+        },
+        {
+            title: 'Upgrade: Dealer Features',
+            desc: 'Adds featured flags and company metadata to tasks for the new UI.',
+            sql: `
+ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false;
+ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS company_name TEXT;
+`
+        },
+        {
             title: 'Upgrade: Hero Section CMS',
             desc: 'Adds title, description, and image URL columns to system_config.',
             sql: `
@@ -48,12 +79,13 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('deposits', 'deposits', t
 INSERT INTO storage.buckets (id, name, public) VALUES ('task-proofs', 'task-proofs', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('kyc-documents', 'kyc-documents', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('hosted-sites', 'hosted-sites', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('site-assets', 'site-assets', true) ON CONFLICT (id) DO NOTHING;
 
 -- 3. Reset Policies
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public View" ON storage.objects;
-CREATE POLICY "Public View" ON storage.objects FOR SELECT USING (bucket_id IN ('deposits', 'task-proofs', 'hosted-sites'));
+CREATE POLICY "Public View" ON storage.objects FOR SELECT USING (bucket_id IN ('deposits', 'task-proofs', 'hosted-sites', 'site-assets'));
 
 DROP POLICY IF EXISTS "Auth Upload" ON storage.objects;
 CREATE POLICY "Auth Upload" ON storage.objects FOR INSERT WITH CHECK (auth.role() = 'authenticated');
