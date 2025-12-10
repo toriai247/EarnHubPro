@@ -51,6 +51,7 @@ const ManageCampaigns = lazy(() => import('./pages/dealer/ManageCampaigns'));
 const DealerProfile = lazy(() => import('./pages/dealer/DealerProfile'));
 const StaffDashboard = lazy(() => import('./pages/staff/StaffDashboard'));
 const SiteViewer = lazy(() => import('./pages/SiteViewer'));
+const TaskBrowser = lazy(() => import('./pages/TaskBrowser'));
 
 // --- ROUTE GUARD COMPONENT ---
 const FeatureGuard = ({ feature, children }: { feature: string, children?: React.ReactNode }) => {
@@ -163,7 +164,8 @@ const AppContent: React.FC = () => {
           <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" />} />
           <Route path="/admin/*" element={session ? <Admin /> : <Navigate to="/login" />} />
 
-          {/* Site Viewer */}
+          {/* Special Routes without Layout */}
+          <Route path="/secure-task/:taskId" element={<RequireAuth session={session}><FeatureGuard feature="tasks"><TaskBrowser /></FeatureGuard></RequireAuth>} />
           <Route path="/:slug" element={<SiteViewer />} />
 
           {/* Main Layout Wrap */}

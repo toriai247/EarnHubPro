@@ -12,70 +12,26 @@ import Skeleton from '../components/Skeleton';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 
 type TaskStatus = 'active' | 'pending' | 'approved' | 'rejected' | 'locked';
 
 const Tasks: React.FC = () => {
   const { toast } = useUI();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<any[]>([]); 
   const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({});
   
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
-  const [selectedSponsor, setSelectedSponsor] = useState<any | null>(null); // For Sponsor Modal
+  const [selectedSponsor, setSelectedSponsor] = useState<any | null>(null); 
   const [filter, setFilter] = useState('all');
   
-  // Task Execution State
-  const [taskStep, setTaskStep] = useState<'details' | 'timer' | 'verify' | 'locked'>('details');
-  const [countDown, setCountDown] = useState(0);
-  const [tabFocused, setTabFocused] = useState(true);
-  const timerRef = useRef<any>(null);
-  
-  // Verification State
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [attemptsLeft, setAttemptsLeft] = useState(2);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [verifyMode, setVerifyMode] = useState<'quiz' | 'image'>('quiz');
 
   useEffect(() => {
      fetchTasks();
-     
-     const handleVisibilityChange = () => {
-         setTabFocused(!document.hidden);
-     };
-     document.addEventListener('visibilitychange', handleVisibilityChange);
-     
-     return () => {
-         document.removeEventListener('visibilitychange', handleVisibilityChange);
-         if (timerRef.current) clearInterval(timerRef.current);
-     };
   }, []);
-
-  // Optimized Timer Logic
-  useEffect(() => {
-      if (taskStep === 'timer') {
-          if (tabFocused) {
-              timerRef.current = setInterval(() => {
-                  setCountDown(prev => {
-                      if (prev <= 1) {
-                          clearInterval(timerRef.current);
-                          // Defer state update to next tick to avoid render conflicts
-                          setTimeout(() => setTaskStep('verify'), 0);
-                          return 0;
-                      }
-                      return prev - 1;
-                  });
-              }, 1000);
-          } else {
-              // Pause timer if tab not focused
-              if (timerRef.current) clearInterval(timerRef.current);
-          }
-      } else {
-          if (timerRef.current) clearInterval(timerRef.current);
-      }
-      return () => { if(timerRef.current) clearInterval(timerRef.current); };
-  }, [taskStep, tabFocused]); // Removed countDown dependency to prevent re-renders
 
   const fetchTasks = async () => {
      setLoading(true);
@@ -140,10 +96,6 @@ const Tasks: React.FC = () => {
       }
 
       setSelectedTask(task);
-      setTaskStep('details');
-      setCountDown(task.timer_seconds || 15);
-      setScreenshot(null);
-      setVerifyMode('quiz'); 
       
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
@@ -156,9 +108,8 @@ const Tasks: React.FC = () => {
       }
   };
 
-  // Open Sponsor Details
   const handleOpenSponsor = (e: React.MouseEvent, task: any) => {
-      e.stopPropagation(); // Prevent opening task modal
+      e.stopPropagation(); 
       setSelectedSponsor({
           name: task.company_name || 'Verified Partner',
           id: task.creator_id,
@@ -170,94 +121,12 @@ const Tasks: React.FC = () => {
 
   const handleStartTask = () => {
       if (!selectedTask) return;
-      window.open(selectedTask.target_url, '_blank');
-      setTaskStep('timer');
-  };
-
-  const handleSubmit = async () => {
-      if (!selectedTask) return;
-      setIsSubmitting(true);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      let isSuccess = false;
-      let isManualReview = false;
-      let failReason = "Incorrect Answer";
-
-      if (verifyMode === 'quiz' && selectedOption !== null) {
-          const quiz = selectedTask.quiz_config;
-          if (quiz && selectedOption === quiz.correct_index) {
-              isSuccess = true;
-          }
-      } else if (verifyMode === 'image' && screenshot) {
-          isManualReview = true;
-          isSuccess = true; 
-      }
-
-      if (isSuccess) {
-          try {
-              await supabase.from('marketplace_submissions').insert({
-                  task_id: selectedTask.id,
-                  worker_id: session.user.id,
-                  status: isManualReview ? 'pending' : 'approved',
-                  submission_data: { 
-                      type: verifyMode, 
-                      answer: verifyMode === 'quiz' ? selectedOption : 'screenshot' 
-                  }
-              });
-
-              if (!isManualReview) {
-                  await supabase.rpc('decrement_task_quantity', { task_id: selectedTask.id });
-                  await updateWallet(session.user.id, selectedTask.worker_reward, 'increment', 'earning_balance');
-                  await createTransaction(session.user.id, 'earn', selectedTask.worker_reward, `Task: ${selectedTask.title}`);
-                  toast.success("Verified! Reward Credited.");
-              } else {
-                  toast.success("Submitted for Review.");
-              }
-              
-              window.dispatchEvent(new Event('wallet_updated'));
-              closeModal();
-              fetchTasks();
-
-          } catch (e: any) {
-              toast.error("Error: " + e.message);
-          }
-      } else {
-          const newAttempts = attemptsLeft - 1;
-          setAttemptsLeft(newAttempts);
-          
-          if (newAttempts <= 0) {
-              setTaskStep('locked');
-              await supabase.from('task_attempts').upsert({
-                  task_id: selectedTask.id,
-                  user_id: session.user.id,
-                  attempts_count: 2,
-                  is_locked: true,
-                  last_attempt_at: new Date().toISOString()
-              }, { onConflict: 'task_id,user_id' });
-              
-              toast.error(`Failed: ${failReason}. Task Locked.`);
-              fetchTasks(); 
-          } else {
-              toast.error(`Failed: ${failReason}. ${newAttempts} attempt left.`);
-              await supabase.from('task_attempts').upsert({
-                  task_id: selectedTask.id,
-                  user_id: session.user.id,
-                  attempts_count: 1,
-                  is_locked: false,
-                  last_attempt_at: new Date().toISOString()
-              }, { onConflict: 'task_id,user_id' });
-          }
-      }
-      setIsSubmitting(false);
+      // Navigate to the Secure Task Browser
+      navigate(`/secure-task/${selectedTask.id}`);
   };
 
   const closeModal = () => {
       setSelectedTask(null);
-      setTaskStep('details');
-      setSelectedOption(null);
-      setScreenshot(null);
   };
 
   const getTaskIcon = (category: string) => {
@@ -273,7 +142,6 @@ const Tasks: React.FC = () => {
 
   const filteredTasks = tasks.filter(t => filter === 'all' || t.category === filter);
 
-  // Sorting: Active first, then Locked, then Completed
   const sortedTasks = filteredTasks.sort((a, b) => {
       const statusA = taskStatuses[a.id];
       const statusB = taskStatuses[b.id];
@@ -324,7 +192,6 @@ const Tasks: React.FC = () => {
                 const status = taskStatuses[task.id];
                 const isHot = task.worker_reward > 5 || task.is_featured;
                 
-                // Style Logic
                 let cardStyle = "border-[#222] bg-[#0f0f0f]";
                 let opacity = "opacity-100";
                 
@@ -433,150 +300,70 @@ const Tasks: React.FC = () => {
                  >
                      <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-white z-10 p-2 bg-white/5 rounded-full"><X size={20} /></button>
 
-                     {/* STEP 1: DETAILS */}
-                     {taskStep === 'details' && (
-                         <div className="flex flex-col h-full">
-                            <div className="flex flex-col items-center text-center mb-6">
-                                <div className="w-20 h-20 bg-[#1a1a1a] rounded-3xl flex items-center justify-center text-4xl border border-[#333] shadow-lg mb-4 text-white relative">
-                                    {getTaskIcon(selectedTask.category)}
-                                    <div className="absolute -bottom-2 -right-2 bg-green-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg">READY</div>
+                     <div className="flex flex-col h-full">
+                        <div className="flex flex-col items-center text-center mb-6">
+                            <div className="w-20 h-20 bg-[#1a1a1a] rounded-3xl flex items-center justify-center text-4xl border border-[#333] shadow-lg mb-4 text-white relative">
+                                {getTaskIcon(selectedTask.category)}
+                                <div className="absolute -bottom-2 -right-2 bg-green-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg">READY</div>
+                            </div>
+                            <h2 className="text-xl font-display font-bold text-white leading-tight mb-2 flex items-center gap-2">
+                                {selectedTask.title}
+                                {selectedTask.company_name && <BadgeCheck size={20} className="text-blue-400" fill="black"/>}
+                            </h2>
+                            <p className="text-gray-500 text-xs mb-3">{selectedTask.company_name ? `Verified Offer from ${selectedTask.company_name}` : 'Marketplace Task'}</p>
+                            
+                            <div className="flex flex-wrap justify-center gap-2">
+                                <div className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                    Reward: <BalanceDisplay amount={selectedTask.worker_reward} decimals={3} />
                                 </div>
-                                <h2 className="text-xl font-display font-bold text-white leading-tight mb-2 flex items-center gap-2">
-                                    {selectedTask.title}
-                                    {selectedTask.company_name && <BadgeCheck size={20} className="text-blue-400" fill="black"/>}
-                                </h2>
-                                <p className="text-gray-500 text-xs mb-3">{selectedTask.company_name ? `Verified Offer from ${selectedTask.company_name}` : 'Marketplace Task'}</p>
-                                
-                                <div className="flex flex-wrap justify-center gap-2">
-                                    <div className="bg-green-500/10 text-green-400 border border-green-500/20 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                                        Reward: <BalanceDisplay amount={selectedTask.worker_reward} decimals={3} />
-                                    </div>
-                                    <div className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                                        Time: {selectedTask.timer_seconds}s
-                                    </div>
+                                <div className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                    Time: {selectedTask.timer_seconds}s
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
-                                <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                                    <h4 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-2">Instructions</h4>
-                                    <p className="text-gray-300 text-sm leading-relaxed">
-                                        {selectedTask.description || "Complete the actions below to verify this task and claim your reward instantly."}
-                                    </p>
-                                </div>
-
-                                <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                                    <h4 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-3">Steps</h4>
-                                    <ul className="space-y-3">
-                                        <li className="flex items-start gap-3 text-sm text-gray-300">
-                                            <div className="mt-0.5 min-w-[16px]"><CheckCircle2 size={16} className="text-blue-500" /></div>
-                                            <span>Visit the target link provided.</span>
-                                        </li>
-                                        <li className="flex items-start gap-3 text-sm text-gray-300">
-                                            <div className="mt-0.5 min-w-[16px]"><Clock size={16} className="text-orange-500" /></div>
-                                            <span>Stay on the page for <strong className="text-white">{selectedTask.timer_seconds} seconds</strong>.</span>
-                                        </li>
-                                        <li className="flex items-start gap-3 text-sm text-gray-300">
-                                            <div className="mt-0.5 min-w-[16px]"><ShieldCheck size={16} className="text-purple-500" /></div>
-                                            <span>Complete the verification quiz.</span>
-                                        </li>
-                                    </ul>
-                                </div>
+                        <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-2">
+                            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                <h4 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-2">Instructions</h4>
+                                <p className="text-gray-300 text-sm leading-relaxed">
+                                    {selectedTask.description || "Complete the actions below to verify this task and claim your reward instantly."}
+                                </p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-white/10">
-                                <button 
-                                    onClick={closeModal} 
-                                    className="py-3.5 bg-[#222] text-gray-400 font-bold rounded-xl hover:bg-[#333] hover:text-white transition"
-                                >
-                                    Dismiss
-                                </button>
-                                <button 
-                                    onClick={handleStartTask} 
-                                    className="py-3.5 bg-white text-black font-black rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2 uppercase tracking-wide shadow-lg"
-                                >
-                                    Start Now <ArrowRight size={18}/>
-                                </button>
+                            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                <h4 className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-3">Steps</h4>
+                                <ul className="space-y-3">
+                                    <li className="flex items-start gap-3 text-sm text-gray-300">
+                                        <div className="mt-0.5 min-w-[16px]"><CheckCircle2 size={16} className="text-blue-500" /></div>
+                                        <span>Use the secure browser to visit the link.</span>
+                                    </li>
+                                    <li className="flex items-start gap-3 text-sm text-gray-300">
+                                        <div className="mt-0.5 min-w-[16px]"><Clock size={16} className="text-orange-500" /></div>
+                                        <span>Stay active for <strong className="text-white">{selectedTask.timer_seconds} seconds</strong>.</span>
+                                    </li>
+                                    <li className="flex items-start gap-3 text-sm text-gray-300">
+                                        <div className="mt-0.5 min-w-[16px]"><ShieldCheck size={16} className="text-purple-500" /></div>
+                                        <span>Complete the verification to claim.</span>
+                                    </li>
+                                </ul>
                             </div>
-                         </div>
-                     )}
+                        </div>
 
-                     {/* STEP 2: TIMER */}
-                     {taskStep === 'timer' && (
-                         <div className="text-center py-10">
-                             <div className="mb-4 relative w-24 h-24 mx-auto flex items-center justify-center">
-                                 <svg className="w-full h-full transform -rotate-90">
-                                     <circle cx="48" cy="48" r="40" stroke="#333" strokeWidth="8" fill="none" />
-                                     <circle 
-                                        cx="48" cy="48" r="40" stroke="#10b981" strokeWidth="8" fill="none" 
-                                        strokeDasharray="251.2"
-                                        strokeDashoffset={(251.2 * (selectedTask.timer_seconds! - countDown)) / selectedTask.timer_seconds!}
-                                        className="transition-all duration-1000 ease-linear"
-                                     />
-                                 </svg>
-                                 <span className="absolute text-2xl font-bold text-white">{countDown}s</span>
-                             </div>
-                             <h3 className="text-xl font-bold text-white mb-2">Analyzing Content...</h3>
-                             <p className="text-gray-400 text-sm">Please keep the task tab open and active.</p>
-                         </div>
-                     )}
-
-                     {/* STEP 3: VERIFY (QUIZ) */}
-                     {taskStep === 'verify' && (
-                         <div className="space-y-4">
-                             <div className="flex justify-between items-center mb-2">
-                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                    <ShieldCheck className="text-purple-400"/> Verification
-                                </h3>
-                                <span className={`text-xs font-bold px-2 py-1 rounded ${attemptsLeft > 1 ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
-                                    {attemptsLeft} Attempts Left
-                                </span>
-                             </div>
-
-                             {verifyMode === 'quiz' ? (
-                                 <>
-                                     <p className="text-white text-sm font-medium bg-black/40 p-4 rounded-xl border border-[#333]">
-                                         {selectedTask.quiz_config?.question || "No quiz configured. Upload proof instead."}
-                                     </p>
-                                     <div className="grid gap-2">
-                                         {selectedTask.quiz_config?.options.map((opt: string, idx: number) => (
-                                             <button
-                                                key={idx}
-                                                onClick={() => setSelectedOption(idx)}
-                                                className={`p-3 rounded-xl text-sm text-left transition border ${selectedOption === idx ? 'bg-purple-600 border-purple-500 text-white shadow-lg' : 'bg-[#1a1a1a] border-[#333] text-gray-300 hover:bg-[#222]'}`}
-                                             >
-                                                 {opt}
-                                             </button>
-                                         ))}
-                                     </div>
-                                 </>
-                             ) : null}
-
-                             <button 
-                                onClick={handleSubmit}
-                                disabled={(verifyMode === 'quiz' && selectedOption === null) || isSubmitting}
-                                className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 disabled:opacity-50 mt-4 flex items-center justify-center gap-2 shadow-lg shadow-green-900/20"
+                        <div className="grid grid-cols-2 gap-3 mt-6 pt-4 border-t border-white/10">
+                            <button 
+                                onClick={closeModal} 
+                                className="py-3.5 bg-[#222] text-gray-400 font-bold rounded-xl hover:bg-[#333] hover:text-white transition"
                             >
-                                 {isSubmitting ? <Loader2 className="animate-spin"/> : 'Submit Verification'}
+                                Dismiss
                             </button>
-                         </div>
-                     )}
-
-                     {/* STEP 4: LOCKED */}
-                     {taskStep === 'locked' && (
-                         <div className="text-center py-10">
-                             <div className="w-20 h-20 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/30">
-                                 <Lock size={40} className="text-red-500"/>
-                             </div>
-                             <h3 className="text-xl font-bold text-white mb-2">Task Locked</h3>
-                             <p className="text-gray-400 text-sm mb-6">
-                                 You failed verification twice.
-                             </p>
-                             <button onClick={closeModal} className="px-6 py-3 bg-white/10 text-white rounded-xl font-bold hover:bg-white/20">
-                                 Close
-                             </button>
-                         </div>
-                     )}
+                            <button 
+                                onClick={handleStartTask} 
+                                className="py-3.5 bg-white text-black font-black rounded-xl hover:bg-gray-200 flex items-center justify-center gap-2 uppercase tracking-wide shadow-lg"
+                            >
+                                Start Task <ArrowRight size={18}/>
+                            </button>
+                        </div>
+                     </div>
 
                  </motion.div>
              </motion.div>
