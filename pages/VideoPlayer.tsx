@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
@@ -7,12 +6,13 @@ import GlassCard from '../components/GlassCard';
 import { 
     ArrowLeft, Play, Pause, CheckCircle2, 
     Clock, DollarSign, Share2, Maximize, Minimize, 
-    AlertCircle, Flag, Heart, Loader2, Zap
+    AlertCircle, Flag, Heart, Loader2, Zap, User
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateWallet, createTransaction } from '../lib/actions';
+import Loader from '../components/Loader';
 
 const VideoPlayer: React.FC = () => {
     const { id } = useParams<{ id: string }>();
