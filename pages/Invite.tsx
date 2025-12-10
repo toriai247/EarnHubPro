@@ -1,12 +1,12 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Users, Copy, Trophy, Crown, Share2, UserPlus, Calendar, Activity, Link as LinkIcon, TrendingUp, Search, Wallet, Percent, User, MessageCircle, Megaphone, Check } from 'lucide-react';
+import { Users, Copy, Trophy, Crown, Share2, UserPlus, Calendar, Activity, Link as LinkIcon, TrendingUp, Search, Wallet, Percent, User, MessageCircle, Megaphone, Check, Facebook, Twitter, Instagram, Send, Globe, Phone, Briefcase } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { ReferralStats } from '../types';
 import Skeleton from '../components/Skeleton';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ReferredUser {
     id: string;
@@ -22,11 +22,12 @@ interface ReferredUser {
 const Invite: React.FC = () => {
   const { toast } = useUI();
   const [stats, setStats] = useState<ReferralStats | null>(null);
-  const [activeTab, setActiveTab] = useState<'invite' | 'network'>('invite');
+  const [activeTab, setActiveTab] = useState<'invite' | 'network' | 'kit'>('invite');
   const [referredUsers, setReferredUsers] = useState<ReferredUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedTemplateId, setCopiedTemplateId] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     const fetch = async () => {
@@ -102,15 +103,30 @@ const Invite: React.FC = () => {
       }
   };
 
-  const handleShare = async () => {
+  // --- SOCIAL SHARING LOGIC ---
+  const handleSocialShare = (platform: string) => {
       const link = getReferralLink();
-      if (!link) return;
-      const shareData = { title: 'Join EarnHub Pro', text: `Use my code ${stats?.code} to earn rewards!`, url: link };
-      if (navigator.share) {
-          try { await navigator.share(shareData); } catch (err) { console.log('Share canceled'); }
-      } else {
-          copyLink();
+      const text = `Join Naxxivo and earn daily! Use my code ${stats?.code} for a bonus.`;
+      const encodedText = encodeURIComponent(text);
+      const encodedLink = encodeURIComponent(link);
+      
+      let url = '';
+      switch(platform) {
+          case 'whatsapp': url = `https://wa.me/?text=${encodedText}%20${encodedLink}`; break;
+          case 'facebook': url = `https://www.facebook.com/sharer/sharer.php?u=${encodedLink}`; break;
+          case 'telegram': url = `https://t.me/share/url?url=${encodedLink}&text=${encodedText}`; break;
+          case 'twitter': url = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedLink}`; break;
+          case 'sms': url = `sms:?body=${encodedText}%20${encodedLink}`; break;
+          default: 
+              if (navigator.share) {
+                  navigator.share({ title: 'Join Naxxivo', text: text, url: link });
+                  return;
+              }
+              copyLink(); return;
       }
+      
+      if(url) window.open(url, '_blank');
+      setShowShareModal(false);
   };
 
   // --- MARKETING TEMPLATES ---
@@ -118,23 +134,72 @@ const Invite: React.FC = () => {
       {
           id: 'bangla_post',
           label: 'Facebook Post (Bangla)',
-          icon: Megaphone,
-          color: 'text-blue-400',
+          icon: Facebook,
+          color: 'text-blue-500',
           text: `🔥 ঘরে বসে প্রতিদিন ৫০০-১০০০ টাকা ইনকাম করতে চান? 💸\n\nNaxxivo তে জয়েন করুন আর স্মার্টফোন দিয়ে আয় করুন!\n✅ ভিডিও দেখুন, গেম খেলুন\n✅ পেমেন্ট বিকাশ/নগদ এ\n✅ ১০০% ট্রাস্টেড সাইট\n\nদেরি না করে এখনই জয়েন করুন 👇\n{{LINK}}\n\nরেফার কোড: {{CODE}}`
       },
       {
-          id: 'bangla_comment',
-          label: 'Short Comment (Bangla)',
+          id: 'bangla_short',
+          label: 'Messenger/Whatsapp (Bangla)',
           icon: MessageCircle,
-          color: 'text-green-400',
-          text: `ভাই আমি এই সাইট থেকে পেমেন্ট পেয়েছি! 🔥 বিশ্বাস না হলে দেখে আসুন। কমেন্ট এর জন্য টাকা ইনকাম করতে চাইলে এখনি চলে আসেন। জয়েন লিংক: {{LINK}}`
+          color: 'text-green-500',
+          text: `দোস্ত, এই অ্যাপটা দেখ! 😲 আমি এখান থেকে টাকা পেয়েছি। তুইও ট্রাই কর। জয়েনিং বোনাস আছে! \nলিংক: {{LINK}}\nকোড: {{CODE}}`
+      },
+      {
+          id: 'english_pro',
+          label: 'Professional (LinkedIn/Twitter)',
+          icon: Briefcase,
+          color: 'text-blue-400',
+          text: `Discover the future of digital earning with Naxxivo. 🚀\n\nA secure, transparent ecosystem for passive income through tasks and investments. \n\nGet started with a welcome bonus: {{LINK}}\nInvite Code: {{CODE}}`
       },
       {
           id: 'english_hype',
-          label: 'Viral Caption (English)',
+          label: 'Viral Short (TikTok/Reels)',
           icon: TrendingUp,
           color: 'text-red-400',
-          text: `🚀 Don't miss this opportunity! Best earning site of 2024. 🤑\n\nDaily payments, easy tasks. Join Naxxivo now and get signup bonus!\n\nLink: {{LINK}}\nCode: {{CODE}}`
+          text: `🚀 Stop scrolling and start earning! 🤑\n\nMake money daily with Naxxivo. Instant withdrawals. No experience needed.\n\nLink in bio or: {{LINK}}\nCode: {{CODE}}`
+      },
+      {
+          id: 'hinglish',
+          label: 'Hinglish (India/BD)',
+          icon: Globe,
+          color: 'text-orange-400',
+          text: `Bhai, paisa kamana hai? 💸 Naxxivo try karo! Best earning app abhi market mein.\n\nDaily payout, easy tasks. Abhi join karo: {{LINK}}\nMera Code: {{CODE}}`
+      },
+      {
+          id: 'crypto',
+          label: 'Crypto Enthusiast',
+          icon: Wallet,
+          color: 'text-yellow-400',
+          text: `💎 New Earning Gem Alert! 💎\n\nEarn USDT/BDT daily by completing simple tasks. Web3 ready ecosystem.\n\nClaim your airdrop bonus now: {{LINK}}\nRef: {{CODE}}`
+      },
+      {
+          id: 'student',
+          label: 'For Students',
+          icon: User,
+          color: 'text-purple-400',
+          text: `🎓 Students! Want pocket money? 🎒\n\nWork 10 mins daily and earn monthly expenses. 100% Real.\n\nRegister here: {{LINK}}\nUse code: {{CODE}}`
+      },
+      {
+          id: 'urgent',
+          label: 'Urgent/Limited Time',
+          icon: Activity,
+          color: 'text-red-500',
+          text: `⏳ LIMITED TIME OFFER! ⏳\n\nDouble signup bonus for the next 24 hours on Naxxivo. Don't miss out!\n\nGrab it now: {{LINK}}\nCode: {{CODE}}`
+      },
+      {
+          id: 'proof',
+          label: 'Payment Proof Caption',
+          icon: Check,
+          color: 'text-green-400',
+          text: `✅ Payment Received! ✅\n\nJust got my withdrawal from Naxxivo. This site is paying 100% legit.\n\nJoin my team: {{LINK}}\nCode: {{CODE}}`
+      },
+      {
+          id: 'gamer',
+          label: 'Gamer Style',
+          icon: Trophy,
+          color: 'text-indigo-400',
+          text: `🎮 Play Games, Earn Cash! 🎮\n\nLudo, Crash, Spin - turn your gaming skills into real money. \n\nStart playing: {{LINK}}\nCode: {{CODE}}`
       }
   ];
 
@@ -169,92 +234,146 @@ const Invite: React.FC = () => {
 
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6">
-       <header className="flex items-center justify-between px-4 sm:px-0">
+       <header className="flex flex-col md:flex-row justify-between items-start md:items-end px-4 sm:px-0 gap-4">
             <div>
-                <h1 className="text-2xl font-display font-bold text-white">Referral System</h1>
+                <h1 className="text-2xl font-display font-bold text-white flex items-center gap-2">
+                    <Users className="text-pink-500"/> Referral System
+                </h1>
                 <p className="text-xs text-gray-400 flex items-center gap-1">
                     Earn <span className="text-green-400 font-bold bg-green-900/20 px-1 rounded">5% Commission</span> on every deposit.
                 </p>
             </div>
-            <div className="bg-[#111] p-1 rounded-lg flex gap-1 border border-[#222]">
-                <button onClick={() => setActiveTab('invite')} className={`px-3 py-1.5 text-xs font-bold rounded transition ${activeTab === 'invite' ? 'bg-white text-black' : 'text-gray-400'}`}>Invite</button>
-                <button onClick={() => setActiveTab('network')} className={`px-3 py-1.5 text-xs font-bold rounded transition ${activeTab === 'network' ? 'bg-white text-black' : 'text-gray-400'}`}>My Team</button>
+            <div className="flex bg-[#111] p-1 rounded-xl border border-[#222]">
+                <button onClick={() => setActiveTab('invite')} className={`px-4 py-2 text-xs font-bold rounded-lg transition ${activeTab === 'invite' ? 'bg-white text-black' : 'text-gray-400'}`}>Invite</button>
+                <button onClick={() => setActiveTab('kit')} className={`px-4 py-2 text-xs font-bold rounded-lg transition ${activeTab === 'kit' ? 'bg-white text-black' : 'text-gray-400'}`}>Market Kit</button>
+                <button onClick={() => setActiveTab('network')} className={`px-4 py-2 text-xs font-bold rounded-lg transition ${activeTab === 'network' ? 'bg-white text-black' : 'text-gray-400'}`}>My Team</button>
             </div>
        </header>
 
+       {/* INVITE DASHBOARD */}
        {activeTab === 'invite' && (
          <div className="space-y-6 px-4 sm:px-0">
-            <GlassCard className="text-center p-8 bg-[#111] border-[#222]">
-                <div className="w-20 h-20 mx-auto bg-[#1a1a1a] rounded-full flex items-center justify-center mb-4 border border-[#333]">
-                    <Users size={32} className="text-white" />
-                </div>
+            <GlassCard className="text-center p-8 bg-[#111] border-[#222] relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><Share2 size={120} /></div>
                 
-                <h2 className="text-2xl font-bold text-white mb-2">Invite Friends</h2>
-                <p className="text-gray-400 text-sm mb-6 max-w-xs mx-auto">
-                    Share your code and earn <span className="text-green-400 font-bold">5%</span> of their earnings instantly.
-                </p>
-                
-                <div className="bg-[#1a1a1a] p-4 rounded-xl mb-6 flex items-center justify-between border border-[#333]">
-                    <div className="relative z-10">
-                        <p className="text-[10px] text-gray-500 text-left mb-1 font-bold uppercase">Your Unique Code</p>
-                        <span className="font-mono text-3xl text-white tracking-widest font-bold uppercase">{stats.code}</span>
+                <div className="relative z-10">
+                    <h2 className="text-2xl font-bold text-white mb-2">Grow Your Network</h2>
+                    <p className="text-gray-400 text-sm mb-6 max-w-sm mx-auto">
+                        Invite friends and earn <span className="text-green-400 font-bold">5%</span> of their deposits instantly. Build a passive income stream today.
+                    </p>
+                    
+                    <div className="bg-[#1a1a1a] p-4 rounded-xl mb-6 flex flex-col sm:flex-row items-center justify-between border border-[#333] gap-4">
+                        <div className="text-left w-full">
+                            <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Your Code</p>
+                            <div className="flex items-center gap-3">
+                                <span className="font-mono text-3xl text-white tracking-widest font-bold uppercase">{stats.code}</span>
+                                <button onClick={copyToClipboard} className="text-green-400 hover:text-green-300"><Copy size={18}/></button>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <button onClick={() => setShowShareModal(true)} className="flex-1 sm:flex-none py-3 px-6 bg-brand rounded-xl font-bold text-white flex items-center justify-center gap-2 hover:bg-brand-hover transition shadow-lg whitespace-nowrap">
+                                <Share2 size={18} /> Share Now
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex gap-2 relative z-10">
-                        <button onClick={copyLink} className="p-3 hover:bg-[#222] rounded-lg transition text-blue-400 bg-[#111]" title="Copy Link">
-                            <LinkIcon size={20} />
-                        </button>
-                        <button onClick={copyToClipboard} className="p-3 hover:bg-[#222] rounded-lg transition text-green-400 bg-[#111]" title="Copy Code">
-                            <Copy size={20} />
-                        </button>
-                    </div>
-                </div>
 
-                <button onClick={handleShare} className="w-full py-4 bg-brand rounded-xl font-bold text-white flex items-center justify-center gap-2 hover:bg-brand-hover transition shadow-lg">
-                    <Share2 size={18} /> Share Link
-                </button>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-black/30 rounded-xl border border-white/5">
+                            <p className="text-xs text-gray-500 uppercase font-bold">Invited</p>
+                            <p className="text-2xl font-bold text-white">{stats.invitedUsers}</p>
+                        </div>
+                        <div className="p-4 bg-black/30 rounded-xl border border-white/5">
+                            <p className="text-xs text-gray-500 uppercase font-bold">Earnings</p>
+                            <p className="text-2xl font-bold text-green-400"><BalanceDisplay amount={stats.totalEarned} /></p>
+                        </div>
+                    </div>
+                </div>
             </GlassCard>
 
-            {/* MARKETING TEMPLATES SECTION */}
-            <div>
-                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Marketing Kit (Copy & Paste)</h3>
-                <div className="grid grid-cols-1 gap-3">
-                    {MARKETING_TEMPLATES.map((tmpl) => (
-                        <GlassCard key={tmpl.id} className="p-4 border border-[#222] hover:border-brand/30 transition group cursor-pointer" onClick={() => copyTemplate(tmpl.id, tmpl.text)}>
-                            <div className="flex justify-between items-start mb-2">
+            {/* Share Modal/Sheet */}
+            <AnimatePresence>
+                {showShareModal && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+                        onClick={() => setShowShareModal(false)}
+                    >
+                        <motion.div 
+                            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                            className="bg-[#1a1a1a] w-full max-w-sm rounded-t-3xl sm:rounded-3xl border border-white/10 p-6 shadow-2xl"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <h3 className="text-lg font-bold text-white mb-4 text-center">Share via</h3>
+                            <div className="grid grid-cols-4 gap-4 mb-4">
+                                <button onClick={() => handleSocialShare('whatsapp')} className="flex flex-col items-center gap-2 text-gray-300 hover:text-white group">
+                                    <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center text-green-500 group-hover:bg-green-500 group-hover:text-black transition"><Phone size={20} /></div>
+                                    <span className="text-[10px]">WhatsApp</span>
+                                </button>
+                                <button onClick={() => handleSocialShare('facebook')} className="flex flex-col items-center gap-2 text-gray-300 hover:text-white group">
+                                    <div className="w-12 h-12 bg-blue-600/20 rounded-full flex items-center justify-center text-blue-500 group-hover:bg-blue-600 group-hover:text-white transition"><Facebook size={20} /></div>
+                                    <span className="text-[10px]">Facebook</span>
+                                </button>
+                                <button onClick={() => handleSocialShare('telegram')} className="flex flex-col items-center gap-2 text-gray-300 hover:text-white group">
+                                    <div className="w-12 h-12 bg-blue-400/20 rounded-full flex items-center justify-center text-blue-400 group-hover:bg-blue-400 group-hover:text-white transition"><Send size={20} /></div>
+                                    <span className="text-[10px]">Telegram</span>
+                                </button>
+                                <button onClick={() => handleSocialShare('twitter')} className="flex flex-col items-center gap-2 text-gray-300 hover:text-white group">
+                                    <div className="w-12 h-12 bg-sky-500/20 rounded-full flex items-center justify-center text-sky-500 group-hover:bg-sky-500 group-hover:text-white transition"><Twitter size={20} /></div>
+                                    <span className="text-[10px]">Twitter</span>
+                                </button>
+                                <button onClick={() => handleSocialShare('sms')} className="flex flex-col items-center gap-2 text-gray-300 hover:text-white group">
+                                    <div className="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center text-yellow-500 group-hover:bg-yellow-500 group-hover:text-black transition"><MessageCircle size={20} /></div>
+                                    <span className="text-[10px]">SMS</span>
+                                </button>
+                                <button onClick={() => handleSocialShare('copy')} className="flex flex-col items-center gap-2 text-gray-300 hover:text-white group">
+                                    <div className="w-12 h-12 bg-gray-500/20 rounded-full flex items-center justify-center text-gray-400 group-hover:bg-white group-hover:text-black transition"><LinkIcon size={20} /></div>
+                                    <span className="text-[10px]">Copy Link</span>
+                                </button>
+                            </div>
+                            <button onClick={() => setShowShareModal(false)} className="w-full py-3 bg-white/5 rounded-xl text-sm font-bold text-gray-400 hover:bg-white/10 hover:text-white transition">Cancel</button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+         </div>
+       )}
+
+       {/* MARKETING KIT */}
+       {activeTab === 'kit' && (
+           <div className="space-y-4 px-4 sm:px-0">
+               <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 p-4 rounded-xl border border-white/5">
+                   <h3 className="font-bold text-white mb-1">Marketing Kit</h3>
+                   <p className="text-xs text-gray-400">Copy these ready-made captions to boost your referrals.</p>
+               </div>
+               
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   {MARKETING_TEMPLATES.map((tmpl) => (
+                        <GlassCard key={tmpl.id} className="p-4 border border-[#222] hover:border-brand/30 transition group cursor-pointer flex flex-col h-full" onClick={() => copyTemplate(tmpl.id, tmpl.text)}>
+                            <div className="flex justify-between items-start mb-3">
                                 <div className="flex items-center gap-2">
-                                    <tmpl.icon size={16} className={tmpl.color} />
+                                    <div className={`p-2 rounded-lg bg-black/40 ${tmpl.color}`}>
+                                        <tmpl.icon size={16} />
+                                    </div>
                                     <h4 className="text-sm font-bold text-white">{tmpl.label}</h4>
                                 </div>
-                                <div className={`text-xs font-bold px-2 py-1 rounded transition ${copiedTemplateId === tmpl.id ? 'bg-green-500 text-black' : 'bg-[#222] text-gray-400 group-hover:bg-brand group-hover:text-white'}`}>
-                                    {copiedTemplateId === tmpl.id ? <span className="flex items-center gap-1"><Check size={12}/> Copied</span> : 'Copy Text'}
+                                <div className={`text-[10px] font-bold px-2 py-1 rounded transition ${copiedTemplateId === tmpl.id ? 'bg-green-500 text-black' : 'bg-[#222] text-gray-400 group-hover:bg-white group-hover:text-black'}`}>
+                                    {copiedTemplateId === tmpl.id ? 'Copied!' : 'Copy'}
                                 </div>
                             </div>
-                            <div className="bg-[#111] p-3 rounded-lg border border-[#222]">
-                                <p className="text-xs text-gray-400 line-clamp-3 whitespace-pre-wrap font-medium">
-                                    {tmpl.text.replace('{{LINK}}', '[Your Link]').replace('{{CODE}}', stats.code)}
+                            <div className="bg-[#111] p-3 rounded-lg border border-[#222] flex-1">
+                                <p className="text-xs text-gray-400 whitespace-pre-wrap font-medium leading-relaxed">
+                                    {tmpl.text.replace('{{LINK}}', '[Link]').replace('{{CODE}}', stats.code)}
                                 </p>
                             </div>
                         </GlassCard>
                     ))}
-                </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-                <GlassCard className="text-center py-6">
-                    <div className="text-3xl font-display font-bold text-white mb-1">{stats.invitedUsers}</div>
-                    <div className="text-xs text-gray-400 font-bold uppercase">Friends Invited</div>
-                </GlassCard>
-                <GlassCard className="text-center py-6 border-green-500/20">
-                    <div className="text-3xl font-display font-bold text-green-400 mb-1"><BalanceDisplay amount={stats.totalEarned} /></div>
-                    <div className="text-xs text-gray-400 font-bold uppercase">Total Earned</div>
-                </GlassCard>
-            </div>
-         </div>
+               </div>
+           </div>
        )}
 
+       {/* NETWORK LIST */}
        {activeTab === 'network' && (
            <div className="space-y-4 px-4 sm:px-0">
-               
                <div className="flex items-center gap-3">
                    <div className="relative flex-1">
                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16}/>

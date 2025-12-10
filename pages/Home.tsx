@@ -3,7 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowDownLeft, ArrowUpRight, ArrowRightLeft, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play, 
-  Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText, Grid, Eye, EyeOff, History, Wallet, Megaphone
+  Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText, Grid, Eye, EyeOff, History, Wallet, Megaphone,
+  ChevronRight, Quote
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -25,9 +26,32 @@ const Home: React.FC = () => {
   const [isGuest, setIsGuest] = useState(true);
   const [showBalance, setShowBalance] = useState(true);
 
+  // Fake Live Activity for Guest Mode
+  const [liveActivity, setLiveActivity] = useState([
+      { user: 'User88**', action: 'withdrew', amount: '৳500' },
+      { user: 'Rahim**', action: 'earned', amount: '৳50' },
+      { user: 'Crypto**', action: 'won', amount: '৳1200' },
+  ]);
+
   useEffect(() => {
     fetchData();
-  }, []);
+    
+    // Simulate live ticker for guest mode
+    if (isGuest) {
+        const interval = setInterval(() => {
+            const actions = ['withdrew', 'earned', 'won', 'deposited'];
+            const amounts = ['৳50', '৳100', '৳500', '৳1000', '৳2500'];
+            const users = ['User', 'Player', 'Earner', 'Member'];
+            const newItem = {
+                user: `${users[Math.floor(Math.random()*users.length)]}${Math.floor(Math.random()*999)}**`,
+                action: actions[Math.floor(Math.random()*actions.length)],
+                amount: amounts[Math.floor(Math.random()*amounts.length)]
+            };
+            setLiveActivity(prev => [newItem, ...prev.slice(0, 2)]);
+        }, 3000);
+        return () => clearInterval(interval);
+    }
+  }, [isGuest]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -73,45 +97,131 @@ const Home: React.FC = () => {
     show: { opacity: 1, y: 0 }
   };
 
-  // --- GUEST VIEW (Midnight 002 Style) ---
+  // --- GUEST VIEW (Enhanced Structure) ---
   if (isGuest) {
       return (
-        <div className="pb-0 pt-0 min-h-screen bg-black relative overflow-x-hidden font-sans selection:bg-yellow-500 selection:text-black flex flex-col justify-center items-center">
-             <main className="relative z-10 px-6 max-w-md w-full space-y-10 text-center">
-                <div className="w-20 h-20 bg-black border-2 border-yellow-500 rounded-2xl mx-auto flex items-center justify-center shadow-[0_0_20px_rgba(250,204,21,0.2)]">
-                    <span className="text-4xl font-black text-yellow-500 tracking-tighter">N</span>
+        <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden selection:bg-brand selection:text-black pb-20">
+             
+             {/* 1. HERO SECTION */}
+             <div className="relative pt-12 pb-8 px-6 text-center border-b border-white/5 bg-gradient-to-b from-blue-900/10 to-black">
+                <div className="flex justify-center mb-6">
+                    <div className="w-20 h-20 bg-black border-2 border-brand rounded-3xl flex items-center justify-center shadow-[0_0_40px_rgba(var(--color-brand),0.3)]">
+                        <span className="text-4xl font-black text-brand">N</span>
+                    </div>
                 </div>
-                <div className="space-y-2">
-                    <h1 className="text-4xl font-black text-white tracking-tight uppercase">
-                        Naxxivo <span className="text-yellow-500">002</span>
-                    </h1>
-                    <p className="text-gray-500 text-sm font-medium tracking-wide">
-                        The minimalist earning ecosystem.<br/>Fast. Secure. OLED Optimized.
-                    </p>
-                </div>
-                <div className="space-y-4 w-full pt-4">
-                    <Link to="/signup" className="block w-full py-4 bg-yellow-500 text-black font-black uppercase tracking-wider rounded-xl hover:bg-yellow-400 active:scale-95 transition-transform shadow-lg">
-                        Create ID
+                <h1 className="text-4xl font-black uppercase tracking-tight mb-2">
+                    Naxxivo <span className="text-brand">Pro</span>
+                </h1>
+                <p className="text-gray-400 text-sm font-medium max-w-xs mx-auto leading-relaxed">
+                    The next-generation earning ecosystem. <br/>
+                    <span className="text-white font-bold">Watch. Play. Invest. Earn.</span>
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 mt-8 max-w-sm mx-auto">
+                    <Link to="/signup" className="py-3.5 bg-brand text-black font-black uppercase tracking-wider rounded-xl hover:scale-105 transition shadow-lg flex items-center justify-center gap-2">
+                        Get Started <ChevronRight size={16} strokeWidth={3}/>
                     </Link>
-                    <Link to="/login" className="block w-full py-4 bg-black border border-gray-800 text-white font-bold uppercase tracking-wider rounded-xl hover:border-yellow-500 hover:text-yellow-500 transition-colors">
-                        Access Account
+                    <Link to="/login" className="py-3.5 bg-white/10 text-white font-bold uppercase tracking-wider rounded-xl hover:bg-white/20 transition border border-white/5">
+                        Member Login
                     </Link>
                 </div>
-                <div className="pt-8 flex justify-center gap-6 opacity-50">
-                    <div className="flex flex-col items-center gap-1">
-                        <Zap size={20} className="text-white"/>
-                        <span className="text-[10px] text-gray-500 uppercase font-bold">Fast</span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1">
-                        <ShieldCheck size={20} className="text-white"/>
-                        <span className="text-[10px] text-gray-500 uppercase font-bold">Secure</span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1">
-                        <Globe size={20} className="text-white"/>
-                        <span className="text-[10px] text-gray-500 uppercase font-bold">Global</span>
-                    </div>
-                </div>
-             </main>
+             </div>
+
+             {/* 2. LIVE ACTIVITY TICKER */}
+             <div className="py-3 bg-black border-b border-white/5 overflow-hidden flex justify-center">
+                 <div className="flex items-center gap-6 opacity-70">
+                     {liveActivity.map((act, i) => (
+                         <motion.div 
+                            key={i} 
+                            initial={{ opacity: 0, x: 20 }} 
+                            animate={{ opacity: 1, x: 0 }}
+                            className="flex items-center gap-2 text-xs font-mono"
+                         >
+                             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                             <span className="text-gray-400">{act.user}</span>
+                             <span className={act.action === 'lost' ? 'text-red-400' : 'text-green-400'}>{act.action}</span>
+                             <span className="text-white font-bold">{act.amount}</span>
+                         </motion.div>
+                     ))}
+                 </div>
+             </div>
+
+             {/* 3. FEATURES GRID */}
+             <div className="px-4 py-8 max-w-lg mx-auto space-y-4">
+                 <div className="flex items-center justify-between mb-2 px-1">
+                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Platform Features</h3>
+                     <span className="text-[10px] bg-brand/10 text-brand px-2 py-0.5 rounded border border-brand/20">v4.5 Live</span>
+                 </div>
+                 
+                 <div className="grid grid-cols-2 gap-3">
+                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center text-center">
+                         <div className="p-3 bg-blue-500/20 text-blue-400 rounded-full mb-3"><Briefcase size={20}/></div>
+                         <h4 className="font-bold text-sm text-white">Daily Tasks</h4>
+                         <p className="text-[10px] text-gray-500 mt-1">Simple micro-jobs</p>
+                     </div>
+                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center text-center">
+                         <div className="p-3 bg-purple-500/20 text-purple-400 rounded-full mb-3"><Gamepad2 size={20}/></div>
+                         <h4 className="font-bold text-sm text-white">Arcade Games</h4>
+                         <p className="text-[10px] text-gray-500 mt-1">Play & win real cash</p>
+                     </div>
+                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center text-center">
+                         <div className="p-3 bg-green-500/20 text-green-400 rounded-full mb-3"><TrendingUp size={20}/></div>
+                         <h4 className="font-bold text-sm text-white">Investment</h4>
+                         <p className="text-[10px] text-gray-500 mt-1">Grow your assets</p>
+                     </div>
+                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center text-center">
+                         <div className="p-3 bg-orange-500/20 text-orange-400 rounded-full mb-3"><Users size={20}/></div>
+                         <h4 className="font-bold text-sm text-white">Referrals</h4>
+                         <p className="text-[10px] text-gray-500 mt-1">5% Commission</p>
+                     </div>
+                 </div>
+             </div>
+
+             {/* 4. REVIEWS / TRUST */}
+             <div className="px-4 pb-8 max-w-lg mx-auto">
+                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 px-1">Community Trust</h3>
+                 <div className="space-y-3">
+                     <div className="p-4 bg-[#111] rounded-xl border border-white/10 relative">
+                         <Quote size={20} className="absolute top-4 right-4 text-white/10" />
+                         <div className="flex items-center gap-2 mb-2">
+                             <div className="flex text-yellow-400">
+                                 {[1,2,3,4,5].map(i => <Star key={i} size={12} fill="currentColor"/>)}
+                             </div>
+                             <span className="text-xs font-bold text-white">Excellent</span>
+                         </div>
+                         <p className="text-xs text-gray-400 italic">"I've been using Naxxivo for 3 months. The withdrawals are super fast via Bkash. Best earning site!"</p>
+                         <div className="mt-3 flex items-center gap-2">
+                             <div className="w-6 h-6 bg-gray-700 rounded-full"></div>
+                             <span className="text-[10px] font-bold text-gray-500">Tanvir Ahmed</span>
+                         </div>
+                     </div>
+                     <div className="p-4 bg-[#111] rounded-xl border border-white/10 relative">
+                         <Quote size={20} className="absolute top-4 right-4 text-white/10" />
+                         <div className="flex items-center gap-2 mb-2">
+                             <div className="flex text-yellow-400">
+                                 {[1,2,3,4,5].map(i => <Star key={i} size={12} fill="currentColor"/>)}
+                             </div>
+                             <span className="text-xs font-bold text-white">Legit Platform</span>
+                         </div>
+                         <p className="text-xs text-gray-400 italic">"The daily tasks are easy and the support team is very helpful. Highly recommended."</p>
+                         <div className="mt-3 flex items-center gap-2">
+                             <div className="w-6 h-6 bg-gray-700 rounded-full"></div>
+                             <span className="text-[10px] font-bold text-gray-500">Sarah K.</span>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+
+             {/* 5. FOOTER */}
+             <div className="border-t border-white/10 py-8 text-center space-y-4">
+                 <div className="flex justify-center gap-6 text-xs font-bold text-gray-500">
+                     <Link to="/terms" className="hover:text-white">Terms</Link>
+                     <Link to="/faq" className="hover:text-white">FAQ</Link>
+                     <Link to="/support" className="hover:text-white">Support</Link>
+                 </div>
+                 <p className="text-[10px] text-gray-600">© 2024 Naxxivo Inc. Secure Environment.</p>
+             </div>
+
         </div>
       );
   }
