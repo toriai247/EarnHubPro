@@ -20,12 +20,55 @@ const TABLE_LIST = [
     'user_withdrawal_methods', 'crash_game_state', 'crash_bets', 'referral_tiers', 
     'ludo_cards', 'spin_items', 'bot_profiles', 'help_requests', 
     'game_configs', 'task_attempts', 'daily_bonus_config', 'daily_streaks',
-    'influencer_campaigns', 'influencer_submissions', 'published_sites'
+    'influencer_campaigns', 'influencer_submissions', 'published_sites', 'video_ads'
 ];
 
 // SQL Templates Library
 const SQL_TOOLS = {
     setup: [
+        {
+            title: 'Setup: Video Ads Module',
+            desc: 'Creates the video_ads table required for the Video Watch & Earn feature.',
+            sql: `
+CREATE TABLE IF NOT EXISTS public.video_ads (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    creator_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    video_url TEXT NOT NULL,
+    thumbnail_url TEXT,
+    duration INTEGER DEFAULT 60,
+    total_budget NUMERIC(10, 2) DEFAULT 0,
+    remaining_budget NUMERIC(10, 2) DEFAULT 0,
+    cost_per_view NUMERIC(10, 2) DEFAULT 0.50,
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.video_ads ENABLE ROW LEVEL SECURITY;
+
+-- Policies
+-- 1. Everyone can view active ads
+DROP POLICY IF EXISTS "Public view active ads" ON public.video_ads;
+CREATE POLICY "Public view active ads" ON public.video_ads FOR SELECT USING (status = 'active');
+
+-- 2. Creators can view their own ads (all statuses)
+DROP POLICY IF EXISTS "Creators view own ads" ON public.video_ads;
+CREATE POLICY "Creators view own ads" ON public.video_ads FOR SELECT USING (auth.uid() = creator_id);
+
+-- 3. Creators can insert ads
+DROP POLICY IF EXISTS "Creators insert ads" ON public.video_ads;
+CREATE POLICY "Creators insert ads" ON public.video_ads FOR INSERT WITH CHECK (auth.uid() = creator_id);
+
+-- 4. Creators can update their own ads
+DROP POLICY IF EXISTS "Creators update own ads" ON public.video_ads;
+CREATE POLICY "Creators update own ads" ON public.video_ads FOR UPDATE USING (auth.uid() = creator_id);
+
+-- 5. Creators can delete their own ads
+DROP POLICY IF EXISTS "Creators delete own ads" ON public.video_ads;
+CREATE POLICY "Creators delete own ads" ON public.video_ads FOR DELETE USING (auth.uid() = creator_id);
+`
+        },
         {
             title: 'Upgrade: Asset Storage (Images)',
             desc: 'Creates the site-assets bucket for uploading icons and logos.',
@@ -64,34 +107,6 @@ ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS company_name TEXT;
 ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS hero_title TEXT;
 ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS hero_description TEXT;
 ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS hero_image_url TEXT;
-`
-        },
-        {
-            title: 'Fix: Storage Permissions (Error 42501)',
-            desc: 'Run this if you get "must be owner of table objects". Grants ownership to postgres.',
-            sql: `
--- 1. Take ownership of storage tables
-ALTER TABLE storage.objects OWNER TO postgres;
-ALTER TABLE storage.buckets OWNER TO postgres;
-
--- 2. Create Buckets
-INSERT INTO storage.buckets (id, name, public) VALUES ('deposits', 'deposits', true) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('task-proofs', 'task-proofs', true) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('kyc-documents', 'kyc-documents', true) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('hosted-sites', 'hosted-sites', true) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('site-assets', 'site-assets', true) ON CONFLICT (id) DO NOTHING;
-
--- 3. Reset Policies
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Public View" ON storage.objects;
-CREATE POLICY "Public View" ON storage.objects FOR SELECT USING (bucket_id IN ('deposits', 'task-proofs', 'hosted-sites', 'site-assets'));
-
-DROP POLICY IF EXISTS "Auth Upload" ON storage.objects;
-CREATE POLICY "Auth Upload" ON storage.objects FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-
-DROP POLICY IF EXISTS "Owner Manage" ON storage.objects;
-CREATE POLICY "Owner Manage" ON storage.objects FOR ALL USING (auth.uid() = owner);
 `
         },
         {

@@ -6,7 +6,7 @@ import { VideoAd, UserProfile } from '../types';
 import GlassCard from '../components/GlassCard';
 import { 
     ArrowLeft, Play, Pause, AlertTriangle, CheckCircle2, 
-    Clock, DollarSign, User, Share2, MoreVertical, Maximize, RotateCcw
+    Clock, DollarSign, User, Share2, MoreVertical, Maximize, RotateCcw, AlertCircle
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -23,6 +23,7 @@ const VideoPlayer: React.FC = () => {
     const [video, setVideo] = useState<any | null>(null);
     const [suggestions, setSuggestions] = useState<VideoAd[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     
     // Player State
     const [isPlaying, setIsPlaying] = useState(false);
@@ -60,59 +61,72 @@ const VideoPlayer: React.FC = () => {
 
     const fetchVideoDetails = async () => {
         setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-            navigate('/login');
-            return;
+        setError(null);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            if (!session) {
+                navigate('/login');
+                return;
+            }
+
+            // 1. Fetch Video without Join to fix schema cache error
+            const { data: adData, error: adError } = await supabase
+                .from('video_ads')
+                .select('*')
+                .eq('id', id)
+                .single();
+
+            if (adError) throw adError;
+            if (!adData) throw new Error("Video not found or removed.");
+
+            // Manual Fetch Creator Profile
+            const { data: creatorProfile } = await supabase
+                .from('profiles')
+                .select('name_1, avatar_1, level_1')
+                .eq('id', adData.creator_id)
+                .single();
+            
+            const ad = { ...adData, profiles: creatorProfile };
+
+            // 2. Check 24h Claim Limit
+            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            
+            // Robust check: match video title in transaction description
+            const { data: claims } = await supabase
+                .from('transactions')
+                .select('description')
+                .eq('user_id', session.user.id)
+                .eq('type', 'earn')
+                .gte('created_at', oneDayAgo);
+
+            const isClaimed = (claims || []).some((c: any) => 
+                c.description && c.description.toLowerCase().includes(ad.title.toLowerCase())
+            );
+            
+            setVideo(ad);
+            setHasClaimedToday(isClaimed);
+            
+            // Timer Logic: Max 30s or full duration if shorter. Min 10s.
+            const requiredTime = Math.max(10, Math.min(ad.duration, 30)); 
+            setTimeLeft(isClaimed ? 0 : requiredTime);
+            
+            // 3. Fetch Suggestions
+            const { data: sugg } = await supabase
+                .from('video_ads')
+                .select('*')
+                .neq('id', id)
+                .eq('status', 'active')
+                .limit(4);
+            
+            if(sugg) setSuggestions(sugg as any);
+
+        } catch (e: any) {
+            console.error("VideoPlayer Error:", e);
+            setError(e.message || "Failed to load video.");
+        } finally {
+            setLoading(false);
         }
-
-        // 1. Fetch Video & Creator
-        const { data: ad, error } = await supabase
-            .from('video_ads')
-            .select('*, profiles:creator_id(name_1, avatar_1, level_1)')
-            .eq('id', id)
-            .single();
-
-        if (error || !ad) {
-            toast.error("Video not found or removed.");
-            navigate('/video');
-            return;
-        }
-
-        // 2. Check 24h Claim Limit
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        
-        // Robust check: match video title in transaction description
-        const { data: claims } = await supabase
-            .from('transactions')
-            .select('description')
-            .eq('user_id', session.user.id)
-            .eq('type', 'earn')
-            .gte('created_at', oneDayAgo);
-
-        const isClaimed = (claims || []).some((c: any) => 
-            c.description && c.description.toLowerCase().includes(ad.title.toLowerCase())
-        );
-        
-        setVideo(ad);
-        setHasClaimedToday(isClaimed);
-        
-        // Timer Logic: Max 30s or full duration if shorter. Min 10s.
-        const requiredTime = Math.max(10, Math.min(ad.duration, 30)); 
-        setTimeLeft(isClaimed ? 0 : requiredTime);
-        
-        // 3. Fetch Suggestions
-        const { data: sugg } = await supabase
-            .from('video_ads')
-            .select('*')
-            .neq('id', id)
-            .eq('status', 'active')
-            .limit(4);
-        
-        if(sugg) setSuggestions(sugg as any);
-
-        setLoading(false);
     };
 
     // --- TIMER LOGIC ---
@@ -208,6 +222,23 @@ const VideoPlayer: React.FC = () => {
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-black"><Loader /></div>;
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
+                <div className="bg-red-500/10 p-4 rounded-full mb-4">
+                    <AlertCircle size={40} className="text-red-500" />
+                </div>
+                <h2 className="text-xl font-bold text-white mb-2">Video Unavailable</h2>
+                <div className="bg-red-900/20 text-red-200 p-4 rounded-xl text-sm font-mono border border-red-500/30 max-w-sm">
+                    {error}
+                </div>
+                <button onClick={() => navigate('/video')} className="mt-6 px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200">
+                    Return to List
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="pb-24 min-h-screen bg-[#050505] text-white">

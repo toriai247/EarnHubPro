@@ -21,6 +21,7 @@ const Video: React.FC = () => {
   const [myVideos, setMyVideos] = useState<VideoAd[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
       fetchData();
@@ -28,6 +29,7 @@ const Video: React.FC = () => {
 
   const fetchData = async () => {
       setLoading(true);
+      setError(null);
       try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) return;
@@ -37,17 +39,34 @@ const Video: React.FC = () => {
           if (profRes) setProfile(profRes as UserProfile);
 
           // 2. Get All Active Ads
-          const { data: adsRes, error } = await supabase
+          const { data: adsRes, error: adsError } = await supabase
             .from('video_ads')
-            .select(`
-                *,
-                profiles:creator_id (name_1, avatar_1)
-            `)
+            .select('*')
             .eq('status', 'active')
             .gt('remaining_budget', 0.1)
             .order('created_at', {ascending: false});
 
-          if (error) throw error;
+          if (adsError) throw adsError;
+
+          // Manual Profile Join
+          const creatorIds = Array.from(new Set((adsRes || []).map((ad: any) => ad.creator_id)));
+          let profileMap: Record<string, any> = {};
+          
+          if (creatorIds.length > 0) {
+              const { data: creators } = await supabase
+                  .from('profiles')
+                  .select('id, name_1, avatar_1')
+                  .in('id', creatorIds);
+              
+              if (creators) {
+                  profileMap = creators.reduce((acc: any, curr: any) => ({...acc, [curr.id]: curr}), {});
+              }
+          }
+
+          const allAds = (adsRes || []).map((ad: any) => ({
+              ...ad,
+              profiles: profileMap[ad.creator_id]
+          })) as VideoAd[];
 
           // 3. Check Claims (History - Last 24 Hours for earning limit)
           const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -60,7 +79,6 @@ const Video: React.FC = () => {
             .gte('created_at', oneDayAgo);
 
           // Robust Filtering
-          const allAds = (adsRes || []) as VideoAd[];
           const claimDescriptions = (claims || []).map((c: any) => (c.description || '').toLowerCase());
           
           const history: VideoAd[] = [];
@@ -83,7 +101,7 @@ const Video: React.FC = () => {
 
       } catch (err: any) {
           console.error("Video Page Error:", err);
-          // toast.error("Failed to load videos. Please refresh.");
+          setError(err.message || JSON.stringify(err));
       } finally {
           setLoading(false);
       }
@@ -91,8 +109,12 @@ const Video: React.FC = () => {
 
   const fetchMyAds = async () => {
       if (!profile) return;
-      const { data } = await supabase.from('video_ads').select('*').eq('creator_id', profile.id).order('created_at', {ascending: false});
-      if (data) setMyVideos(data as VideoAd[]);
+      const { data, error } = await supabase.from('video_ads').select('*').eq('creator_id', profile.id).order('created_at', {ascending: false});
+      if (error) {
+          toast.error(error.message);
+      } else if (data) {
+          setMyVideos(data as VideoAd[]);
+      }
   };
 
   useEffect(() => {
@@ -143,6 +165,18 @@ const Video: React.FC = () => {
                </Link>
            </div>
        </header>
+
+       {error && (
+           <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm flex items-start gap-3">
+               <AlertCircle className="shrink-0 mt-0.5" size={18} />
+               <div className="flex-1">
+                   <p className="font-bold">System Error</p>
+                   <p className="text-xs font-mono mt-1 opacity-80">{error}</p>
+                   <p className="text-xs mt-2 text-red-300">If this persists, please contact support or check if the video database module is initialized.</p>
+               </div>
+               <button onClick={fetchData} className="text-white hover:text-red-200"><RefreshCw size={16}/></button>
+           </div>
+       )}
 
        {/* --- WATCH TAB --- */}
        {activeTab === 'watch' && (
