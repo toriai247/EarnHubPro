@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, UploadCloud, CheckCircle, Loader2, Copy, ShieldCheck, ArrowRight, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Loader2, Copy, ArrowRight, X, Clock, FileText } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { PaymentMethod } from '../types';
@@ -17,7 +17,7 @@ const Deposit: React.FC = () => {
   const [amount, setAmount] = useState(''); 
   const [senderNumber, setSenderNumber] = useState('');
   const [transactionId, setTransactionId] = useState('');
-  const [screenshot, setScreenshot] = useState<File | null>(null);
+  const [userNote, setUserNote] = useState(''); // New State
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success'>('idle');
   const [copied, setCopied] = useState(false);
@@ -38,18 +38,6 @@ const Deposit: React.FC = () => {
       setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files[0]) {
-          const file = e.target.files[0];
-          if (file.size > 5 * 1024 * 1024) { // 5MB Limit
-              toast.error("File is too large. Max 5MB.");
-              return;
-          }
-          setScreenshot(file);
-          toast.success("Screenshot attached!");
-      }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!selectedMethod) return;
@@ -64,30 +52,14 @@ const Deposit: React.FC = () => {
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
           if (sessionError || !session) throw new Error("Session expired. Please login again.");
 
-          let screenshotUrl = null;
-
-          if (screenshot) {
-              const fileExt = screenshot.name.split('.').pop();
-              const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
-              
-              const { error: uploadError } = await supabase.storage.from('deposits').upload(fileName, screenshot);
-              
-              if (uploadError) {
-                  console.error("Upload Error:", uploadError);
-                  throw new Error("Failed to upload proof. Ensure image is under 5MB or try a different file.");
-              }
-              
-              const { data: urlData } = supabase.storage.from('deposits').getPublicUrl(fileName);
-              screenshotUrl = urlData.publicUrl;
-          }
-
           const { error: insertError } = await supabase.from('deposit_requests').insert({
               user_id: session.user.id,
               method_name: selectedMethod.name,
               amount: bdtAmount, 
               transaction_id: transactionId,
               sender_number: senderNumber,
-              screenshot_url: screenshotUrl,
+              user_note: userNote, // Include Note
+              screenshot_url: null, // No screenshot
               status: 'pending',
               admin_note: 'Manual Deposit Request',
               processed_at: null
@@ -200,7 +172,25 @@ const Deposit: React.FC = () => {
                    </div>
                </div>
 
-               {/* 2. INPUT FORM */}
+               {/* 2. INFO & TIMERS */}
+               <div className="flex gap-2">
+                   <div className="flex-1 bg-green-900/10 border border-green-500/20 p-3 rounded-xl flex items-center gap-3">
+                       <div className="bg-green-500/20 p-2 rounded-full text-green-400"><Clock size={16}/></div>
+                       <div>
+                           <p className="text-[9px] text-green-200 font-bold uppercase">Average Time</p>
+                           <p className="text-green-400 font-bold text-xs">Fast: ~10 Minutes</p>
+                       </div>
+                   </div>
+                   <div className="flex-1 bg-red-900/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-3">
+                       <div className="bg-red-500/20 p-2 rounded-full text-red-400"><Clock size={16}/></div>
+                       <div>
+                           <p className="text-[9px] text-red-200 font-bold uppercase">Max Wait</p>
+                           <p className="text-red-400 font-bold text-xs">Auto-Resolve: 5 Hrs</p>
+                       </div>
+                   </div>
+               </div>
+
+               {/* 3. INPUT FORM */}
                <form onSubmit={handleSubmit} className="space-y-5">
                    
                    {/* Amount */}
@@ -246,23 +236,18 @@ const Deposit: React.FC = () => {
                                />
                            </div>
                        )}
-                   </div>
 
-                   {/* Screenshot Drop */}
-                   <div className="relative">
-                       <input 
-                           type="file" 
-                           accept="image/*" 
-                           onChange={handleFileChange} 
-                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                       />
-                       <div className={`border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-3 transition-colors ${screenshot ? 'border-green-500 bg-green-500/10' : 'border-white/10 hover:border-white/30 bg-[#111]'}`}>
-                           <div className={`p-2 rounded-full ${screenshot ? 'bg-green-500 text-black' : 'bg-white/10 text-gray-400'}`}>
-                               {screenshot ? <CheckCircle size={18}/> : <UploadCloud size={18}/>}
-                           </div>
-                           <span className={`text-xs font-bold ${screenshot ? 'text-green-400' : 'text-gray-400'}`}>
-                               {screenshot ? 'Screenshot Added' : 'Upload Payment Proof (Max 5MB)'}
-                           </span>
+                       {/* User Note Field */}
+                       <div className="bg-[#111] border border-white/10 rounded-2xl p-4">
+                           <label className="text-xs text-gray-500 font-bold mb-1 block uppercase flex items-center gap-1">
+                               <FileText size={12}/> Additional Note / Remarks
+                           </label>
+                           <textarea 
+                             value={userNote}
+                             onChange={e => setUserNote(e.target.value)}
+                             className="w-full bg-transparent border-b border-white/10 py-2 text-white text-sm focus:border-white focus:outline-none placeholder-gray-700 resize-none h-16"
+                             placeholder="Enter any other details (Optional)"
+                           />
                        </div>
                    </div>
 

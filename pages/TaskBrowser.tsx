@@ -1,12 +1,12 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { MarketTask } from '../types';
 import { 
-    ArrowLeft, Lock, RefreshCw, X, ShieldCheck, 
-    Globe, Smartphone, AlertTriangle, ExternalLink, 
-    CheckCircle2, Clock, Loader2, ChevronLeft, ChevronRight, Shield, Globe2, Wifi, Battery
+    ArrowLeft, ExternalLink, CheckCircle2, Clock, 
+    Loader2, ShieldCheck, AlertTriangle, PlayCircle,
+    Timer, Globe, Smartphone, Type, Send, FileCheck, UploadCloud
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import { updateWallet, createTransaction } from '../lib/actions';
@@ -23,39 +23,22 @@ const TaskBrowser: React.FC = () => {
     const [task, setTask] = useState<MarketTask | null>(null);
     const [loading, setLoading] = useState(true);
     
-    // Browser State
-    const [url, setUrl] = useState('');
-    const [displayUrl, setDisplayUrl] = useState('');
-    const [iframeKey, setIframeKey] = useState(0);
-    const [isIframeBlocked, setIsIframeBlocked] = useState(false);
-    const [loadProgress, setLoadProgress] = useState(0);
-    const [showBridge, setShowBridge] = useState(false);
-    
     // Execution State
+    const [hasOpenedLink, setHasOpenedLink] = useState(false);
     const [timer, setTimer] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const [step, setStep] = useState<'loading' | 'active' | 'verify' | 'completed'>('loading');
+    const [step, setStep] = useState<'briefing' | 'running' | 'verify' | 'completed' | 'pending_approval'>('briefing');
     
     // Verification State
     const [quizAnswer, setQuizAnswer] = useState<number | null>(null);
+    const [manualInput, setManualInput] = useState('');
+    const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (!taskId) return;
         fetchTask();
     }, [taskId]);
-
-    // Simulated Loading Bar
-    useEffect(() => {
-        if (loading || loadProgress >= 100) return;
-        const timer = setInterval(() => {
-            setLoadProgress(prev => {
-                const next = prev + Math.random() * 15;
-                return next > 90 ? 90 : next;
-            });
-        }, 200);
-        return () => clearInterval(timer);
-    }, [loading]);
 
     // Timer Logic
     useEffect(() => {
@@ -67,14 +50,13 @@ const TaskBrowser: React.FC = () => {
         } else if (timer === 0 && isTimerRunning) {
             setIsTimerRunning(false);
             setStep('verify');
-            toast.success("Time completed! Verify to claim reward.");
+            toast.success("Time completed! You can now verify.");
         }
         return () => clearInterval(interval);
     }, [isTimerRunning, timer]);
 
     const fetchTask = async () => {
         setLoading(true);
-        setLoadProgress(0);
         const { data, error } = await supabase
             .from('marketplace_tasks')
             .select('*')
@@ -89,48 +71,23 @@ const TaskBrowser: React.FC = () => {
 
         const t = data as MarketTask;
         setTask(t);
-        setUrl(t.target_url);
-        
-        try {
-            const urlObj = new URL(t.target_url);
-            setDisplayUrl(urlObj.hostname);
-        } catch (e) {
-            setDisplayUrl(t.target_url);
-        }
-
         setTimer(t.timer_seconds || 30);
-        
-        // Blocked Domains logic
-        const blockedDomains = [
-            'facebook.com', 'instagram.com', 'youtube.com', 'youtu.be', 
-            'tiktok.com', 'twitter.com', 'x.com', 'google.com', 
-            'linkedin.com', 'reddit.com', 'pinterest.com', 't.me'
-        ];
-        
-        const isBlocked = blockedDomains.some(d => t.target_url.includes(d));
-        setIsIframeBlocked(isBlocked);
-        setShowBridge(isBlocked);
-
-        setTimeout(() => {
-            setLoading(false);
-            setLoadProgress(100);
-            setStep('active');
-            // If blocked, timer starts when they click "Open" in Bridge
-            if (!isBlocked) setIsTimerRunning(true);
-        }, 1500); 
+        setLoading(false);
     };
 
-    const handleReload = () => {
-        setLoadProgress(0);
-        setIframeKey(prev => prev + 1);
-        setTimeout(() => setLoadProgress(100), 800);
-    };
-
-    const handleExternalOpen = () => {
+    const handleOpenLink = () => {
         if (!task) return;
         window.open(task.target_url, '_blank');
+        setHasOpenedLink(true);
+        setStep('running');
         setIsTimerRunning(true);
-        toast.info("Timer started. Return here to verify after completion.");
+        toast.info(`Task started! Return here after ${timer} seconds.`);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setUploadedFile(e.target.files[0]);
+        }
     };
 
     const handleSubmit = async () => {
@@ -140,287 +97,329 @@ const TaskBrowser: React.FC = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        let isSuccess = false;
-
-        // Verification Logic
+        // --- SCENARIO 1: AUTO QUIZ ---
         if (task.proof_type === 'ai_quiz' && task.quiz_config) {
             if (quizAnswer === task.quiz_config.correct_index) {
-                isSuccess = true;
+                await approveTask(session.user.id);
             } else {
-                toast.error("Incorrect answer. Please check the content again.");
+                toast.error("Incorrect answer. Please check content again.");
+                setIsSubmitting(false);
+            }
+        } 
+        // --- SCENARIO 2: FILE VERIFICATION ---
+        else if (task.proof_type === 'file_check') {
+            if (!uploadedFile) {
+                toast.error("Please upload the downloaded file.");
                 setIsSubmitting(false);
                 return;
             }
-        } else {
-            // Timer based verification
-            if (timer > 0) {
-                toast.error(`Please wait ${timer}s more to verify.`);
+            if (task.expected_file_name && uploadedFile.name === task.expected_file_name) {
+                await approveTask(session.user.id);
+            } else {
+                toast.error(`File mismatch! Uploaded: ${uploadedFile.name} | Expected: ${task.expected_file_name}`);
                 setIsSubmitting(false);
-                return;
             }
-            isSuccess = true; 
         }
+        // --- SCENARIO 3: MANUAL TEXT INPUT ---
+        else if (task.proof_type === 'text_input') {
+            if (!manualInput.trim()) {
+                toast.error("Please enter the required information.");
+                setIsSubmitting(false);
+                return;
+            }
 
-        if (isSuccess) {
             try {
-                // 1. Record Submission
+                // Record Submission as PENDING
                 await supabase.from('marketplace_submissions').insert({
                     task_id: task.id,
                     worker_id: session.user.id,
-                    status: 'approved',
-                    submission_data: { method: 'secure_emulator', answer: quizAnswer }
+                    status: 'pending',
+                    submission_data: { method: 'text', input: manualInput }
                 });
 
-                // 2. Decrement Qty
-                await supabase.rpc('decrement_task_quantity', { task_id: task.id });
-
-                // 3. Pay User
-                await updateWallet(session.user.id, task.worker_reward, 'increment', 'earning_balance');
-                await createTransaction(session.user.id, 'earn', task.worker_reward, `Task: ${task.title}`);
-
-                setStep('completed');
-                toast.success("Task Verified! Reward Credited.");
-                setTimeout(() => navigate('/tasks'), 2000);
+                setStep('pending_approval');
+                toast.success("Submission Sent for Approval");
+                setTimeout(() => navigate('/tasks'), 3000);
 
             } catch (e: any) {
                 toast.error(e.message);
             }
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
+    };
+
+    const approveTask = async (userId: string) => {
+        try {
+            if(!task) return;
+            // Record Submission
+            await supabase.from('marketplace_submissions').insert({
+                task_id: task.id,
+                worker_id: userId,
+                status: 'approved',
+                submission_data: { method: task.proof_type, answer: quizAnswer, file: uploadedFile?.name }
+            });
+
+            // Decrement Qty
+            await supabase.rpc('decrement_task_quantity', { task_id: task.id });
+
+            // Pay User
+            await updateWallet(userId, task.worker_reward, 'increment', 'earning_balance');
+            await createTransaction(userId, 'earn', task.worker_reward, `Task: ${task.title}`);
+
+            setStep('completed');
+            toast.success("Verified! Reward Credited.");
+            setTimeout(() => navigate('/tasks'), 2500);
+        } catch (e: any) {
+            toast.error(e.message);
+            setIsSubmitting(false);
+        }
     };
 
     if (loading || !task) return (
         <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center font-sans">
-            <div className="w-64 h-1.5 bg-gray-800 rounded-full overflow-hidden mb-6">
-                <motion.div 
-                    className="h-full bg-neon-green shadow-[0_0_10px_#4ade80]"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${loadProgress}%` }}
-                />
-            </div>
-            <div className="flex flex-col items-center gap-4 text-white">
-                <div className="relative">
-                    <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full animate-pulse"></div>
-                    <Globe2 size={40} className="text-blue-500 relative z-10 animate-spin-slow" />
-                </div>
-                <div className="text-center">
-                    <span className="text-sm font-bold tracking-[0.2em] uppercase block mb-1">Initializing Emulator</span>
-                    <span className="text-[10px] text-gray-500 font-mono">Secure Proxy • 256-bit Encryption</span>
-                </div>
-            </div>
+            <Loader2 className="animate-spin text-white mb-4" size={40} />
+            <p className="text-gray-500 text-sm font-bold animate-pulse">LOADING TASK...</p>
         </div>
     );
 
     return (
-        <div className="flex flex-col h-screen bg-[#111] overflow-hidden relative font-sans">
+        <div className="min-h-screen bg-[#050505] text-white p-6 flex flex-col relative font-sans">
             
-            {/* --- EMULATOR STATUS BAR --- */}
-            <div className="bg-[#050505] text-white px-4 py-2 flex justify-between items-center text-[10px] font-bold select-none border-b border-[#222]">
-                <div className="flex items-center gap-1.5">
-                    <span>9:41</span>
-                    <span className="mx-1 text-gray-600">|</span>
-                    <ShieldCheck size={10} className="text-neon-green" />
-                    <span className="text-gray-400">VPN: <span className="text-neon-green">CONNECTED</span></span>
+            {/* Header */}
+            <div className="flex items-center gap-4 mb-8 z-10">
+                <button onClick={() => navigate('/tasks')} className="p-2 bg-white/10 rounded-xl hover:bg-white/20 transition text-white">
+                    <ArrowLeft size={20} />
+                </button>
+                <div className="flex-1">
+                    <h1 className="text-lg font-bold leading-tight">{task.title}</h1>
+                    <p className="text-xs text-gray-400 mt-0.5">{task.company_name || 'Marketplace Task'}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Wifi size={12} />
-                    <Battery size={12} />
+                <div className="bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-lg text-right">
+                    <p className="text-[9px] text-gray-500 uppercase font-bold">Reward</p>
+                    <p className="text-green-400 font-mono font-bold text-sm"><BalanceDisplay amount={task.worker_reward} /></p>
                 </div>
             </div>
 
-            {/* --- BROWSER CHROME UI --- */}
-            <div className="bg-[#1a1a1a] border-b border-[#333] z-30 shadow-2xl pb-2">
-                <div className="flex items-center px-2 py-2 gap-2">
-                    <button onClick={() => navigate('/tasks')} className="p-2 hover:bg-white/5 rounded-lg text-gray-400 transition active:scale-95">
-                        <X size={18} />
-                    </button>
-                    
-                    <div className="flex gap-1">
-                        <button className="p-2 text-gray-500 cursor-not-allowed"><ChevronLeft size={18} /></button>
-                        <button className="p-2 text-gray-500 cursor-not-allowed"><ChevronRight size={18} /></button>
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col items-center justify-center max-w-md mx-auto w-full z-10 space-y-8">
+                
+                {/* Status Indicator */}
+                <div className="relative">
+                    <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${
+                        step === 'completed' ? 'border-green-500 bg-green-500/20' : 
+                        step === 'pending_approval' ? 'border-yellow-500 bg-yellow-500/20' :
+                        step === 'verify' ? 'border-blue-500 bg-blue-500/20' :
+                        step === 'running' ? 'border-yellow-500 bg-yellow-500/20' :
+                        'border-white/10 bg-white/5'
+                    }`}>
+                        {step === 'completed' ? <CheckCircle2 size={40} className="text-green-500" /> :
+                         step === 'pending_approval' ? <Clock size={40} className="text-yellow-500" /> :
+                         step === 'verify' ? <ShieldCheck size={40} className="text-blue-500" /> :
+                         step === 'running' ? <Clock size={40} className="text-yellow-500 animate-pulse" /> :
+                         <Globe size={40} className="text-gray-400" />}
                     </div>
+                </div>
 
-                    {/* Fake Address Bar */}
-                    <div className="flex-1 bg-[#0a0a0a] border border-[#333] rounded-xl h-10 flex items-center px-3 gap-2 relative group overflow-hidden shadow-inner">
-                        <div className="bg-green-500/10 p-1 rounded text-green-500">
-                            <Lock size={10} strokeWidth={3} />
-                        </div>
-                        <div className="flex-1 min-w-0 flex flex-col justify-center">
-                            <span className="text-[11px] text-gray-300 font-medium truncate">{displayUrl}</span>
-                        </div>
-                        <button onClick={handleReload} className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 transition">
-                            <RefreshCw size={12} className={loadProgress < 100 ? 'animate-spin' : ''} />
-                        </button>
+                <div className="text-center space-y-2">
+                    <h2 className="text-2xl font-black uppercase tracking-tight">
+                        {step === 'completed' ? 'Mission Complete' :
+                         step === 'pending_approval' ? 'Under Review' :
+                         step === 'verify' ? 'Verification Ready' :
+                         step === 'running' ? 'Task in Progress' :
+                         'Task Briefing'}
+                    </h2>
+                    <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed">
+                        {step === 'completed' ? 'Reward has been credited.' :
+                         step === 'pending_approval' ? 'Submission sent. Dealer will verify shortly.' :
+                         step === 'verify' ? 'Complete the check below to claim.' :
+                         step === 'running' ? `Wait ${timer}s on the target page.` :
+                         task.description}
+                    </p>
+                </div>
+
+                {/* Dynamic Action Card */}
+                <GlassCard className="w-full border border-white/10 bg-[#111]">
+                    <AnimatePresence mode="wait">
                         
-                        {/* Loading Line */}
-                        {loadProgress < 100 && (
-                            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-blue-900/50">
-                                <motion.div className="h-full bg-blue-500 shadow-[0_0_5px_#3b82f6]" style={{ width: `${loadProgress}%` }} />
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* --- MAIN VIEWPORT --- */}
-            <div className="flex-1 relative bg-white w-full overflow-hidden">
-                {!showBridge ? (
-                    <iframe 
-                        key={iframeKey}
-                        src={url} 
-                        className="w-full h-full border-none bg-white"
-                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-top-navigation-by-user-activation"
-                        title="Task Browser"
-                        loading="lazy"
-                    />
-                ) : (
-                    // --- BRIDGE INTERFACE (For Blocked Sites) ---
-                    <div className="absolute inset-0 bg-[#0f0f0f] flex flex-col items-center justify-center p-6 text-center">
-                        <div className="w-full max-w-sm space-y-8 relative z-10">
-                            
+                        {/* STATE 1: BRIEFING */}
+                        {step === 'briefing' && (
                             <motion.div 
-                                initial={{ scale: 0.8, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                className="relative mx-auto w-24 h-24"
+                                key="briefing"
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                className="space-y-4"
                             >
-                                <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping"></div>
-                                <div className="relative bg-[#1a1a1a] border-2 border-blue-500/30 rounded-full w-full h-full flex items-center justify-center shadow-[0_0_40px_rgba(59,130,246,0.15)]">
-                                    <Shield size={40} className="text-blue-400" />
+                                <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/5">
+                                    <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400"><Clock size={18}/></div>
+                                    <div className="text-left">
+                                        <p className="text-[10px] text-gray-500 uppercase font-bold">Required Time</p>
+                                        <p className="text-white font-bold">{timer} Seconds</p>
+                                    </div>
                                 </div>
-                                <div className="absolute -bottom-2 -right-2 bg-[#111] border border-white/10 rounded-lg p-2 shadow-lg">
-                                    <Lock size={16} className="text-green-500" />
-                                </div>
+                                <button 
+                                    onClick={handleOpenLink}
+                                    className="w-full py-4 bg-white text-black font-black uppercase rounded-xl hover:bg-gray-200 transition shadow-lg flex items-center justify-center gap-2 group"
+                                >
+                                    Start Task <ExternalLink size={18} className="group-hover:translate-x-1 transition-transform"/>
+                                </button>
                             </motion.div>
-
-                            <div>
-                                <h2 className="text-2xl font-bold text-white mb-3">Secure Gateway</h2>
-                                <p className="text-gray-400 text-sm leading-relaxed max-w-xs mx-auto">
-                                    This site <span className="text-white font-mono bg-white/10 px-1 rounded">{displayUrl}</span> requires a popup window for security validation.
-                                </p>
-                            </div>
-
-                            <GlassCard className="bg-[#1a1a1a] border-[#333] p-4 text-left relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
-                                <div className="flex gap-4">
-                                    <div className="bg-yellow-500/10 p-2.5 rounded-lg text-yellow-500 h-fit">
-                                        <AlertTriangle size={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-white text-sm font-bold mb-1">External Task Required</p>
-                                        <p className="text-[11px] text-gray-500 leading-relaxed">
-                                            This site prevents embedded browsing. Please open it in a popup window to complete the action.
-                                        </p>
-                                    </div>
-                                </div>
-                            </GlassCard>
-
-                            <button 
-                                onClick={handleExternalOpen}
-                                className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition flex items-center justify-center gap-3 shadow-lg shadow-blue-900/20 group relative overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                                <span className="relative z-10">Open Target Link</span>
-                                <ExternalLink size={18} className="relative z-10 group-hover:translate-x-1 transition-transform" />
-                            </button>
-
-                            {isTimerRunning && (
-                                <p className="text-xs text-gray-500 font-mono animate-pulse mt-4">
-                                    Waiting for timer: {timer}s...
-                                </p>
-                            )}
-                        </div>
-                        
-                        {/* Background Grid */}
-                        <div className="absolute inset-0 opacity-10 pointer-events-none" 
-                             style={{backgroundImage: 'radial-gradient(#333 1px, transparent 1px)', backgroundSize: '20px 20px'}}>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* --- BOTTOM CONTROL BAR --- */}
-            <AnimatePresence>
-                {step !== 'loading' && (
-                    <motion.div 
-                        initial={{ y: '100%' }}
-                        animate={{ y: 0 }}
-                        exit={{ y: '100%' }}
-                        className="bg-[#151515] border-t border-[#222] px-6 py-4 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-40 relative"
-                    >
-                        {/* Progress Bar Top of Control */}
-                        {timer > 0 && (
-                            <div className="absolute top-0 left-0 right-0 h-1 bg-gray-800">
-                                <motion.div 
-                                    className="h-full bg-yellow-500"
-                                    initial={{ width: '100%' }}
-                                    animate={{ width: '0%' }}
-                                    transition={{ duration: timer, ease: "linear" }}
-                                />
-                            </div>
                         )}
 
-                        <div className="max-w-xl mx-auto space-y-4">
-                            
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-[9px] text-gray-500 uppercase font-bold tracking-wider">Reward</p>
-                                    <div className="text-white font-bold text-lg font-mono"><BalanceDisplay amount={task.worker_reward} /></div>
+                        {/* STATE 2: RUNNING */}
+                        {step === 'running' && (
+                            <motion.div 
+                                key="running"
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                className="text-center space-y-4 py-4"
+                            >
+                                <p className="text-3xl font-mono font-bold text-white tabular-nums">
+                                    00:{timer < 10 ? `0${timer}` : timer}
+                                </p>
+                                <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                                    <motion.div 
+                                        className="h-full bg-yellow-500"
+                                        initial={{ width: '0%' }}
+                                        animate={{ width: '100%' }}
+                                        transition={{ duration: task.timer_seconds, ease: "linear" }}
+                                    />
                                 </div>
-                                
-                                {timer > 0 ? (
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                                        <Clock size={14} className="text-yellow-500 animate-pulse" />
-                                        <span className="text-xs font-bold text-yellow-500 font-mono">{timer}s Remaining</span>
+                                <p className="text-xs text-yellow-500 animate-pulse font-bold">
+                                    Do not close the target window...
+                                </p>
+                                <button onClick={handleOpenLink} className="text-xs text-gray-500 underline hover:text-white">
+                                    Re-open Link
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* STATE 3: VERIFY */}
+                        {step === 'verify' && (
+                            <motion.div 
+                                key="verify"
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                className="space-y-4"
+                            >
+                                {task.proof_type === 'ai_quiz' && task.quiz_config ? (
+                                    <div className="space-y-3 text-left">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <AlertTriangle size={16} className="text-blue-500"/>
+                                            <span className="text-xs font-bold text-blue-400 uppercase">Quiz Check</span>
+                                        </div>
+                                        <p className="text-sm text-white font-medium">{task.quiz_config.question}</p>
+                                        <div className="space-y-2">
+                                            {task.quiz_config.options.map((opt, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => setQuizAnswer(idx)}
+                                                    className={`w-full p-3 rounded-xl text-left text-xs font-bold border transition flex justify-between items-center ${
+                                                        quizAnswer === idx 
+                                                        ? 'bg-blue-600/20 border-blue-500 text-white' 
+                                                        : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10'
+                                                    }`}
+                                                >
+                                                    {opt}
+                                                    {quizAnswer === idx && <CheckCircle2 size={14} className="text-blue-500"/>}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : task.proof_type === 'file_check' ? (
+                                    <div className="space-y-3 text-left">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <FileCheck size={16} className="text-green-500"/>
+                                            <span className="text-xs font-bold text-green-400 uppercase">File Check</span>
+                                        </div>
+                                        <p className="text-sm text-white font-medium">Upload the downloaded file to verify.</p>
+                                        <p className="text-xs text-gray-500">Expected: {task.expected_file_name}</p>
+                                        
+                                        <div className="relative border-2 border-dashed border-white/20 rounded-xl p-6 text-center hover:border-green-500/50 hover:bg-green-500/5 transition">
+                                            <input 
+                                                type="file" 
+                                                onChange={handleFileChange}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                            />
+                                            {uploadedFile ? (
+                                                <div className="flex flex-col items-center text-green-400">
+                                                    <CheckCircle2 size={32} className="mb-2" />
+                                                    <span className="font-bold text-sm">{uploadedFile.name}</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center text-gray-400">
+                                                    <UploadCloud size={32} className="mb-2" />
+                                                    <span className="text-xs font-bold">Tap to Upload File</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* DETECTED NAME BOX */}
+                                        {uploadedFile && (
+                                            <div className="bg-black/30 p-2 rounded-lg border border-white/10 text-center">
+                                                <p className="text-[10px] text-gray-500 uppercase">Detected Filename</p>
+                                                <p className="text-white font-mono text-xs">{uploadedFile.name}</p>
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg">
-                                        <CheckCircle2 size={14} className="text-green-500" />
-                                        <span className="text-xs font-bold text-green-500">Ready to Verify</span>
+                                    <div className="space-y-3 text-left">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Type size={16} className="text-amber-500"/>
+                                            <span className="text-xs font-bold text-amber-400 uppercase">Input Required</span>
+                                        </div>
+                                        <p className="text-sm text-white font-medium">{task.proof_question || "Enter required details:"}</p>
+                                        <input 
+                                            type="text" 
+                                            value={manualInput} 
+                                            onChange={e => setManualInput(e.target.value)} 
+                                            className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none placeholder-gray-600 text-sm"
+                                            placeholder="Type answer here..."
+                                        />
                                     </div>
                                 )}
-                            </div>
 
-                            {/* Quiz Interface */}
-                            {task.quiz_config ? (
-                                <div className="space-y-3 bg-black/40 p-3 rounded-xl border border-white/5">
-                                    <div className="flex items-start gap-2">
-                                        <div className="mt-0.5"><AlertTriangle size={12} className="text-blue-400"/></div>
-                                        <p className="text-xs text-gray-300 font-medium leading-tight">{task.quiz_config.question}</p>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        {task.quiz_config.options.map((opt, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => setQuizAnswer(idx)}
-                                                className={`p-2.5 rounded-lg text-left text-xs font-bold transition border flex items-center justify-between ${
-                                                    quizAnswer === idx 
-                                                    ? 'bg-blue-600/20 border-blue-500 text-white' 
-                                                    : 'bg-[#111] border-[#333] text-gray-500 hover:bg-white/5'
-                                                }`}
-                                            >
-                                                {opt}
-                                                {quizAnswer === idx && <CheckCircle2 size={12} className="text-blue-500"/>}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : null}
+                                <button 
+                                    onClick={handleSubmit}
+                                    disabled={isSubmitting || (task.proof_type === 'ai_quiz' && quizAnswer === null) || (task.proof_type === 'text_input' && !manualInput.trim()) || (task.proof_type === 'file_check' && !uploadedFile)}
+                                    className="w-full py-4 bg-green-500 text-black font-black uppercase rounded-xl hover:bg-green-400 transition shadow-lg shadow-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : <><Send size={18}/> SUBMIT PROOF</>}
+                                </button>
+                            </motion.div>
+                        )}
 
-                            <button 
-                                onClick={handleSubmit}
-                                disabled={isSubmitting || (task.quiz_config && quizAnswer === null) || timer > 0}
-                                className={`w-full py-3.5 font-black uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg ${
-                                    (task.quiz_config && quizAnswer === null) || timer > 0
-                                    ? 'bg-[#222] text-gray-500 cursor-not-allowed border border-[#333]'
-                                    : 'bg-green-500 text-black hover:bg-green-400 shadow-green-900/30 hover:scale-[1.02] active:scale-[0.98]'
-                                }`}
+                        {/* STATE 4: PENDING APPROVAL */}
+                        {step === 'pending_approval' && (
+                            <motion.div 
+                                key="pending"
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                className="text-center py-6"
                             >
-                                {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : 'VERIFY & CLAIM'}
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                                <p className="text-yellow-400 font-bold mb-2">Verification Pending</p>
+                                <p className="text-xs text-gray-500 max-w-xs mx-auto mb-4">
+                                    The ad runner will review your submission. If no action is taken within {task.auto_approve_hours || 24} hours, it will auto-approve.
+                                </p>
+                                <button onClick={() => navigate('/tasks')} className="text-sm text-white bg-white/10 px-6 py-2 rounded-lg hover:bg-white/20">
+                                    Return to Task List
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* STATE 5: COMPLETED */}
+                        {step === 'completed' && (
+                            <motion.div 
+                                key="completed"
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                className="text-center py-6"
+                            >
+                                <div className="text-green-500 font-black text-2xl mb-2">+<BalanceDisplay amount={task.worker_reward} /></div>
+                                <p className="text-xs text-gray-500">Credited to Earnings Wallet</p>
+                                <button onClick={() => navigate('/tasks')} className="mt-6 text-sm text-white hover:underline">
+                                    Return to Task List
+                                </button>
+                            </motion.div>
+                        )}
+
+                    </AnimatePresence>
+                </GlassCard>
+
+            </div>
         </div>
     );
 };

@@ -88,7 +88,9 @@ export interface MarketTask {
   remaining_quantity: number;
   price_per_action: number;
   worker_reward: number; 
-  proof_type: 'ai_quiz' | 'manual'; 
+  proof_type: 'ai_quiz' | 'text_input' | 'screenshot' | 'file_check'; // Added file_check
+  proof_question?: string; 
+  expected_file_name?: string; // New: For file validation
   quiz_config?: QuizConfig; 
   ai_reference_data?: any; 
   requirements?: TaskRequirement[]; 
@@ -96,7 +98,20 @@ export interface MarketTask {
   status: 'active' | 'paused' | 'completed' | 'banned';
   company_name?: string;
   is_featured?: boolean;
+  auto_approve_hours?: number; 
   created_at: string;
+  creator_role?: 'admin' | 'dealer' | 'staff' | 'user'; // Optional for UI join
+  creator_verified?: boolean; // Optional for UI join
+}
+
+export interface TaskReport {
+    id: string;
+    task_id: string;
+    reporter_id: string;
+    reason: string;
+    status: 'pending' | 'resolved';
+    created_at: string;
+    task?: MarketTask;
 }
 
 export interface VideoAd {
@@ -229,7 +244,20 @@ export interface VideoShort { id: string; username: string; description: string;
 export interface Activity { id: string; title: string; type: Transaction['type']; amount: number; time: string; timestamp: number; status?: string; }
 export interface ReferralStats { code: string; invitedUsers: number; totalEarned: number; }
 export interface AdminStats { totalUsers: number; totalDeposits: number; totalWithdrawals: number; pendingWithdrawals: number; revenue: number; }
-export interface DepositRequest { id: string; user_id: string; method_name: string; amount: number; transaction_id: string; sender_number: string; screenshot_url?: string; status: 'pending' | 'approved' | 'rejected'; admin_note?: string; created_at: string; processed_at?: string; }
+export interface DepositRequest { 
+    id: string; 
+    user_id: string; 
+    method_name: string; 
+    amount: number; 
+    transaction_id: string; 
+    sender_number: string; 
+    screenshot_url?: string; 
+    user_note?: string; // New field
+    status: 'pending' | 'approved' | 'rejected'; 
+    admin_note?: string; 
+    created_at: string; 
+    processed_at?: string; 
+}
 export interface WithdrawRequest { id: string; user_id: string; amount: number; method: string; account_number?: string; status: 'pending' | 'approved' | 'rejected'; created_at: string; processed_at?: string; }
 export interface WithdrawalSettings { id: string; min_withdraw: number; max_withdraw: number; daily_limit: number; monthly_limit: number; id_change_fee: number; withdraw_fee_percent: number; kyc_required: boolean; }
 export interface UserWithdrawMethod { id: string; user_id: string; method_name: string; account_number: string; is_auto_enabled: boolean; }
@@ -258,6 +286,7 @@ export interface SystemConfig {
     hero_title?: string;
     hero_description?: string;
     hero_image_url?: string;
+    task_commission_percent?: number;
 }
 export interface HelpRequest { id: string; user_id?: string; email: string; message: string; status: 'pending' | 'resolved'; admin_response?: string; resolved_at?: string; created_at: string; }
 export interface KycRequest { id: string; user_id: string; full_name: string; id_type: string; id_number: string; front_image_url: string; back_image_url: string; status: 'pending' | 'approved' | 'rejected'; admin_note?: string; created_at: string; profile?: UserProfile; }

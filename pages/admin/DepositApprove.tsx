@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { DepositRequest } from '../../types';
-import { Eye, CheckCircle, XCircle, Loader2, RefreshCw, DollarSign, Banknote, Clock, History } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, RefreshCw, DollarSign, Banknote, Clock, History, FileText } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { updateWallet, createTransaction } from '../../lib/actions';
 import { motion } from 'framer-motion';
@@ -107,22 +107,6 @@ const DepositApprove: React.FC = () => {
                         <GlassCard key={req.id} className={`border ${req.status === 'pending' ? 'border-white/10' : req.status === 'approved' ? 'border-green-500/30 opacity-80' : 'border-red-500/30 opacity-60'}`}>
                             <div className="flex flex-col lg:flex-row gap-6">
                                 
-                                {/* Screenshot Preview */}
-                                <div className="lg:w-1/4">
-                                    {req.screenshot_url ? (
-                                        <div className="relative group rounded-xl overflow-hidden border border-white/10 aspect-video bg-black/50">
-                                            <img src={req.screenshot_url} alt="Proof" className="w-full h-full object-cover" />
-                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer" onClick={() => window.open(req.screenshot_url, '_blank')}>
-                                                <Eye className="text-white" />
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-white/5 rounded-xl text-gray-500 text-xs aspect-video">
-                                            No Image
-                                        </div>
-                                    )}
-                                </div>
-
                                 {/* Details */}
                                 <div className="flex-1 space-y-3">
                                     <div className="flex justify-between items-start">
@@ -152,6 +136,17 @@ const DepositApprove: React.FC = () => {
                                             <p className="text-white font-mono text-sm select-all">{req.sender_number}</p>
                                         </div>
                                     </div>
+
+                                    {/* User Note Display */}
+                                    {req.user_note && (
+                                        <div className="bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl flex gap-2">
+                                            <FileText size={14} className="text-blue-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="text-[10px] text-blue-300 font-bold uppercase">User Note</p>
+                                                <p className="text-xs text-gray-300 italic">"{req.user_note}"</p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Actions (Only for Pending) */}

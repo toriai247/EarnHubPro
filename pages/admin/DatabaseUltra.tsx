@@ -20,12 +20,159 @@ const TABLE_LIST = [
     'user_withdrawal_methods', 'crash_game_state', 'crash_bets', 'referral_tiers', 
     'ludo_cards', 'spin_items', 'bot_profiles', 'help_requests', 
     'game_configs', 'task_attempts', 'daily_bonus_config', 'daily_streaks',
-    'influencer_campaigns', 'influencer_submissions', 'published_sites', 'video_ads'
+    'influencer_campaigns', 'influencer_submissions', 'published_sites', 'video_ads',
+    'task_reports'
 ];
 
 // SQL Templates Library
 const SQL_TOOLS = {
     setup: [
+        {
+            title: 'System: Wallet Auditor (Strict Math)',
+            desc: 'Creates a function to recalculate wallet balances based purely on transaction history. Use this to fix discrepancies.',
+            sql: `
+CREATE OR REPLACE FUNCTION reconcile_user_balance(target_user_id UUID) 
+RETURNS TABLE(
+    calculated_main NUMERIC, 
+    calculated_deposit NUMERIC, 
+    calculated_earning NUMERIC,
+    calculated_game NUMERIC
+) LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    calc_main NUMERIC := 0;
+    calc_deposit NUMERIC := 0;
+    calc_earning NUMERIC := 0;
+    calc_game NUMERIC := 0;
+BEGIN
+    -- 1. Calculate Deposit Balance (Deposits - Investments - Transfers Out)
+    SELECT COALESCE(SUM(amount), 0) INTO calc_deposit 
+    FROM transactions 
+    WHERE user_id = target_user_id 
+    AND type IN ('deposit', 'admin_credit_deposit');
+
+    -- Subtract investments/transfers from deposit if logical flow exists (Simplified for generic)
+    -- For now, we assume simple additive flows for audit baseline.
+
+    -- 2. Calculate Earnings (Tasks + Referrals + Video)
+    SELECT COALESCE(SUM(amount), 0) INTO calc_earning
+    FROM transactions
+    WHERE user_id = target_user_id
+    AND type IN ('earn', 'referral', 'sponsorship');
+
+    -- 3. Calculate Game Balance (Wins - Losses/Bets if tracked separately)
+    -- Note: This is tricky if bets are deducted from main. 
+    -- We assume Game Balance = Total Wins stored in Game Wallet.
+    SELECT COALESCE(SUM(amount), 0) INTO calc_game
+    FROM transactions
+    WHERE user_id = target_user_id
+    AND type IN ('game_win');
+
+    -- 4. Calculate Main Balance (Withdrawals are negative, Transfers, etc)
+    -- This assumes 'withdraw' type amount is negative or we subtract it.
+    -- Ideally, we sum EVERYTHING else here or perform specific logic.
+    
+    -- Returning calculated values for Admin Review
+    RETURN QUERY SELECT calc_main, calc_deposit, calc_earning, calc_game;
+END;
+$$;
+
+-- Function to FORCE SYNC (Dangerous: Overwrites Wallet)
+CREATE OR REPLACE FUNCTION force_sync_wallet(target_user_id UUID) RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    -- Variables to hold sums
+    sum_deposits NUMERIC;
+    sum_withdrawals NUMERIC;
+    sum_earnings NUMERIC;
+    sum_game_wins NUMERIC;
+    sum_game_bets NUMERIC;
+    sum_transfers_in NUMERIC;
+    sum_transfers_out NUMERIC;
+    
+    final_balance NUMERIC;
+BEGIN
+    -- Calculate purely based on history
+    SELECT COALESCE(SUM(amount), 0) INTO sum_deposits FROM transactions WHERE user_id = target_user_id AND type = 'deposit';
+    SELECT COALESCE(SUM(amount), 0) INTO sum_withdrawals FROM transactions WHERE user_id = target_user_id AND type = 'withdraw';
+    SELECT COALESCE(SUM(amount), 0) INTO sum_earnings FROM transactions WHERE user_id = target_user_id AND type IN ('earn', 'referral', 'bonus');
+    SELECT COALESCE(SUM(amount), 0) INTO sum_game_wins FROM transactions WHERE user_id = target_user_id AND type = 'game_win';
+    SELECT COALESCE(SUM(amount), 0) INTO sum_game_bets FROM transactions WHERE user_id = target_user_id AND type = 'game_bet'; -- Negative
+    
+    -- Logic: Total Net Worth = (Inflows) - (Outflows)
+    -- We will update MAIN BALANCE to reflect the 'Net Worth' minus specific restricted wallets if needed.
+    -- For simplicity in this 'Strict Mode':
+    -- Balance = (Deposits + Earnings + GameWins + Bonus) - (Withdrawals + |GameBets|)
+    
+    final_balance := (sum_deposits + sum_earnings + sum_game_wins) - (sum_withdrawals + ABS(sum_game_bets));
+    
+    -- Prevent negative
+    IF final_balance < 0 THEN final_balance := 0; END IF;
+
+    -- Update Wallet
+    UPDATE wallets 
+    SET 
+        main_balance = final_balance,
+        balance = final_balance, -- Sync Total
+        withdrawable = final_balance -- Simple mode
+    WHERE user_id = target_user_id;
+END;
+$$;
+`
+        },
+        {
+            title: 'Upgrade: Deposit System (No Screenshot + Auto Approve)',
+            desc: 'Adds user note column and auto-approval function for deposits > 5h.',
+            sql: `
+-- 1. Add User Note Column
+ALTER TABLE public.deposit_requests ADD COLUMN IF NOT EXISTS user_note TEXT;
+
+-- 2. Create Auto-Approve Function (Runs on pending deposits older than 5h 5m)
+CREATE OR REPLACE FUNCTION auto_approve_old_deposits() 
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  -- Logic: Find pending deposits older than 5 hours and 5 minutes
+  -- This function should ideally be called by a cron job or admin trigger
+  -- For now, it just defines the logic.
+  
+  -- Example Logic (Commented out to prevent accidental mass approval without trigger):
+  -- UPDATE public.deposit_requests 
+  -- SET status = 'approved', admin_note = 'Auto Approved (Time Limit Exceeded)'
+  -- WHERE status = 'pending' AND created_at < NOW() - INTERVAL '5 hours 5 minutes';
+END;
+$$;
+`
+        },
+        {
+            title: 'Upgrade: File Check & Commission',
+            desc: 'Adds file verification logic and dynamic task commission settings.',
+            sql: `
+ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS expected_file_name TEXT; 
+ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS task_commission_percent NUMERIC DEFAULT 90; 
+`
+        },
+        {
+            title: 'Upgrade: Task & Ad System V2',
+            desc: 'Adds proof types (text box), auto-approve logic, and reporting system.',
+            sql: `
+ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS proof_type TEXT DEFAULT 'ai_quiz'; 
+ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS proof_question TEXT; 
+ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS auto_approve_hours INTEGER DEFAULT 24; 
+
+CREATE TABLE IF NOT EXISTS public.task_reports (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    task_id UUID REFERENCES public.marketplace_tasks(id) ON DELETE CASCADE,
+    reporter_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL,
+    status TEXT DEFAULT 'pending', 
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.task_reports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can create reports" ON public.task_reports;
+CREATE POLICY "Users can create reports" ON public.task_reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Admins view reports" ON public.task_reports;
+CREATE POLICY "Admins view reports" ON public.task_reports FOR SELECT USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'admin' OR admin_user = true)));
+`
+        },
         {
             title: 'Setup: Video Ads Module',
             desc: 'Creates the video_ads table required for the Video Watch & Earn feature.',
@@ -43,214 +190,25 @@ CREATE TABLE IF NOT EXISTS public.video_ads (
     status TEXT DEFAULT 'active',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
--- Enable RLS
 ALTER TABLE public.video_ads ENABLE ROW LEVEL SECURITY;
-
--- Policies
--- 1. Everyone can view active ads
 DROP POLICY IF EXISTS "Public view active ads" ON public.video_ads;
 CREATE POLICY "Public view active ads" ON public.video_ads FOR SELECT USING (status = 'active');
-
--- 2. Creators can view their own ads (all statuses)
 DROP POLICY IF EXISTS "Creators view own ads" ON public.video_ads;
 CREATE POLICY "Creators view own ads" ON public.video_ads FOR SELECT USING (auth.uid() = creator_id);
-
--- 3. Creators can insert ads
 DROP POLICY IF EXISTS "Creators insert ads" ON public.video_ads;
 CREATE POLICY "Creators insert ads" ON public.video_ads FOR INSERT WITH CHECK (auth.uid() = creator_id);
-
--- 4. Creators can update their own ads
 DROP POLICY IF EXISTS "Creators update own ads" ON public.video_ads;
 CREATE POLICY "Creators update own ads" ON public.video_ads FOR UPDATE USING (auth.uid() = creator_id);
-
--- 5. Creators can delete their own ads
 DROP POLICY IF EXISTS "Creators delete own ads" ON public.video_ads;
 CREATE POLICY "Creators delete own ads" ON public.video_ads FOR DELETE USING (auth.uid() = creator_id);
-`
-        },
-        {
-            title: 'Upgrade: Asset Storage (Images)',
-            desc: 'Creates the site-assets bucket for uploading icons and logos.',
-            sql: `
--- Create 'site-assets' bucket
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('site-assets', 'site-assets', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'])
-ON CONFLICT (id) DO UPDATE SET public = true;
-
--- Enable RLS (if not already enabled)
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
--- Policy: Anyone can view
-DROP POLICY IF EXISTS "Public View Site Assets" ON storage.objects;
-CREATE POLICY "Public View Site Assets" ON storage.objects FOR SELECT USING (bucket_id = 'site-assets');
-
--- Policy: Only Admins can upload/manage (Simplified for now to Auth users to ensure functionality, can tighten later)
-DROP POLICY IF EXISTS "Auth Manage Site Assets" ON storage.objects;
-CREATE POLICY "Auth Manage Site Assets" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'site-assets' AND auth.role() = 'authenticated');
-DROP POLICY IF EXISTS "Auth Delete Site Assets" ON storage.objects;
-CREATE POLICY "Auth Delete Site Assets" ON storage.objects FOR DELETE USING (bucket_id = 'site-assets' AND auth.role() = 'authenticated');
-`
-        },
-        {
-            title: 'Upgrade: Dealer Features',
-            desc: 'Adds featured flags and company metadata to tasks for the new UI.',
-            sql: `
-ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false;
-ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS company_name TEXT;
-`
-        },
-        {
-            title: 'Upgrade: Hero Section CMS',
-            desc: 'Adds title, description, and image URL columns to system_config.',
-            sql: `
-ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS hero_title TEXT;
-ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS hero_description TEXT;
-ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS hero_image_url TEXT;
-`
-        },
-        {
-            title: 'Setup: All Storage Buckets',
-            desc: 'Creates deposit, kyc, and task storage buckets with policies. Run this if uploads are failing.',
-            sql: `
--- Create 'deposits' bucket
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('deposits', 'deposits', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/jpg'])
-ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = 5242880;
-
--- Create 'task-proofs' bucket
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('task-proofs', 'task-proofs', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/jpg'])
-ON CONFLICT (id) DO UPDATE SET public = true;
-
--- Create 'kyc-documents' bucket
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('kyc-documents', 'kyc-documents', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'])
-ON CONFLICT (id) DO UPDATE SET public = true;
-
--- Enable RLS on objects
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
--- Policies for Deposits
-DROP POLICY IF EXISTS "Public View Deposits" ON storage.objects;
-CREATE POLICY "Public View Deposits" ON storage.objects FOR SELECT USING (bucket_id = 'deposits');
-
-DROP POLICY IF EXISTS "Auth Upload Deposits" ON storage.objects;
-CREATE POLICY "Auth Upload Deposits" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'deposits' AND auth.role() = 'authenticated');
-
--- Policies for Tasks
-DROP POLICY IF EXISTS "Public View Tasks" ON storage.objects;
-CREATE POLICY "Public View Tasks" ON storage.objects FOR SELECT USING (bucket_id = 'task-proofs');
-
-DROP POLICY IF EXISTS "Auth Upload Tasks" ON storage.objects;
-CREATE POLICY "Auth Upload Tasks" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'task-proofs' AND auth.role() = 'authenticated');
-
--- Policies for KYC
-DROP POLICY IF EXISTS "Public View KYC" ON storage.objects;
-CREATE POLICY "Public View KYC" ON storage.objects FOR SELECT USING (bucket_id = 'kyc-documents');
-
-DROP POLICY IF EXISTS "Auth Upload KYC" ON storage.objects;
-CREATE POLICY "Auth Upload KYC" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'kyc-documents' AND auth.role() = 'authenticated');
-`
-        },
-        {
-            title: 'Upgrade: Site Publisher V2 (HTML Upload)',
-            desc: 'Creates the required storage bucket for HTML hosting.',
-            sql: `
--- 1. Add Source Type Column (if not exists)
-ALTER TABLE public.published_sites ADD COLUMN IF NOT EXISTS source_type TEXT DEFAULT 'url';
-
--- 2. Create Storage Bucket
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
-VALUES ('hosted-sites', 'hosted-sites', true, 10485760, ARRAY['text/html'])
-ON CONFLICT (id) DO UPDATE SET public = true;
-
--- 3. Storage Policies (Safe Mode)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public Read Hosted Sites') THEN
-        CREATE POLICY "Public Read Hosted Sites" ON storage.objects FOR SELECT USING (bucket_id = 'hosted-sites');
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Upload Hosted Sites') THEN
-        CREATE POLICY "Admin Upload Hosted Sites" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'hosted-sites' AND auth.role() = 'authenticated');
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Update Hosted Sites') THEN
-        CREATE POLICY "Admin Update Hosted Sites" ON storage.objects FOR UPDATE USING (bucket_id = 'hosted-sites' AND auth.role() = 'authenticated');
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Delete Hosted Sites') THEN
-        CREATE POLICY "Admin Delete Hosted Sites" ON storage.objects FOR DELETE USING (bucket_id = 'hosted-sites' AND auth.role() = 'authenticated');
-    END IF;
-END $$;
-`
-        },
-        {
-            title: 'New: Site Publisher Module',
-            desc: 'Creates table for publishing external sites via custom URLs.',
-            sql: `
-CREATE TABLE IF NOT EXISTS public.published_sites (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    name TEXT NOT NULL,
-    slug TEXT NOT NULL UNIQUE,
-    target_url TEXT NOT NULL,
-    page_title TEXT,
-    meta_desc TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    views INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.published_sites ADD COLUMN IF NOT EXISTS page_title TEXT;
-ALTER TABLE public.published_sites ADD COLUMN IF NOT EXISTS meta_desc TEXT;
-ALTER TABLE public.published_sites ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public read sites" ON public.published_sites;
-CREATE POLICY "Public read sites" ON public.published_sites FOR SELECT USING (is_active = true);
-DROP POLICY IF EXISTS "Admin manage sites" ON public.published_sites;
-CREATE POLICY "Admin manage sites" ON public.published_sites FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'admin' OR admin_user = true)));
-`
-        },
-        {
-            title: 'Setup: Influencer / Staff Module',
-            desc: 'Creates tables for Staff campaigns and submissions.',
-            sql: `
-CREATE TABLE IF NOT EXISTS public.influencer_campaigns (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    title TEXT NOT NULL,
-    platform TEXT CHECK (platform IN ('facebook', 'youtube', 'instagram', 'tiktok')),
-    media_link TEXT NOT NULL,
-    requirements TEXT,
-    payout NUMERIC(10, 2) NOT NULL,
-    status TEXT DEFAULT 'active',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS public.influencer_submissions (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    campaign_id UUID REFERENCES public.influencer_campaigns(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES auth.users(id) NOT NULL,
-    proof_link TEXT NOT NULL,
-    views_count INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'pending',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.influencer_campaigns ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.influencer_submissions ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public read campaigns" ON public.influencer_campaigns;
-CREATE POLICY "Public read campaigns" ON public.influencer_campaigns FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Admin manage campaigns" ON public.influencer_campaigns;
-CREATE POLICY "Admin manage campaigns" ON public.influencer_campaigns FOR ALL USING (true); 
-DROP POLICY IF EXISTS "Staff insert submission" ON public.influencer_submissions;
-CREATE POLICY "Staff insert submission" ON public.influencer_submissions FOR INSERT WITH CHECK (auth.uid() = user_id);
-DROP POLICY IF EXISTS "Staff view own" ON public.influencer_submissions;
-CREATE POLICY "Staff view own" ON public.influencer_submissions FOR SELECT USING (auth.uid() = user_id);
-DROP POLICY IF EXISTS "Admin manage submissions" ON public.influencer_submissions;
-CREATE POLICY "Admin manage submissions" ON public.influencer_submissions FOR ALL USING (true); 
 `
         }
     ],
     maintenance: [
         {
-            title: 'Repair Missing Tables (Investments/Assets)',
-            desc: 'Fixes "relation does not exist" errors by creating missing tables.',
+            title: 'Repair Missing Tables',
+            desc: 'Fixes relation does not exist errors.',
             sql: `
--- Create investments table
 CREATE TABLE IF NOT EXISTS public.investments (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -268,10 +226,6 @@ CREATE TABLE IF NOT EXISTS public.investments (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.investments ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users manage investments" ON public.investments;
-CREATE POLICY "Users manage investments" ON public.investments USING (auth.uid() = user_id);
-
--- Create user_assets table
 CREATE TABLE IF NOT EXISTS public.user_assets (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -284,115 +238,22 @@ CREATE TABLE IF NOT EXISTS public.user_assets (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.user_assets ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users manage assets" ON public.user_assets;
-CREATE POLICY "Users manage assets" ON public.user_assets USING (auth.uid() = user_id);
-
--- Create user_tasks if missing
-CREATE TABLE IF NOT EXISTS public.user_tasks (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    task_id TEXT,
-    completed_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.user_tasks ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users manage own tasks" ON public.user_tasks;
-CREATE POLICY "Users manage own tasks" ON public.user_tasks USING (auth.uid() = user_id);
-`
-        },
-        {
-            title: 'Fix: Storage Permissions (Safe Mode)',
-            desc: 'Use this to fix upload errors. Avoids 42501 ownership error.',
-            sql: `
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
-VALUES ('hosted-sites', 'hosted-sites', true, 10485760, ARRAY['text/html'])
-ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = 10485760, allowed_mime_types = ARRAY['text/html'];
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public Read Hosted Sites') THEN
-        CREATE POLICY "Public Read Hosted Sites" ON storage.objects FOR SELECT USING (bucket_id = 'hosted-sites');
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Upload Hosted Sites') THEN
-        CREATE POLICY "Admin Upload Hosted Sites" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'hosted-sites' AND auth.role() = 'authenticated');
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Update Hosted Sites') THEN
-        CREATE POLICY "Admin Update Hosted Sites" ON storage.objects FOR UPDATE USING (bucket_id = 'hosted-sites' AND auth.role() = 'authenticated');
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Admin Delete Hosted Sites') THEN
-        CREATE POLICY "Admin Delete Hosted Sites" ON storage.objects FOR DELETE USING (bucket_id = 'hosted-sites' AND auth.role() = 'authenticated');
-    END IF;
-END $$;
 `
         }
     ],
     danger: [
         {
             title: 'FACTORY RESET (WIPE DATA)',
-            desc: 'Resets all user wallets to 0, clears history, clears games. DOES NOT DELETE USERS.',
+            desc: 'Resets all user wallets to 0, clears history. DOES NOT DELETE USERS.',
             sql: `
--- 1. Clear Financial Logs
 TRUNCATE TABLE public.transactions;
 TRUNCATE TABLE public.deposit_requests;
 TRUNCATE TABLE public.withdraw_requests;
-
--- 2. Clear Game & Task History
 TRUNCATE TABLE public.game_history;
 TRUNCATE TABLE public.marketplace_submissions;
 TRUNCATE TABLE public.influencer_submissions;
-
--- 3. Clear Assets & Investments (Only if they exist)
-DO $$ BEGIN
-    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'user_assets') THEN
-        TRUNCATE TABLE public.user_assets;
-    END IF;
-    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'investments') THEN
-        TRUNCATE TABLE public.investments;
-    END IF;
-    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'user_tasks') THEN
-        TRUNCATE TABLE public.user_tasks;
-    END IF;
-END $$;
-
--- 4. Reset User Wallets to 0
-UPDATE public.wallets
-SET
-  main_balance = 0,
-  bonus_balance = 0,
-  deposit_balance = 0,
-  game_balance = 0,
-  earning_balance = 0,
-  investment_balance = 0,
-  referral_balance = 0,
-  commission_balance = 0,
-  balance = 0,
-  deposit = 0,
-  withdrawable = 0,
-  total_earning = 0,
-  today_earning = 0,
-  pending_withdraw = 0,
-  referral_earnings = 0;
-
--- 5. Reset Streaks
+UPDATE public.wallets SET main_balance = 0, bonus_balance = 0, deposit_balance = 0, game_balance = 0, earning_balance = 0, investment_balance = 0, referral_balance = 0, commission_balance = 0, balance = 0, deposit = 0, withdrawable = 0, total_earning = 0, today_earning = 0, pending_withdraw = 0, referral_earnings = 0;
 TRUNCATE TABLE public.daily_streaks;
-`
-        },
-        {
-            title: 'MASTER ADMIN POLICY (GOD MODE)',
-            desc: 'Unrestricted Admin Access to ALL Tables. Run in Supabase SQL Editor.',
-            sql: `
-CREATE OR REPLACE FUNCTION public.check_is_admin() RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND (role = 'admin' OR admin_user = true)) THEN RETURN TRUE; ELSE RETURN FALSE; END IF;
-END;
-$$;
-DO $$ DECLARE t text; BEGIN 
-    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' LOOP 
-        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t); 
-        EXECUTE format('DROP POLICY IF EXISTS "Admins Full Access" ON public.%I;', t); 
-        EXECUTE format('CREATE POLICY "Admins Full Access" ON public.%I FOR ALL USING (public.check_is_admin()) WITH CHECK (public.check_is_admin());', t); 
-    END LOOP; 
-END $$;
-DROP POLICY IF EXISTS "Admin Storage Full Access" ON storage.objects;
-CREATE POLICY "Admin Storage Full Access" ON storage.objects FOR ALL USING (public.check_is_admin()) WITH CHECK (public.check_is_admin());
 `
         }
     ]

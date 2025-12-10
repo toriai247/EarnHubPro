@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { SystemConfig } from '../../types';
-import { Save, Loader2, Settings, Smartphone, Lock, AlertTriangle, Eye, Image as ImageIcon } from 'lucide-react';
+import { Save, Loader2, Settings, Smartphone, Lock, AlertTriangle, Eye, Image as ImageIcon, Percent, Type } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import ImageSelector from '../../components/ImageSelector';
 
@@ -36,187 +36,134 @@ const WebsiteSettings: React.FC = () => {
           is_pwa_enabled: config.is_pwa_enabled,
           hero_title: config.hero_title,
           hero_description: config.hero_description,
-          hero_image_url: config.hero_image_url
+          hero_image_url: config.hero_image_url,
+          task_commission_percent: config.task_commission_percent
       }).eq('id', config.id);
 
       if(error) toast.error(error.message);
-      else {
-          toast.success("Config Saved!");
-      }
+      else toast.success("Settings Saved");
       setSaving(false);
   };
 
-  if(loading) return <div className="p-10"><Loader2 className="animate-spin mx-auto text-white"/></div>;
-  if(!config) return <div className="p-10 text-center text-red-500">Config missing</div>;
+  if(loading) return <Loader2 className="animate-spin mx-auto mt-10 text-white"/>;
+  if(!config) return <div className="text-center mt-10 text-red-500">Config missing</div>;
 
   return (
-    <div className="space-y-6 animate-fade-in pb-24">
-        <h2 className="text-2xl font-bold text-white">Site Configuration</h2>
-        
-        {/* SYSTEM CONTROL */}
-        <GlassCard className="space-y-6">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Settings size={20} className="text-gray-400"/> System Core
-            </h3>
-
-            <div className="flex items-center justify-between">
-                <div>
-                    <h4 className="font-bold text-white">Maintenance Mode</h4>
-                    <p className="text-xs text-gray-400">Disable user access immediately</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={config.maintenance_mode} onChange={e => setConfig({...config, maintenance_mode: e.target.checked})} className="sr-only peer" />
-                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                </label>
-            </div>
-            
-            <div className="h-px bg-white/10"></div>
-
-            {/* HERO SECTION SETTINGS */}
-            <div>
-                <h4 className="font-bold text-white flex items-center gap-2 mb-4">
-                    <ImageIcon size={16} className="text-blue-400" /> Homepage Hero
-                </h4>
-                <div className="space-y-4 bg-white/5 p-4 rounded-xl border border-white/5">
-                    <div>
-                        <label className="text-xs font-bold text-gray-400 mb-1 block">Hero Title</label>
-                        <input 
-                            type="text"
-                            value={config.hero_title || ''}
-                            onChange={e => setConfig({...config, hero_title: e.target.value})}
-                            placeholder="EARN. PLAY. GROW."
-                            className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-blue-500 outline-none font-bold"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-gray-400 mb-1 block">Hero Description</label>
-                        <textarea 
-                            value={config.hero_description || ''}
-                            onChange={e => setConfig({...config, hero_description: e.target.value})}
-                            placeholder="Join the next-generation earning ecosystem..."
-                            className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white text-sm focus:border-blue-500 outline-none h-20 resize-none"
-                        />
-                    </div>
-                    
-                    <ImageSelector
-                        label="Background Image (Optional)"
-                        value={config.hero_image_url || ''}
-                        onChange={(val) => setConfig({...config, hero_image_url: val})}
-                        placeholder="Select or Upload Background"
-                    />
-                </div>
-            </div>
-
-            <div className="h-px bg-white/10"></div>
-
-            {/* PWA Settings */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
-                        <Smartphone size={20} />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-white text-sm">PWA Install Prompt</h4>
-                        <p className="text-xs text-gray-400">Show "Install App" popup on login/signup pages.</p>
-                    </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                        type="checkbox" 
-                        checked={config.is_pwa_enabled || false} 
-                        onChange={e => setConfig({...config, is_pwa_enabled: e.target.checked})} 
-                        className="sr-only peer" 
-                    />
-                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-                </label>
-            </div>
-
-            <div className="h-px bg-white/10"></div>
-
-            {/* Account Activation Settings */}
-            <div className="bg-purple-900/10 border border-purple-500/30 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400"><Lock size={18}/></div>
-                        <div>
-                            <h4 className="font-bold text-white text-sm">Account Activation Requirement</h4>
-                            <p className="text-xs text-gray-400">Users must deposit to withdraw/verify.</p>
-                        </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                            type="checkbox" 
-                            checked={config.is_activation_enabled || false} 
-                            onChange={e => setConfig({...config, is_activation_enabled: e.target.checked})} 
-                            className="sr-only peer" 
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                    </label>
-                </div>
-                
-                {config.is_activation_enabled && (
-                    <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-                        <label className="text-xs text-purple-300 font-bold block mb-1">Required Deposit Amount (BDT)</label>
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">৳</span>
-                            <input 
-                                type="number" 
-                                step="1" 
-                                value={config.activation_amount || 0}
-                                onChange={e => setConfig({...config, activation_amount: parseFloat(e.target.value)})}
-                                className="w-full bg-black/40 border border-white/10 rounded-lg pl-8 pr-4 py-2 text-white text-sm focus:border-purple-500 outline-none"
-                            />
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="h-px bg-white/10"></div>
-
-            <div className="space-y-2">
-                <h4 className="font-bold text-white">Global Announcement</h4>
-                <textarea 
-                    value={config.global_alert || ''}
-                    onChange={e => setConfig({...config, global_alert: e.target.value})}
-                    className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-white text-sm h-24 focus:border-neon-green outline-none" 
-                    placeholder="Enter message to show on all user dashboards..."
-                ></textarea>
-            </div>
-
-            <div className="h-px bg-white/10"></div>
-
-            {/* P2P Settings */}
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="text-xs text-gray-400 font-bold block mb-1">P2P Transfer Fee (%)</label>
-                    <input 
-                        type="number" 
-                        step="0.1" 
-                        value={config.p2p_transfer_fee_percent || 0}
-                        onChange={e => setConfig({...config, p2p_transfer_fee_percent: parseFloat(e.target.value)})}
-                        className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none"
-                    />
-                </div>
-                <div>
-                    <label className="text-xs text-gray-400 font-bold block mb-1">Min Transfer (BDT)</label>
-                    <input 
-                        type="number" 
-                        step="1" 
-                        value={config.p2p_min_transfer || 0}
-                        onChange={e => setConfig({...config, p2p_min_transfer: parseFloat(e.target.value)})}
-                        className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-neon-green outline-none"
-                    />
-                </div>
-            </div>
-
+    <div className="space-y-6 animate-fade-in pb-24 relative">
+        <div className="sticky top-0 z-20 bg-[#050505]/90 backdrop-blur-xl py-4 flex justify-between items-center border-b border-white/5 -mx-4 px-4 mb-4">
+            <h2 className="text-xl font-bold text-white">Site Config</h2>
             <button 
                 onClick={handleSave} 
                 disabled={saving}
-                className="w-full py-3 bg-royal-600 text-white text-sm font-bold rounded-xl hover:bg-royal-500 transition flex items-center justify-center gap-2"
+                className="bg-white text-black px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-gray-200 disabled:opacity-50"
             >
-                {saving ? <Loader2 className="animate-spin"/> : <Save size={18}/>} Save Configuration
+                {saving ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Save
             </button>
-        </GlassCard>
+        </div>
+        
+        {/* HERO SECTION */}
+        <div className="space-y-4">
+            <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest pl-1">Landing Page</h3>
+            <GlassCard className="p-4 space-y-4 bg-black/40">
+                <div>
+                    <label className="text-xs font-bold text-gray-400 mb-1.5 block">Hero Title</label>
+                    <input 
+                        type="text"
+                        value={config.hero_title || ''}
+                        onChange={e => setConfig({...config, hero_title: e.target.value})}
+                        className="w-full bg-[#111] border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none font-bold"
+                        placeholder="EARN. PLAY. GROW."
+                    />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-gray-400 mb-1.5 block">Subtitle</label>
+                    <textarea 
+                        value={config.hero_description || ''}
+                        onChange={e => setConfig({...config, hero_description: e.target.value})}
+                        className="w-full bg-[#111] border border-white/10 rounded-xl p-3 text-white text-sm focus:border-blue-500 outline-none h-20 resize-none"
+                    />
+                </div>
+                <ImageSelector
+                    label="Background Image"
+                    value={config.hero_image_url || ''}
+                    onChange={(val) => setConfig({...config, hero_image_url: val})}
+                />
+            </GlassCard>
+        </div>
+
+        {/* FEES */}
+        <div className="space-y-4">
+            <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest pl-1">Economy Fees</h3>
+            <GlassCard className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-black/40">
+                <div>
+                    <label className="text-xs font-bold text-gray-400 mb-1.5 block">Task User Share (%)</label>
+                    <div className="relative">
+                        <input 
+                            type="number"
+                            value={config.task_commission_percent || 90}
+                            onChange={e => setConfig({...config, task_commission_percent: parseFloat(e.target.value)})}
+                            className="w-full bg-[#111] border border-white/10 rounded-xl p-3 text-white font-mono font-bold focus:border-green-500 outline-none"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                    </div>
+                    <p className="text-[9px] text-gray-500 mt-1">Percentage of ad cost given to user.</p>
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-gray-400 mb-1.5 block">P2P Transfer Fee (%)</label>
+                    <div className="relative">
+                        <input 
+                            type="number"
+                            value={config.p2p_transfer_fee_percent || 0}
+                            onChange={e => setConfig({...config, p2p_transfer_fee_percent: parseFloat(e.target.value)})}
+                            className="w-full bg-[#111] border border-white/10 rounded-xl p-3 text-white font-mono font-bold focus:border-green-500 outline-none"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                    </div>
+                </div>
+            </GlassCard>
+        </div>
+
+        {/* ACTIVATION */}
+        <div className="space-y-4">
+            <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest pl-1">Account Rules</h3>
+            <GlassCard className="p-4 bg-purple-900/10 border-purple-500/20">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <h4 className="font-bold text-white text-sm">Force Activation</h4>
+                        <p className="text-[10px] text-gray-400">Require deposit to unlock withdraws.</p>
+                    </div>
+                    <input 
+                        type="checkbox" 
+                        checked={config.is_activation_enabled} 
+                        onChange={e => setConfig({...config, is_activation_enabled: e.target.checked})}
+                        className="w-5 h-5 accent-purple-500"
+                    />
+                </div>
+                {config.is_activation_enabled && (
+                    <div>
+                        <label className="text-xs font-bold text-purple-300 mb-1.5 block">Required Deposit (BDT)</label>
+                        <input 
+                            type="number"
+                            value={config.activation_amount || 0}
+                            onChange={e => setConfig({...config, activation_amount: parseFloat(e.target.value)})}
+                            className="w-full bg-[#111] border border-white/10 rounded-xl p-3 text-white font-mono font-bold focus:border-purple-500 outline-none"
+                        />
+                    </div>
+                )}
+            </GlassCard>
+        </div>
+
+        {/* GLOBAL ALERT */}
+        <div className="space-y-4">
+            <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest pl-1">Announcements</h3>
+            <textarea 
+                value={config.global_alert || ''}
+                onChange={e => setConfig({...config, global_alert: e.target.value})}
+                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-sm focus:border-yellow-500 outline-none h-24 resize-none"
+                placeholder="Global alert message... (Leave empty to disable)"
+            />
+        </div>
+
     </div>
   );
 };

@@ -8,8 +8,8 @@ const RiskNotice: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
 
     useEffect(() => {
-        // Check if user has agreed this session
-        const hasAgreed = sessionStorage.getItem('risk_accepted');
+        // Check if user has agreed globally on this device
+        const hasAgreed = localStorage.getItem('risk_accepted_global');
         if (!hasAgreed) {
             // Delay slightly for effect
             setTimeout(() => setIsOpen(true), 1500);
@@ -17,7 +17,7 @@ const RiskNotice: React.FC = () => {
     }, []);
 
     const handleAccept = () => {
-        sessionStorage.setItem('risk_accepted', 'true');
+        localStorage.setItem('risk_accepted_global', 'true');
         setIsOpen(false);
     };
 
