@@ -119,63 +119,74 @@ $$;
 `
         },
         {
-            title: 'Upgrade: Deposit System (No Screenshot + Auto Approve)',
-            desc: 'Adds user note column and auto-approval function for deposits > 5h.',
-            sql: `
--- 1. Add User Note Column
-ALTER TABLE public.deposit_requests ADD COLUMN IF NOT EXISTS user_note TEXT;
-
--- 2. Create Auto-Approve Function (Runs on pending deposits older than 5h 5m)
-CREATE OR REPLACE FUNCTION auto_approve_old_deposits() 
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
-BEGIN
-  -- Logic: Find pending deposits older than 5 hours and 5 minutes
-  -- This function should ideally be called by a cron job or admin trigger
-  -- For now, it just defines the logic.
-  
-  -- Example Logic (Commented out to prevent accidental mass approval without trigger):
-  -- UPDATE public.deposit_requests 
-  -- SET status = 'approved', admin_note = 'Auto Approved (Time Limit Exceeded)'
-  -- WHERE status = 'pending' AND created_at < NOW() - INTERVAL '5 hours 5 minutes';
-END;
-$$;
-`
-        },
-        {
-            title: 'Upgrade: File Check & Commission',
-            desc: 'Adds file verification logic and dynamic task commission settings.',
-            sql: `
-ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS expected_file_name TEXT; 
-ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS task_commission_percent NUMERIC DEFAULT 90; 
-`
-        },
-        {
             title: 'Upgrade: Task & Ad System V2',
-            desc: 'Adds proof types (text box), auto-approve logic, and reporting system.',
+            desc: 'Adds report table, proof types, auto-approve logic, and robust tracking.',
             sql: `
 ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS proof_type TEXT DEFAULT 'ai_quiz'; 
 ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS proof_question TEXT; 
 ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS auto_approve_hours INTEGER DEFAULT 24; 
+ALTER TABLE public.marketplace_tasks ADD COLUMN IF NOT EXISTS expected_file_name TEXT; 
+ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS task_commission_percent NUMERIC DEFAULT 90; 
 
 CREATE TABLE IF NOT EXISTS public.task_reports (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     task_id UUID REFERENCES public.marketplace_tasks(id) ON DELETE CASCADE,
     reporter_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     reason TEXT NOT NULL,
-    status TEXT DEFAULT 'pending', 
+    status TEXT DEFAULT 'pending', -- pending, resolved
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE public.task_reports ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users can create reports" ON public.task_reports;
-CREATE POLICY "Users can create reports" ON public.task_reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Users can insert reports" ON public.task_reports;
+CREATE POLICY "Users can insert reports" ON public.task_reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
 DROP POLICY IF EXISTS "Admins view reports" ON public.task_reports;
 CREATE POLICY "Admins view reports" ON public.task_reports FOR SELECT USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'admin' OR admin_user = true)));
+DROP POLICY IF EXISTS "Admins update reports" ON public.task_reports;
+CREATE POLICY "Admins update reports" ON public.task_reports FOR UPDATE USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'admin' OR admin_user = true)));
 `
         },
         {
-            title: 'Setup: Video Ads Module',
-            desc: 'Creates the video_ads table required for the Video Watch & Earn feature.',
+            title: 'Upgrade: Deposit System (Auto Approve)',
+            desc: 'Adds user note column and auto-approval function for deposits > 5h.',
+            sql: `
+ALTER TABLE public.deposit_requests ADD COLUMN IF NOT EXISTS user_note TEXT;
+
+CREATE OR REPLACE FUNCTION auto_approve_old_deposits() 
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  -- UPDATE public.deposit_requests 
+  -- SET status = 'approved', admin_note = 'Auto Approved (Time Limit Exceeded)'
+  -- WHERE status = 'pending' AND created_at < NOW() - INTERVAL '5 hours 5 minutes';
+END;
+$$;
+`
+        }
+    ],
+    maintenance: [
+        {
+            title: 'Fix Table Relationships (FK)',
+            desc: 'Fixes PGRST200 errors by adding Foreign Keys to tasks, submissions, and videos.',
+            sql: `
+-- 1. Link Tasks to Profiles
+ALTER TABLE public.marketplace_tasks DROP CONSTRAINT IF EXISTS marketplace_tasks_creator_id_fkey;
+ALTER TABLE public.marketplace_tasks ADD CONSTRAINT marketplace_tasks_creator_id_fkey FOREIGN KEY (creator_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+-- 2. Link Submissions
+ALTER TABLE public.marketplace_submissions DROP CONSTRAINT IF EXISTS marketplace_submissions_worker_id_fkey;
+ALTER TABLE public.marketplace_submissions ADD CONSTRAINT marketplace_submissions_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+-- 3. Link Video Ads
+ALTER TABLE public.video_ads DROP CONSTRAINT IF EXISTS video_ads_creator_id_fkey;
+ALTER TABLE public.video_ads ADD CONSTRAINT video_ads_creator_id_fkey FOREIGN KEY (creator_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+-- 4. Reload Schema
+NOTIFY pgrst, 'reload config';
+`
+        },
+        {
+            title: 'Repair Missing Tables',
+            desc: 'Creates video_ads if missing.',
             sql: `
 CREATE TABLE IF NOT EXISTS public.video_ads (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -191,53 +202,6 @@ CREATE TABLE IF NOT EXISTS public.video_ads (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.video_ads ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public view active ads" ON public.video_ads;
-CREATE POLICY "Public view active ads" ON public.video_ads FOR SELECT USING (status = 'active');
-DROP POLICY IF EXISTS "Creators view own ads" ON public.video_ads;
-CREATE POLICY "Creators view own ads" ON public.video_ads FOR SELECT USING (auth.uid() = creator_id);
-DROP POLICY IF EXISTS "Creators insert ads" ON public.video_ads;
-CREATE POLICY "Creators insert ads" ON public.video_ads FOR INSERT WITH CHECK (auth.uid() = creator_id);
-DROP POLICY IF EXISTS "Creators update own ads" ON public.video_ads;
-CREATE POLICY "Creators update own ads" ON public.video_ads FOR UPDATE USING (auth.uid() = creator_id);
-DROP POLICY IF EXISTS "Creators delete own ads" ON public.video_ads;
-CREATE POLICY "Creators delete own ads" ON public.video_ads FOR DELETE USING (auth.uid() = creator_id);
-`
-        }
-    ],
-    maintenance: [
-        {
-            title: 'Repair Missing Tables',
-            desc: 'Fixes relation does not exist errors.',
-            sql: `
-CREATE TABLE IF NOT EXISTS public.investments (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    plan_id TEXT,
-    plan_name TEXT,
-    amount NUMERIC DEFAULT 0,
-    daily_return NUMERIC DEFAULT 0,
-    total_profit_percent NUMERIC DEFAULT 0,
-    start_date TIMESTAMPTZ,
-    end_date TIMESTAMPTZ,
-    status TEXT DEFAULT 'active',
-    total_earned NUMERIC DEFAULT 0,
-    last_claim_at TIMESTAMPTZ,
-    next_claim_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.investments ENABLE ROW LEVEL SECURITY;
-CREATE TABLE IF NOT EXISTS public.user_assets (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    asset_id UUID,
-    quantity NUMERIC DEFAULT 0,
-    average_buy_price NUMERIC DEFAULT 0,
-    status TEXT DEFAULT 'holding',
-    delivery_details TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.user_assets ENABLE ROW LEVEL SECURITY;
 `
         }
     ],
@@ -254,6 +218,7 @@ TRUNCATE TABLE public.marketplace_submissions;
 TRUNCATE TABLE public.influencer_submissions;
 UPDATE public.wallets SET main_balance = 0, bonus_balance = 0, deposit_balance = 0, game_balance = 0, earning_balance = 0, investment_balance = 0, referral_balance = 0, commission_balance = 0, balance = 0, deposit = 0, withdrawable = 0, total_earning = 0, today_earning = 0, pending_withdraw = 0, referral_earnings = 0;
 TRUNCATE TABLE public.daily_streaks;
+TRUNCATE TABLE public.task_reports;
 `
         }
     ]

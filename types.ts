@@ -88,9 +88,9 @@ export interface MarketTask {
   remaining_quantity: number;
   price_per_action: number;
   worker_reward: number; 
-  proof_type: 'ai_quiz' | 'text_input' | 'screenshot' | 'file_check'; // Added file_check
+  proof_type: 'ai_quiz' | 'text_input' | 'screenshot' | 'file_check'; 
   proof_question?: string; 
-  expected_file_name?: string; // New: For file validation
+  expected_file_name?: string; 
   quiz_config?: QuizConfig; 
   ai_reference_data?: any; 
   requirements?: TaskRequirement[]; 
@@ -100,8 +100,8 @@ export interface MarketTask {
   is_featured?: boolean;
   auto_approve_hours?: number; 
   created_at: string;
-  creator_role?: 'admin' | 'dealer' | 'staff' | 'user'; // Optional for UI join
-  creator_verified?: boolean; // Optional for UI join
+  creator_role?: 'admin' | 'dealer' | 'staff' | 'user'; 
+  creator_verified?: boolean; 
 }
 
 export interface TaskReport {
