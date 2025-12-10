@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Calendar, Globe, MessageSquare, Image
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Calendar, Globe, MessageSquare, Image, BookOpen
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -34,6 +34,7 @@ import DailyBonusControl from './DailyBonusControl';
 import SiteManagement from './SiteManagement';
 import ReviewManagement from './ReviewManagement';
 import ImageManager from './ImageManager';
+import BusinessLogic from './BusinessLogic'; // New Page
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -51,6 +52,7 @@ const Admin: React.FC = () => {
   const allItems = [
     { id: 'home', icon: Home, label: 'Back to App', path: '/', roles: ['admin', 'moderator'] },
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard', roles: ['admin', 'moderator'] },
+    { id: 'business_logic', icon: BookOpen, label: 'Income Roadmap', color: 'text-green-400', path: '/admin/business_logic', roles: ['admin'] },
     { id: 'database_ultra', icon: HardDrive, label: 'Database Ultra', color: 'text-cyan-400', path: '/admin/database_ultra', roles: ['admin'] },
     { id: 'noti_sender', icon: BellRing, label: 'Noti Sender', color: 'text-yellow-400', path: '/admin/noti_sender', roles: ['admin'] },
     { id: 'off_systems', icon: MonitorOff, label: 'Off Systems', color: 'text-red-400', path: '/admin/off_systems', roles: ['admin'] }, 
@@ -174,6 +176,7 @@ const Admin: React.FC = () => {
 
       switch(activeSection) {
           case 'dashboard': return <Dashboard />;
+          case 'business_logic': return <BusinessLogic />;
           case 'database_ultra': return <DatabaseUltra />;
           case 'noti_sender': return <NotiSender />;
           case 'off_systems': return <OffSystems />;

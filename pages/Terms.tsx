@@ -1,18 +1,17 @@
 
 import React, { useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { Shield, FileText, Lock, AlertTriangle, Scale, CheckCircle, Eye, Scroll } from 'lucide-react';
+import { Shield, FileText, Lock, AlertTriangle, Scale, CheckCircle, Eye, Scroll, Ban } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const MotionDiv = motion.div as any;
 
 const SECTIONS = [
     { id: 'intro', title: 'Introduction', icon: FileText },
+    { id: 'disclaimer', title: 'Risk & Liability', icon: AlertTriangle },
     { id: 'eligibility', title: 'Eligibility', icon: CheckCircle },
-    { id: 'privacy', title: 'Privacy Policy', icon: Eye },
-    { id: 'security', title: 'Security', icon: Lock },
     { id: 'financial', title: 'Financials', icon: Scale },
-    { id: 'prohibited', title: 'Prohibited', icon: AlertTriangle },
+    { id: 'prohibited', title: 'Prohibited', icon: Ban },
 ];
 
 const Terms: React.FC = () => {
@@ -76,7 +75,22 @@ const Terms: React.FC = () => {
                   </p>
               </Section>
 
-              <Section id="eligibility" title="2. User Eligibility" icon={CheckCircle}>
+              <Section id="disclaimer" title="2. Risk & Liability Disclaimer" icon={AlertTriangle}>
+                  <div className="bg-red-500/10 border-l-4 border-red-500 p-4 rounded-r-lg mb-4">
+                      <p className="text-red-200 text-xs font-bold uppercase mb-2">IMPORTANT NOTICE</p>
+                      <p className="text-sm text-gray-300">
+                          This platform provides access to social gaming, tasks, and speculative digital activities. 
+                      </p>
+                  </div>
+                  <ul className="list-disc pl-5 space-y-3 text-gray-300">
+                      <li><strong>No Guarantees:</strong> Participation in games or investments does not guarantee profit. Losses are possible.</li>
+                      <li><strong>User Responsibility:</strong> You acknowledge that betting or gambling may be prohibited in your jurisdiction or considered culturally/religiously restricted (Haram). You access this site at your own sole discretion and risk.</li>
+                      <li><strong>Limitation of Liability:</strong> The Administrators, Owners, and Developers of Naxxivo are <span className="text-white font-bold">NOT responsible</span> for any financial losses, addiction, or legal consequences arising from your use of this platform.</li>
+                      <li><strong>Virtual Currency:</strong> All balances are digital representations and do not constitute a legal banking deposit.</li>
+                  </ul>
+              </Section>
+
+              <Section id="eligibility" title="3. User Eligibility" icon={CheckCircle}>
                   <ul className="list-disc pl-5 space-y-2 text-gray-300">
                       <li>You must be at least 18 years old or the age of majority in your jurisdiction to use this Service.</li>
                       <li>You must be a human. Accounts registered by "bots" or other automated methods are not permitted.</li>
@@ -85,35 +99,7 @@ const Terms: React.FC = () => {
                   </ul>
               </Section>
 
-              <Section id="privacy" title="3. Privacy Policy" icon={Eye}>
-                  <p>
-                      We take your privacy seriously. This section outlines how we handle your data:
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                      <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                          <h4 className="font-bold text-white mb-2 text-xs uppercase tracking-wider">Data Collection</h4>
-                          <p className="text-xs text-gray-400">We collect minimal data required for operation: Email, Name, Transaction Logs, and Device Fingerprints for security.</p>
-                      </div>
-                      <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                          <h4 className="font-bold text-white mb-2 text-xs uppercase tracking-wider">Data Usage</h4>
-                          <p className="text-xs text-gray-400">Your data is used solely for account management, payout processing, and fraud prevention. We do not sell data.</p>
-                      </div>
-                  </div>
-              </Section>
-
-              <Section id="security" title="4. Account Security" icon={Lock}>
-                  <p>
-                      You are responsible for maintaining the security of your account and password. Naxxivo cannot and will not be liable for any loss or damage from your failure to comply with this security obligation.
-                  </p>
-                  <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex items-start gap-3">
-                      <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" size={18} />
-                      <p className="text-xs text-yellow-200">
-                          We recommend enabling Biometric Login (Passkey) or Two-Factor Authentication if available. Never share your credentials with anyone claiming to be support.
-                      </p>
-                  </div>
-              </Section>
-
-              <Section id="financial" title="5. Financial Transactions" icon={Scale}>
+              <Section id="financial" title="4. Financial Transactions" icon={Scale}>
                   <p>
                       <strong>Deposits:</strong> Funds deposited into your account are used for investment plans and gaming. Deposits are non-refundable once used.
                   </p>
@@ -125,7 +111,7 @@ const Terms: React.FC = () => {
                   </p>
               </Section>
 
-              <Section id="prohibited" title="6. Prohibited Activities" icon={AlertTriangle}>
+              <Section id="prohibited" title="5. Prohibited Activities" icon={Ban}>
                   <p>The following activities result in immediate termination:</p>
                   <ul className="space-y-2 mt-2">
                       {[

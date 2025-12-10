@@ -10,6 +10,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { SystemProvider, useSystem } from './context/SystemContext';
 import InstallPWA from './components/InstallPWA'; 
 import FeatureAccessBlock from './components/FeatureAccessBlock';
+import RiskNotice from './components/RiskNotice'; // Imported
 
 // --- LAZY LOADED COMPONENTS (Code Splitting) ---
 const Home = lazy(() => import('./pages/Home'));
@@ -158,6 +159,7 @@ const AppContent: React.FC = () => {
   return (
     <>
       <InstallPWA /> 
+      <RiskNotice /> {/* Global Risk Notice Popup */}
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-void"><Loader /></div>}>
         <Routes>
           <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />

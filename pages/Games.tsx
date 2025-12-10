@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
-import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy, Lock } from 'lucide-react';
+import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy, Lock, AlertTriangle } from 'lucide-react';
 import { Game } from '../types';
 import { supabase } from '../integrations/supabase/client';
 
@@ -88,6 +88,19 @@ const Games: React.FC = () => {
         </h1>
         <p className="text-gray-400 text-sm">Play, compete, and earn real money.</p>
       </header>
+
+      {/* WARNING BANNER */}
+      <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={18} />
+          <div>
+              <h4 className="text-white font-bold text-sm mb-1 uppercase">Risk Warning</h4>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                  These games involve financial risk. Results are random or algorithm-based. 
+                  <br/>
+                  <span className="text-red-400 font-bold">You play at your own risk.</span> The admin is not liable for losses.
+              </p>
+          </div>
+      </div>
 
       <GlassCard className="bg-[#111] border-[#222] p-6 relative overflow-hidden">
          <div className="relative z-10">

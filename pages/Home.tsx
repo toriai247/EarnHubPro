@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { 
   ArrowDownLeft, ArrowUpRight, ArrowRightLeft, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play, 
   Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText, Grid, Eye, EyeOff, History, Wallet, Megaphone,
-  ChevronRight, Quote
+  ChevronRight, Quote, Gift, Layers, Activity
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -14,7 +14,7 @@ import { WalletData, UserProfile } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
 import { useSystem } from '../context/SystemContext';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const MotionDiv = motion.div as any;
 
@@ -28,9 +28,9 @@ const Home: React.FC = () => {
 
   // Fake Live Activity for Guest Mode
   const [liveActivity, setLiveActivity] = useState([
-      { user: 'User88**', action: 'withdrew', amount: '৳500' },
-      { user: 'Rahim**', action: 'earned', amount: '৳50' },
-      { user: 'Crypto**', action: 'won', amount: '৳1200' },
+      { user: 'User88**', action: 'withdrew', amount: '৳500', time: 'Just now' },
+      { user: 'Rahim**', action: 'earned', amount: '৳50', time: '2s ago' },
+      { user: 'Crypto**', action: 'won', amount: '৳1200', time: '5s ago' },
   ]);
 
   useEffect(() => {
@@ -41,14 +41,15 @@ const Home: React.FC = () => {
         const interval = setInterval(() => {
             const actions = ['withdrew', 'earned', 'won', 'deposited'];
             const amounts = ['৳50', '৳100', '৳500', '৳1000', '৳2500'];
-            const users = ['User', 'Player', 'Earner', 'Member'];
+            const users = ['User', 'Player', 'Earner', 'Member', 'Pro'];
             const newItem = {
                 user: `${users[Math.floor(Math.random()*users.length)]}${Math.floor(Math.random()*999)}**`,
                 action: actions[Math.floor(Math.random()*actions.length)],
-                amount: amounts[Math.floor(Math.random()*amounts.length)]
+                amount: amounts[Math.floor(Math.random()*amounts.length)],
+                time: 'Just now'
             };
-            setLiveActivity(prev => [newItem, ...prev.slice(0, 2)]);
-        }, 3000);
+            setLiveActivity(prev => [newItem, ...prev.slice(0, 3)]);
+        }, 2500);
         return () => clearInterval(interval);
     }
   }, [isGuest]);
@@ -100,126 +101,175 @@ const Home: React.FC = () => {
   // --- GUEST VIEW (Enhanced Structure) ---
   if (isGuest) {
       return (
-        <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden selection:bg-brand selection:text-black pb-20">
+        <div className="min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden selection:bg-brand selection:text-black pb-24">
              
              {/* 1. HERO SECTION */}
-             <div className="relative pt-12 pb-8 px-6 text-center border-b border-white/5 bg-gradient-to-b from-blue-900/10 to-black">
-                <div className="flex justify-center mb-6">
+             <div className="relative pt-12 pb-10 px-6 text-center border-b border-white/5 bg-gradient-to-b from-blue-900/10 to-black overflow-hidden">
+                {/* Background Glow */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-lg h-64 bg-blue-600/20 blur-[100px] rounded-full pointer-events-none"></div>
+                
+                <motion.div 
+                    initial={{ scale: 0.8, opacity: 0 }} 
+                    animate={{ scale: 1, opacity: 1 }} 
+                    transition={{ type: "spring", duration: 0.8 }}
+                    className="flex justify-center mb-6 relative z-10"
+                >
                     <div className="w-20 h-20 bg-black border-2 border-brand rounded-3xl flex items-center justify-center shadow-[0_0_40px_rgba(var(--color-brand),0.3)]">
                         <span className="text-4xl font-black text-brand">N</span>
                     </div>
-                </div>
-                <h1 className="text-4xl font-black uppercase tracking-tight mb-2">
-                    Naxxivo <span className="text-brand">Pro</span>
+                </motion.div>
+                
+                <h1 className="text-4xl font-black uppercase tracking-tight mb-3 relative z-10">
+                    Naxxivo <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand to-blue-400">Pro</span>
                 </h1>
-                <p className="text-gray-400 text-sm font-medium max-w-xs mx-auto leading-relaxed">
-                    The next-generation earning ecosystem. <br/>
+                
+                <p className="text-gray-400 text-sm font-medium max-w-xs mx-auto leading-relaxed mb-8 relative z-10">
+                    The ultimate ecosystem for digital earners. <br/>
                     <span className="text-white font-bold">Watch. Play. Invest. Earn.</span>
                 </p>
 
-                <div className="grid grid-cols-2 gap-4 mt-8 max-w-sm mx-auto">
-                    <Link to="/signup" className="py-3.5 bg-brand text-black font-black uppercase tracking-wider rounded-xl hover:scale-105 transition shadow-lg flex items-center justify-center gap-2">
+                <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto relative z-10">
+                    <Link to="/signup" className="py-4 bg-brand text-black font-black uppercase tracking-wider rounded-xl hover:scale-[1.02] active:scale-[0.98] transition shadow-lg shadow-brand/20 flex items-center justify-center gap-2">
                         Get Started <ChevronRight size={16} strokeWidth={3}/>
                     </Link>
-                    <Link to="/login" className="py-3.5 bg-white/10 text-white font-bold uppercase tracking-wider rounded-xl hover:bg-white/20 transition border border-white/5">
-                        Member Login
+                    <Link to="/login" className="py-4 bg-white/10 text-white font-bold uppercase tracking-wider rounded-xl hover:bg-white/20 transition border border-white/10 backdrop-blur-sm">
+                        Login
                     </Link>
                 </div>
              </div>
 
              {/* 2. LIVE ACTIVITY TICKER */}
-             <div className="py-3 bg-black border-b border-white/5 overflow-hidden flex justify-center">
-                 <div className="flex items-center gap-6 opacity-70">
-                     {liveActivity.map((act, i) => (
-                         <motion.div 
-                            key={i} 
-                            initial={{ opacity: 0, x: 20 }} 
-                            animate={{ opacity: 1, x: 0 }}
-                            className="flex items-center gap-2 text-xs font-mono"
-                         >
-                             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                             <span className="text-gray-400">{act.user}</span>
-                             <span className={act.action === 'lost' ? 'text-red-400' : 'text-green-400'}>{act.action}</span>
-                             <span className="text-white font-bold">{act.amount}</span>
-                         </motion.div>
-                     ))}
+             <div className="bg-[#0a0a0a] border-b border-white/5 py-3 overflow-hidden relative">
+                 <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#0a0a0a] to-transparent z-10"></div>
+                 <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0a0a0a] to-transparent z-10"></div>
+                 
+                 <div className="flex items-center justify-center gap-8 overflow-hidden">
+                     <AnimatePresence mode="popLayout">
+                         {liveActivity.map((act, i) => (
+                             <motion.div 
+                                key={`${act.user}-${i}`} 
+                                initial={{ opacity: 0, y: 10 }} 
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="flex items-center gap-2 text-[10px] font-mono whitespace-nowrap min-w-[180px]"
+                             >
+                                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_#22c55e]"></div>
+                                 <span className="text-gray-400 font-bold">{act.user}</span>
+                                 <span className={act.action === 'lost' ? 'text-red-400' : 'text-blue-400'}>{act.action}</span>
+                                 <span className="text-white font-black bg-white/5 px-1.5 rounded">{act.amount}</span>
+                                 <span className="text-gray-600 italic">{act.time}</span>
+                             </motion.div>
+                         ))}
+                     </AnimatePresence>
                  </div>
              </div>
 
-             {/* 3. FEATURES GRID */}
-             <div className="px-4 py-8 max-w-lg mx-auto space-y-4">
-                 <div className="flex items-center justify-between mb-2 px-1">
-                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Platform Features</h3>
-                     <span className="text-[10px] bg-brand/10 text-brand px-2 py-0.5 rounded border border-brand/20">v4.5 Live</span>
+             {/* 3. STRUCTURED FEATURES GRID */}
+             <div className="px-4 py-8 max-w-lg mx-auto">
+                 <div className="flex items-center justify-between mb-4 px-1">
+                     <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                         <Layers size={14} className="text-brand"/> Core Features
+                     </h3>
+                     <span className="text-[9px] bg-white/5 text-gray-400 px-2 py-0.5 rounded border border-white/10 font-mono">v4.5 Stable</span>
                  </div>
                  
                  <div className="grid grid-cols-2 gap-3">
-                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center text-center">
-                         <div className="p-3 bg-blue-500/20 text-blue-400 rounded-full mb-3"><Briefcase size={20}/></div>
-                         <h4 className="font-bold text-sm text-white">Daily Tasks</h4>
-                         <p className="text-[10px] text-gray-500 mt-1">Simple micro-jobs</p>
-                     </div>
-                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center text-center">
-                         <div className="p-3 bg-purple-500/20 text-purple-400 rounded-full mb-3"><Gamepad2 size={20}/></div>
-                         <h4 className="font-bold text-sm text-white">Arcade Games</h4>
-                         <p className="text-[10px] text-gray-500 mt-1">Play & win real cash</p>
-                     </div>
-                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center text-center">
-                         <div className="p-3 bg-green-500/20 text-green-400 rounded-full mb-3"><TrendingUp size={20}/></div>
-                         <h4 className="font-bold text-sm text-white">Investment</h4>
-                         <p className="text-[10px] text-gray-500 mt-1">Grow your assets</p>
-                     </div>
-                     <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center text-center">
-                         <div className="p-3 bg-orange-500/20 text-orange-400 rounded-full mb-3"><Users size={20}/></div>
-                         <h4 className="font-bold text-sm text-white">Referrals</h4>
-                         <p className="text-[10px] text-gray-500 mt-1">5% Commission</p>
-                     </div>
+                     <GlassCard className="p-4 flex flex-col items-center text-center bg-blue-900/5 border-blue-500/20 hover:bg-blue-900/10 transition">
+                         <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl mb-3 border border-blue-500/20 shadow-lg shadow-blue-900/20">
+                             <Briefcase size={24}/>
+                         </div>
+                         <h4 className="font-bold text-sm text-white">Micro Jobs</h4>
+                         <p className="text-[10px] text-gray-400 mt-1 leading-tight">Earn by completing simple online tasks.</p>
+                     </GlassCard>
+                     
+                     <GlassCard className="p-4 flex flex-col items-center text-center bg-purple-900/5 border-purple-500/20 hover:bg-purple-900/10 transition">
+                         <div className="p-3 bg-purple-500/10 text-purple-400 rounded-2xl mb-3 border border-purple-500/20 shadow-lg shadow-purple-900/20">
+                             <Gamepad2 size={24}/>
+                         </div>
+                         <h4 className="font-bold text-sm text-white">Arcade Hub</h4>
+                         <p className="text-[10px] text-gray-400 mt-1 leading-tight">Play fair games and win real rewards.</p>
+                     </GlassCard>
+                     
+                     <GlassCard className="p-4 flex flex-col items-center text-center bg-green-900/5 border-green-500/20 hover:bg-green-900/10 transition">
+                         <div className="p-3 bg-green-500/10 text-green-400 rounded-2xl mb-3 border border-green-500/20 shadow-lg shadow-green-900/20">
+                             <TrendingUp size={24}/>
+                         </div>
+                         <h4 className="font-bold text-sm text-white">Investments</h4>
+                         <p className="text-[10px] text-gray-400 mt-1 leading-tight">Grow your capital with secure plans.</p>
+                     </GlassCard>
+                     
+                     <GlassCard className="p-4 flex flex-col items-center text-center bg-pink-900/5 border-pink-500/20 hover:bg-pink-900/10 transition">
+                         <div className="p-3 bg-pink-500/10 text-pink-400 rounded-2xl mb-3 border border-pink-500/20 shadow-lg shadow-pink-900/20">
+                             <Users size={24}/>
+                         </div>
+                         <h4 className="font-bold text-sm text-white">Affiliate</h4>
+                         <p className="text-[10px] text-gray-400 mt-1 leading-tight">Earn 5% commission on every referral.</p>
+                     </GlassCard>
                  </div>
              </div>
 
-             {/* 4. REVIEWS / TRUST */}
+             {/* 4. REVIEWS & TRUST */}
              <div className="px-4 pb-8 max-w-lg mx-auto">
-                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 px-1">Community Trust</h3>
+                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 px-1 flex items-center gap-2">
+                     <Star size={14} className="text-yellow-500"/> User Reviews
+                 </h3>
+                 
                  <div className="space-y-3">
-                     <div className="p-4 bg-[#111] rounded-xl border border-white/10 relative">
-                         <Quote size={20} className="absolute top-4 right-4 text-white/10" />
+                     <GlassCard className="p-4 bg-[#111] relative overflow-hidden">
+                         <div className="absolute top-0 right-0 p-3 opacity-5"><Quote size={40} /></div>
                          <div className="flex items-center gap-2 mb-2">
-                             <div className="flex text-yellow-400">
+                             <div className="flex text-yellow-400 gap-0.5">
                                  {[1,2,3,4,5].map(i => <Star key={i} size={12} fill="currentColor"/>)}
                              </div>
-                             <span className="text-xs font-bold text-white">Excellent</span>
+                             <span className="text-xs font-bold text-white bg-white/10 px-2 py-0.5 rounded-full">Excellent</span>
                          </div>
-                         <p className="text-xs text-gray-400 italic">"I've been using Naxxivo for 3 months. The withdrawals are super fast via Bkash. Best earning site!"</p>
-                         <div className="mt-3 flex items-center gap-2">
-                             <div className="w-6 h-6 bg-gray-700 rounded-full"></div>
-                             <span className="text-[10px] font-bold text-gray-500">Tanvir Ahmed</span>
+                         <p className="text-xs text-gray-300 italic leading-relaxed mb-3">
+                             "I've been using Naxxivo for 3 months. The withdrawals are super fast via Bkash. The support team actually replies!"
+                         </p>
+                         <div className="flex items-center gap-3 border-t border-white/5 pt-3">
+                             <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-xs text-white">T</div>
+                             <div>
+                                 <p className="text-xs font-bold text-white">Tanvir Ahmed</p>
+                                 <p className="text-[9px] text-gray-500">Verified User • Bangladesh</p>
+                             </div>
                          </div>
-                     </div>
-                     <div className="p-4 bg-[#111] rounded-xl border border-white/10 relative">
-                         <Quote size={20} className="absolute top-4 right-4 text-white/10" />
+                     </GlassCard>
+
+                     <GlassCard className="p-4 bg-[#111] relative overflow-hidden">
+                         <div className="absolute top-0 right-0 p-3 opacity-5"><Quote size={40} /></div>
                          <div className="flex items-center gap-2 mb-2">
-                             <div className="flex text-yellow-400">
+                             <div className="flex text-yellow-400 gap-0.5">
                                  {[1,2,3,4,5].map(i => <Star key={i} size={12} fill="currentColor"/>)}
                              </div>
-                             <span className="text-xs font-bold text-white">Legit Platform</span>
+                             <span className="text-xs font-bold text-white bg-white/10 px-2 py-0.5 rounded-full">Trusted</span>
                          </div>
-                         <p className="text-xs text-gray-400 italic">"The daily tasks are easy and the support team is very helpful. Highly recommended."</p>
-                         <div className="mt-3 flex items-center gap-2">
-                             <div className="w-6 h-6 bg-gray-700 rounded-full"></div>
-                             <span className="text-[10px] font-bold text-gray-500">Sarah K.</span>
+                         <p className="text-xs text-gray-300 italic leading-relaxed mb-3">
+                             "The daily tasks are easy and payout is consistent. Best earning platform I've found so far."
+                         </p>
+                         <div className="mt-3 flex items-center gap-3 border-t border-white/5 pt-3">
+                             <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center font-bold text-xs text-white">S</div>
+                             <div>
+                                 <p className="text-xs font-bold text-white">Sarah K.</p>
+                                 <p className="text-[9px] text-gray-500">Verified User • Global</p>
+                             </div>
                          </div>
-                     </div>
+                     </GlassCard>
                  </div>
              </div>
 
              {/* 5. FOOTER */}
-             <div className="border-t border-white/10 py-8 text-center space-y-4">
-                 <div className="flex justify-center gap-6 text-xs font-bold text-gray-500">
-                     <Link to="/terms" className="hover:text-white">Terms</Link>
-                     <Link to="/faq" className="hover:text-white">FAQ</Link>
-                     <Link to="/support" className="hover:text-white">Support</Link>
+             <div className="border-t border-white/10 py-10 bg-black/50 text-center">
+                 <div className="w-10 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center mx-auto mb-4">
+                     <span className="text-lg font-black text-brand">N</span>
                  </div>
-                 <p className="text-[10px] text-gray-600">© 2024 Naxxivo Inc. Secure Environment.</p>
+                 <div className="flex justify-center gap-6 text-xs font-bold text-gray-500 mb-6">
+                     <Link to="/terms" className="hover:text-white transition">Terms of Service</Link>
+                     <Link to="/faq" className="hover:text-white transition">FAQ</Link>
+                     <Link to="/support" className="hover:text-white transition">Support</Link>
+                 </div>
+                 <p className="text-[10px] text-gray-600 font-mono">
+                     © 2024 Naxxivo Inc. Secure Encrypted Connection.
+                 </p>
              </div>
 
         </div>
