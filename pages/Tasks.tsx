@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
@@ -60,7 +59,7 @@ const Tasks: React.FC = () => {
          
          // Client-side Auto Approve Logic Check (Simulated Cron)
          if (s.status === 'pending') {
-             const task = allTasks.find(t => t.id === s.task_id);
+             const task = allTasks.find((t: any) => t.id === s.task_id);
              if (task) {
                  const submitTime = new Date(s.created_at).getTime();
                  const now = Date.now();
