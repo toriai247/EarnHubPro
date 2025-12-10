@@ -80,8 +80,8 @@ const StaffDashboard: React.FC = () => {
         // 4. Fetch Wallet Stats
         const { data: wallet } = await supabase.from('wallets').select('earning_balance').eq('user_id', session.user.id).single();
         
-        const pendingCount = subs?.filter(s => s.status === 'pending').length || 0;
-        const doneCount = subs?.filter(s => s.status === 'approved').length || 0;
+        const pendingCount = subs?.filter((s: any) => s.status === 'pending').length || 0;
+        const doneCount = subs?.filter((s: any) => s.status === 'approved').length || 0;
 
         setStats({
             earnings: wallet?.earning_balance || 0,
