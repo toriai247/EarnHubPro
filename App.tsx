@@ -18,7 +18,7 @@ const Invest = lazy(() => import('./pages/Invest'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const Invite = lazy(() => import('./pages/Invite'));
 const Video = lazy(() => import('./pages/Video'));
-const VideoPlayer = lazy(() => import('./pages/VideoPlayer')); // NEW PAGE
+const VideoPlayer = lazy(() => import('./pages/VideoPlayer')); 
 const Games = lazy(() => import('./pages/Games'));
 const Spin = lazy(() => import('./pages/Spin'));
 const Crash = lazy(() => import('./pages/Crash'));
@@ -195,7 +195,7 @@ const AppContent: React.FC = () => {
             <Route path="/advertise" element={<RequireAuth session={session}><Advertise /></RequireAuth>} /> 
             <Route path="/invite" element={<RequireAuth session={session}><FeatureGuard feature="invite"><Invite /></FeatureGuard></RequireAuth>} />
             
-            {/* New Video Routes */}
+            {/* Video Routes */}
             <Route path="/video" element={<RequireAuth session={session}><FeatureGuard feature="video"><Video /></FeatureGuard></RequireAuth>} />
             <Route path="/video/watch/:id" element={<RequireAuth session={session}><FeatureGuard feature="video"><VideoPlayer /></FeatureGuard></RequireAuth>} />
 

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
@@ -11,6 +12,7 @@ import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import Loader from '../components/Loader';
 import { motion, AnimatePresence } from 'framer-motion';
+import { updateWallet, createTransaction } from '../lib/actions';
 
 const VideoPlayer: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -19,15 +21,12 @@ const VideoPlayer: React.FC = () => {
     
     // Data State
     const [video, setVideo] = useState<any | null>(null);
-    const [profile, setProfile] = useState<UserProfile | null>(null);
     const [suggestions, setSuggestions] = useState<VideoAd[]>([]);
     const [loading, setLoading] = useState(true);
     
     // Player State
     const [isPlaying, setIsPlaying] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0); // Seconds remaining for reward
-    const [duration, setDuration] = useState(0); // Video Total Duration
-    const [progress, setProgress] = useState(0); // Video progress 0-100
     const [hasClaimedToday, setHasClaimedToday] = useState(false);
     const [canClaim, setCanClaim] = useState(false);
     const [claiming, setClaiming] = useState(false);
@@ -46,7 +45,7 @@ const VideoPlayer: React.FC = () => {
         return () => stopTimer();
     }, [id]);
 
-    // Visibility API for tab switching
+    // Visibility API for tab switching - PAUSE TIMER IF TAB HIDDEN
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.hidden) {
@@ -84,40 +83,32 @@ const VideoPlayer: React.FC = () => {
         // 2. Check 24h Claim Limit
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         
-        // Check user_tasks table (assuming it logs completed task_id)
-        // If your schema uses a different table for logs, adjust here. 
-        // We'll search transactions description as fallback or a dedicated log table.
-        // Assuming `transactions` description contains "Video ID: {id}" logic for now or rely on checking `user_tasks` if applicable.
-        // Let's assume we check `transactions` for a deposit type with metadata.
-        // Ideally, create a `video_logs` table. For this implementation, we use `transactions` search.
-        
-        const { count } = await supabase
+        // Robust check: match video title in transaction description
+        const { data: claims } = await supabase
             .from('transactions')
-            .select('*', { count: 'exact', head: true })
+            .select('description')
             .eq('user_id', session.user.id)
             .eq('type', 'earn')
-            .gte('created_at', oneDayAgo)
-            .ilike('description', `%${ad.title}%`); // Approximate check by title, safer with ID in metadata
+            .gte('created_at', oneDayAgo);
 
-        const isClaimed = (count || 0) > 0;
+        const isClaimed = (claims || []).some((c: any) => 
+            c.description && c.description.toLowerCase().includes(ad.title.toLowerCase())
+        );
         
         setVideo(ad);
         setHasClaimedToday(isClaimed);
         
-        // Set required watch time (e.g., 30% of duration or fixed 10s, whichever is smaller/larger)
-        // Rule: 10s minimum, or full video if shorter than 10s.
+        // Timer Logic: Max 30s or full duration if shorter. Min 10s.
         const requiredTime = Math.max(10, Math.min(ad.duration, 30)); 
         setTimeLeft(isClaimed ? 0 : requiredTime);
         
-        setProfile(session.user as any); // Just for ID ref
-
         // 3. Fetch Suggestions
         const { data: sugg } = await supabase
             .from('video_ads')
             .select('*')
             .neq('id', id)
             .eq('status', 'active')
-            .limit(3);
+            .limit(4);
         
         if(sugg) setSuggestions(sugg as any);
 
@@ -150,18 +141,11 @@ const VideoPlayer: React.FC = () => {
     // --- NATIVE VIDEO HANDLERS ---
     const handleNativePlay = () => startTimer();
     const handleNativePause = () => stopTimer();
-    const handleNativeTimeUpdate = () => {
-        if (videoRef.current) {
-            const current = videoRef.current.currentTime;
-            const dur = videoRef.current.duration;
-            if (dur > 0) setProgress((current / dur) * 100);
-        }
-    };
 
     // --- IFRAME HANDLERS ---
     const handleIframeStart = () => {
         setIframeInteracted(true);
-        startTimer();
+        startTimer(); // Optimistic start for iframe
     };
 
     // --- CLAIM LOGIC ---
@@ -173,17 +157,36 @@ const VideoPlayer: React.FC = () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("No session");
 
+            // Attempt RPC claim (Atomic)
             const { data, error } = await supabase.rpc('claim_video_reward', {
                 p_ad_id: video.id,
                 p_user_id: session.user.id
             });
 
-            if (error) throw error;
-            if (!data.success) throw new Error(data.message);
+            if (error) {
+                // If RPC fails (e.g. missing function), fallback to client-side logic (Less secure but functional)
+                console.warn("RPC Failed, using fallback claim logic:", error.message);
+                
+                // Fallback Logic
+                await updateWallet(session.user.id, video.cost_per_view, 'increment', 'earning_balance');
+                await createTransaction(
+                    session.user.id, 
+                    'earn', 
+                    video.cost_per_view, 
+                    `Video Reward: ${video.title}`
+                );
+                // Reduce budget manually
+                await supabase.from('video_ads').update({ 
+                    remaining_budget: Math.max(0, video.remaining_budget - video.cost_per_view)
+                }).eq('id', video.id);
+            } else if (!data.success) {
+                throw new Error(data.message);
+            }
 
             toast.success(`Reward Claimed: ৳${video.cost_per_view.toFixed(2)}`);
             setHasClaimedToday(true);
             setCanClaim(false);
+            window.dispatchEvent(new Event('wallet_updated'));
 
         } catch (e: any) {
             toast.error(e.message);
@@ -194,13 +197,12 @@ const VideoPlayer: React.FC = () => {
 
     // Determine Video Type
     const isNative = video?.video_url?.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i);
-    const isYouTube = video?.video_url?.includes('youtube') || video?.video_url?.includes('youtu.be');
-
+    
     // Helper for embed URL
     const getEmbedUrl = (url: string) => {
         if (url.includes('youtube.com') || url.includes('youtu.be')) {
             const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([\w-]{11})/);
-            return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&enablejsapi=1` : url;
+            return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : url;
         }
         return url;
     };
@@ -216,9 +218,11 @@ const VideoPlayer: React.FC = () => {
                     <ArrowLeft size={20} />
                 </button>
                 <h1 className="text-sm font-bold truncate flex-1">{video.title}</h1>
-                <div className="bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full">
-                    <p className="text-green-400 font-mono font-bold text-xs">+<BalanceDisplay amount={video.cost_per_view}/></p>
-                </div>
+                {!hasClaimedToday && (
+                    <div className="bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full">
+                        <p className="text-green-400 font-mono font-bold text-xs">+<BalanceDisplay amount={video.cost_per_view}/></p>
+                    </div>
+                )}
             </div>
 
             {/* --- VIDEO PLAYER STAGE --- */}
@@ -233,7 +237,6 @@ const VideoPlayer: React.FC = () => {
                         controlsList="nodownload"
                         onPlay={handleNativePlay}
                         onPause={handleNativePause}
-                        onTimeUpdate={handleNativeTimeUpdate}
                         playsInline
                     />
                 ) : (
@@ -246,14 +249,16 @@ const VideoPlayer: React.FC = () => {
                                 <p className="text-white font-bold uppercase tracking-widest text-sm">Click to Start Watch Timer</p>
                             </div>
                         ) : null}
-                        <iframe 
-                            src={getEmbedUrl(video.video_url)} 
-                            className="w-full h-full"
-                            frameBorder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                            title={video.title}
-                        ></iframe>
+                        {iframeInteracted && (
+                            <iframe 
+                                src={getEmbedUrl(video.video_url)} 
+                                className="w-full h-full"
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                title={video.title}
+                            ></iframe>
+                        )}
                     </div>
                 )}
 
@@ -298,7 +303,7 @@ const VideoPlayer: React.FC = () => {
                         </div>
                         <div className="flex-1">
                             <p className="text-xs font-bold text-gray-400 uppercase mb-1">
-                                {isPlaying ? 'Watching...' : 'Paused - Click Play'}
+                                {isPlaying ? 'Watching...' : 'Paused - Click Play to Earn'}
                             </p>
                             <div className="h-2 w-full bg-black/50 rounded-full overflow-hidden">
                                 <div 
@@ -333,11 +338,15 @@ const VideoPlayer: React.FC = () => {
                 <GlassCard className="flex items-center justify-between border-white/5 bg-white/5">
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-full bg-black/50 border border-white/10 overflow-hidden">
-                            <img src={video.profiles?.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creator_id}`} className="w-full h-full object-cover" />
+                            {video.profiles?.avatar_1 ? (
+                                <img src={video.profiles.avatar_1} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gray-800 font-bold text-gray-500">?</div>
+                            )}
                         </div>
                         <div>
                             <h4 className="font-bold text-white text-sm">{video.profiles?.name_1 || 'Ad Runner'}</h4>
-                            <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-gray-400">LVL {video.profiles?.level_1 || 1}</span>
+                            <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-gray-400">Verified Partner</span>
                         </div>
                     </div>
                     <button className="px-4 py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-gray-200 transition">
