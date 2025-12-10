@@ -87,7 +87,7 @@ const Video: React.FC = () => {
           allAds.forEach(ad => {
               const title = (ad.title || '').toLowerCase();
               // Check if any claim description contains the video title (Fuzzy Match)
-              const isClaimed = claimDescriptions.some(desc => desc.includes(title));
+              const isClaimed = claimDescriptions.some((desc: string) => desc.includes(title));
               
               if (isClaimed) {
                   history.push(ad);
