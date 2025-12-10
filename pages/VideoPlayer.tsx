@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
@@ -6,7 +7,7 @@ import GlassCard from '../components/GlassCard';
 import { 
     ArrowLeft, Play, Pause, CheckCircle2, 
     Clock, DollarSign, Share2, Maximize, Minimize, 
-    AlertCircle, Flag, Heart, Loader2, Zap, User
+    AlertCircle, Flag, Heart, Loader2, Zap, User as UserIcon
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -186,9 +187,10 @@ const VideoPlayer: React.FC = () => {
     // --- FALLBACK: IFRAME TIMER (YouTube/Vimeo) ---
     // Note: Can't detect buffering perfectly in iframe without API, but strict interval helps.
     const startIframeTimer = () => {
-        if (hasClaimedToday || canClaim) return;
         setIframeInteracted(true);
         setIsPlaying(true);
+        
+        if (hasClaimedToday || canClaim) return;
         
         stopIframeTimer();
         timerRef.current = setInterval(() => {
@@ -413,7 +415,7 @@ const VideoPlayer: React.FC = () => {
                                         {video.profiles?.avatar_1 ? (
                                             <img src={video.profiles.avatar_1} className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-800 text-gray-500"><User size={16}/></div>
+                                            <div className="w-full h-full flex items-center justify-center bg-gray-800 text-gray-500"><UserIcon size={16}/></div>
                                         )}
                                     </div>
                                     <div>
