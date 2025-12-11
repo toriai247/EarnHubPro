@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { Search, User, ArrowRight, ExternalLink, Send, Loader2, LogIn, ShieldCheck, Briefcase, Star, Crown, X } from 'lucide-react';
@@ -7,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '../types';
 import SmartImage from '../components/SmartImage';
+import GoogleAd from '../components/GoogleAd';
 
 const SearchUsers: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -127,6 +127,9 @@ const SearchUsers: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* AD PLACEMENT: DISPLAY RESPONSIVE */}
+            <GoogleAd slot="9579822529" format="auto" responsive="true" />
 
             {/* Results Grid */}
             <div className="space-y-4">

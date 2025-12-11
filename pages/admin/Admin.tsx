@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, Video, CreditCard, Gamepad2, 
-  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Calendar, Globe, MessageSquare, Image, BookOpen, Menu, X, ChevronRight
+  Briefcase, TrendingUp, Gift, Settings, CheckCircle, Database, Lock, Home, PieChart, Banknote, Sliders, CalendarClock, ArrowLeft, MonitorOff, LifeBuoy, HardDrive, BellRing, GitFork, ShieldCheck, Calendar, Globe, MessageSquare, Image, BookOpen, Menu, X, ChevronRight, BarChart3
 } from 'lucide-react';
 import { supabase } from '../../integrations/supabase/client';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -35,6 +35,7 @@ import SiteManagement from './SiteManagement';
 import ReviewManagement from './ReviewManagement';
 import ImageManager from './ImageManager';
 import BusinessLogic from './BusinessLogic';
+import AdAnalytics from './AdAnalytics'; // New Import
 
 const Admin: React.FC = () => {
   const navigate = useNavigate();
@@ -58,6 +59,7 @@ const Admin: React.FC = () => {
               { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard', color: 'text-blue-400' },
               { id: 'users', icon: Users, label: 'Users', path: '/admin/users', color: 'text-indigo-400' },
               { id: 'revenue', icon: TrendingUp, label: 'Revenue', path: '/admin/revenue', color: 'text-green-400' },
+              { id: 'ad_stats', icon: BarChart3, label: 'Ad Stats', path: '/admin/ad_stats', color: 'text-cyan-400' }, // New Item
           ]
       },
       {
@@ -158,6 +160,7 @@ const Admin: React.FC = () => {
           case 'games': return <GameControl />;
           case 'invest': return <InvestmentSetup />;
           case 'revenue': return <EarningsAnalytics />;
+          case 'ad_stats': return <AdAnalytics />; // New Page
           case 'promos': return <BonusControl />;
           case 'config': return <WebsiteSettings />;
           default: return <Dashboard />;

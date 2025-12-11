@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import SmartImage from '../components/SmartImage';
@@ -15,6 +14,7 @@ import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import Loader from '../components/Loader';
+import GoogleAd from '../components/GoogleAd';
 
 const Invest: React.FC = () => {
   const { toast, confirm } = useUI();
@@ -220,6 +220,9 @@ const Invest: React.FC = () => {
                 ))}
             </div>
         </div>
+
+        {/* AD PLACEMENT: IN-ARTICLE */}
+        <GoogleAd slot="3493119845" layout="in-article" />
 
         {/* --- PORTFOLIO VIEW --- */}
         {activeTab === 'portfolio' ? (

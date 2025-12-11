@@ -1,10 +1,10 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
 import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy, Lock, AlertTriangle } from 'lucide-react';
 import { Game } from '../types';
 import { supabase } from '../integrations/supabase/client';
+import SmartAd from '../components/SmartAd';
 
 const GAMES_META: Game[] = [
     {
@@ -89,6 +89,9 @@ const Games: React.FC = () => {
         <p className="text-gray-400 text-sm">Play, compete, and earn real money.</p>
       </header>
 
+      {/* AD PLACEMENT: IN-FEED */}
+      <SmartAd slot="4491147378" />
+
       {/* WARNING BANNER */}
       <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
           <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={18} />
@@ -153,6 +156,9 @@ const Games: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* AD PLACEMENT: MULTIPLEX */}
+      <SmartAd slot="8977187296" />
     </div>
   );
 };

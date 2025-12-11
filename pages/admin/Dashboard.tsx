@@ -8,7 +8,7 @@ import {
   LayoutDashboard, CreditCard, Gamepad2, Gift, Settings, 
   MonitorOff, LifeBuoy, Sliders, CalendarClock, Briefcase,
   HardDrive, BellRing, GitFork, CheckSquare, PieChart as PieChartIcon, FileText,
-  Cpu, Wifi, Layers, Terminal
+  Cpu, Wifi, Layers, Terminal, BarChart2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import BalanceDisplay from '../../components/BalanceDisplay';
@@ -49,10 +49,15 @@ const Dashboard: React.FC = () => {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [pieData, setPieData] = useState<any[]>([]);
   const [systemHealth, setSystemHealth] = useState({ cpu: 12, ram: 34, status: 'OPTIMAL' });
+  const [adsterraRevenue, setAdsterraRevenue] = useState<string | null>(null);
+
+  // Fallback token provided by user
+  const ADSTERRA_TOKEN = '14810bb4192661f1a6277491c12a2946';
 
   useEffect(() => {
     fetchRealStats();
     
+    // Simulate server load
     const interval = setInterval(() => {
         setSystemHealth(prev => ({
             cpu: Math.min(100, Math.max(5, prev.cpu + (Math.random() * 10 - 5))),
@@ -62,7 +67,7 @@ const Dashboard: React.FC = () => {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [config]);
 
   const fetchRealStats = async () => {
     setLoading(true);
@@ -138,6 +143,31 @@ const Dashboard: React.FC = () => {
         });
 
         if (logs) setRecentTransactions(logs);
+        
+        // --- ADSTERRA FETCH ---
+        const apiToken = config?.adsterra_api_token || ADSTERRA_TOKEN;
+        if (apiToken) {
+            try {
+                // Attempt to fetch stats. Note: This may be blocked by CORS in a pure browser environment
+                // without a proxy. If it fails, it will catch.
+                const res = await fetch(`https://api3.adsterratools.com/publisher/stats.json?api_token=${apiToken}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.items) {
+                        // Sum up revenue
+                        const totalRev = data.items.reduce((sum: number, item: any) => sum + (item.revenue || 0), 0);
+                        setAdsterraRevenue(`$${totalRev.toFixed(2)}`);
+                    } else {
+                        setAdsterraRevenue("Active (No Data)");
+                    }
+                } else {
+                    setAdsterraRevenue("Auth Error");
+                }
+            } catch (adError) {
+                console.warn("Adsterra fetch blocked by browser/CORS or network");
+                setAdsterraRevenue("CORS Blocked"); 
+            }
+        }
 
     } catch (e) {
         console.error("Dashboard Stats Error:", e);
@@ -196,7 +226,7 @@ const Dashboard: React.FC = () => {
           </button>
       </div>
 
-      {/* KPI GRID - MOBILE OPTIMIZED */}
+      {/* KPI GRID */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="bg-gradient-to-br from-green-900/40 to-black border border-green-500/20 rounded-xl p-3 relative overflow-hidden">
               <div className="flex justify-between items-start mb-1">
@@ -215,21 +245,25 @@ const Dashboard: React.FC = () => {
               <p className="text-[9px] text-gray-500">+{stats?.newUsersToday} Today</p>
           </div>
 
-          <div className="bg-gradient-to-br from-yellow-900/20 to-black border border-yellow-500/20 rounded-xl p-3 relative overflow-hidden">
-              <div className="flex justify-between items-start mb-1">
-                  <span className="text-[10px] text-yellow-400 font-bold uppercase">Pending</span>
-                  <Activity size={16} className="text-yellow-500"/>
-              </div>
-              <div className="flex items-center gap-3 mt-1">
-                  <div><p className="text-lg font-bold text-white">{stats?.pendingWithdrawals}</p><p className="text-[8px] text-gray-500">Payouts</p></div>
-                  <div><p className="text-lg font-bold text-white">{stats?.pendingDeposits}</p><p className="text-[8px] text-gray-500">Deposits</p></div>
-              </div>
-          </div>
-          
           <div className="bg-gradient-to-br from-red-900/20 to-black border border-red-500/20 rounded-xl p-3 relative overflow-hidden">
               <div className="flex justify-between items-start mb-1">
-                  <span className="text-[10px] text-red-400 font-bold uppercase">Liability</span>
-                  <Wallet size={16} className="text-red-500"/>
+                  <span className="text-[10px] text-red-400 font-bold uppercase">Ad Revenue</span>
+                  <BarChart2 size={16} className="text-red-500"/>
+              </div>
+              <h3 className="text-xl font-black text-white flex items-center gap-2">
+                 {adsterraRevenue ? (
+                     adsterraRevenue
+                 ) : (
+                     <span className="text-xs text-gray-500">Syncing...</span>
+                 )}
+              </h3>
+              <p className="text-[9px] text-gray-500">Adsterra API</p>
+          </div>
+          
+          <div className="bg-gradient-to-br from-yellow-900/20 to-black border border-yellow-500/20 rounded-xl p-3 relative overflow-hidden">
+              <div className="flex justify-between items-start mb-1">
+                  <span className="text-[10px] text-yellow-400 font-bold uppercase">Liability</span>
+                  <Wallet size={16} className="text-yellow-500"/>
               </div>
               <h3 className="text-xl font-black text-white"><BalanceDisplay amount={stats?.systemLiability || 0} compact /></h3>
           </div>

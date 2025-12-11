@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
@@ -14,6 +13,7 @@ import { Link } from 'react-router-dom';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { useUI } from '../context/UIContext';
 import { motion } from 'framer-motion';
+import GoogleAd from '../components/GoogleAd';
 
 const Wallet: React.FC = () => {
   const { toast } = useUI();
@@ -206,6 +206,9 @@ const Wallet: React.FC = () => {
               </Link>
           ))}
       </div>
+
+      {/* AD PLACEMENT: DISPLAY RESPONSIVE */}
+      <GoogleAd slot="9579822529" format="auto" responsive="true" />
 
       {/* Detailed Wallet Grid */}
       <div className="space-y-3">

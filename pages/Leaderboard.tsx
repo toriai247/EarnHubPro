@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { Trophy, Crown, TrendingUp, Hexagon, ChevronUp, ChevronDown, Medal, Flame, RefreshCw } from 'lucide-react';
@@ -6,6 +5,7 @@ import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import Skeleton from '../components/Skeleton';
 import BalanceDisplay from '../components/BalanceDisplay';
+import GoogleAd from '../components/GoogleAd';
 
 interface LeaderboardUser {
     id: string;
@@ -270,6 +270,9 @@ const Leaderboard: React.FC = () => {
                 </span>
            </div>
        </header>
+
+       {/* AD PLACEMENT: IN-FEED */}
+       <GoogleAd slot="4491147378" layoutKey="-gu-c+w-3l+7t" />
 
        {/* MY RANKING - TOP POSITION */}
        {!isGuest && myRank && (

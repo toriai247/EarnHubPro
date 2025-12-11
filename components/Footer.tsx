@@ -70,8 +70,15 @@ const Footer: React.FC<FooterProps> = ({ onOpenReview }) => {
         </div>
 
       </div>
+
+      {/* PARTNER / REFERRAL BANNER */}
+      <div className="flex justify-center py-8 border-t border-white/5 mt-8 bg-black/40">
+          <a href="https://beta.publishers.adsterra.com/referral/R8fkj7ZJZA" target="_blank" rel="nofollow" className="hover:opacity-80 transition opacity-60">
+              <img alt="banner" src="https://landings-cdn.adsterratech.com/referralBanners/gif/468x60_adsterra_reff.gif" className="rounded-lg border border-white/10" />
+          </a>
+      </div>
       
-      <div className="max-w-5xl mx-auto px-6 mt-12 pt-6 border-t border-white/5 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-4">
+      <div className="max-w-5xl mx-auto px-6 pt-6 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-[10px] text-gray-600 uppercase font-bold tracking-wider">
               &copy; {new Date().getFullYear()} Naxxivo Inc. All rights reserved.
           </p>

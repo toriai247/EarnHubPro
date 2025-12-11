@@ -258,15 +258,18 @@ export const createUserProfile = async (
   let welcomeBonus = CURRENCY_CONFIG.BDT.signup_bonus; 
   let referrerId = null;
   
+  // CHECK REFERRAL
   if (referralCode && referralCode.trim().length > 0) {
       const { data: referrer } = await supabase.from('profiles').select('id, ref_code_1').eq('ref_code_1', referralCode).maybeSingle();
       if (referrer) {
           referredBy = referralCode; 
           referrerId = referrer.id;
-          welcomeBonus += (welcomeBonus * 0.25); 
+          // You can also give bonus to the new user here if needed
+          // welcomeBonus += 50; 
       }
   }
 
+  // CREATE PROFILE
   const { error: profileError } = await supabase.from('profiles').upsert({
     id: userId,
     email_1: email,
@@ -280,6 +283,7 @@ export const createUserProfile = async (
 
   if (profileError) throw profileError;
 
+  // CREATE WALLET
   const { error: walletError } = await supabase.from('wallets').upsert({
     user_id: userId,
     currency: currency, 
@@ -302,6 +306,7 @@ export const createUserProfile = async (
 
   if (walletError) throw walletError;
 
+  // INIT STREAK
   await supabase.from('daily_streaks').upsert({
       user_id: userId,
       current_streak: 0,
@@ -309,18 +314,28 @@ export const createUserProfile = async (
       last_claimed_at: new Date(0).toISOString() 
   });
 
+  // LOG WELCOME BONUS
   if (userId) {
       const { count: txCount } = await supabase.from('transactions').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('description', 'Welcome Bonus');
       if (!txCount) {
           await createTransaction(userId, 'bonus', welcomeBonus, `Welcome Bonus`);
           
+          // PROCESS REFERRAL REWARD (100 TK)
           if (referrerId && isValidUUID(referrerId)) {
+              // 1. Create Record
               await supabase.from('referrals').upsert({
                   referrer_id: referrerId,
                   referred_id: userId,
                   status: 'completed',
-                  earned: 0
+                  earned: 100 // Track stats
               }, { onConflict: 'referred_id', ignoreDuplicates: true });
+
+              // 2. PAY REFERRER 100 TK
+              await updateWallet(referrerId, 100, 'increment', 'referral_balance');
+              await createTransaction(referrerId, 'referral', 100, `Referral Bonus: ${email}`);
+              
+              // 3. Notify Referrer
+              await createNotification(referrerId, 'New Referral', `You earned ৳100 for inviting ${email}`, 'success');
           }
       }
   }

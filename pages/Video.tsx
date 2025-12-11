@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { PlayCircle, Plus, MonitorPlay, Trash2, Pause, Clock, Youtube, History, RefreshCw, RotateCcw, AlertCircle } from 'lucide-react';
@@ -9,6 +8,7 @@ import BalanceDisplay from '../components/BalanceDisplay';
 import { VideoAd, UserProfile } from '../types';
 import Loader from '../components/Loader';
 import { Link, useNavigate } from 'react-router-dom';
+import SmartAd from '../components/SmartAd';
 
 const Video: React.FC = () => {
   const { toast, confirm } = useUI();
@@ -178,6 +178,9 @@ const Video: React.FC = () => {
            </div>
        )}
 
+       {/* AD PLACEMENT: IN-FEED */}
+       <SmartAd slot="4491147378" />
+
        {/* --- WATCH TAB --- */}
        {activeTab === 'watch' && (
            <div className="space-y-4">
@@ -254,8 +257,8 @@ const Video: React.FC = () => {
                                        <p className="text-gray-500 text-[9px] uppercase">Est. Views</p>
                                        <p className="text-white font-mono">{Math.floor(video.remaining_budget / video.cost_per_view)}</p>
                                    </div>
-                               </div>
-                               <div className="flex gap-2">
+                                </div>
+                                <div className="flex gap-2">
                                    <button onClick={() => handleToggleStatus(video)} className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 rounded text-xs font-bold text-white border border-white/10">
                                        {video.status === 'active' ? 'Pause' : 'Resume'}
                                    </button>

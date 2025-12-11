@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
@@ -14,6 +13,7 @@ import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateWallet, createTransaction } from '../lib/actions';
 import Loader from '../components/Loader';
+import GoogleAd from '../components/GoogleAd';
 
 const VideoPlayer: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -461,6 +461,12 @@ const VideoPlayer: React.FC = () => {
                 {/* DETAILS PANEL */}
                 {!cinemaMode && (
                     <div className="flex-1 overflow-y-auto">
+                        
+                        {/* AD PLACEMENT: IN-ARTICLE */}
+                        <div className="px-4 mt-4">
+                            <GoogleAd slot="3493119845" layout="in-article" />
+                        </div>
+
                         <div className="p-4 space-y-6">
                             
                             {/* Title & Status */}
@@ -522,6 +528,9 @@ const VideoPlayer: React.FC = () => {
                                     ))}
                                 </div>
                             </div>
+                            
+                            {/* AD PLACEMENT: MULTIPLEX */}
+                            <GoogleAd slot="8977187296" format="autorelaxed" />
 
                         </div>
                     </div>

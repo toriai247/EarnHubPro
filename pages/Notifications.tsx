@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import Skeleton from '../components/Skeleton';
@@ -7,6 +6,7 @@ import { AppNotification } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../context/UIContext';
+import GoogleAd from '../components/GoogleAd';
 
 const MotionDiv = motion.div as any;
 
@@ -112,6 +112,9 @@ const Notifications: React.FC = () => {
              </button>
          </div>
       </header>
+      
+      {/* AD PLACEMENT: DISPLAY RESPONSIVE */}
+      <GoogleAd slot="9579822529" format="auto" responsive="true" />
 
       <div className="space-y-3">
          <AnimatePresence mode="popLayout">

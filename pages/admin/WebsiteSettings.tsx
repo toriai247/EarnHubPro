@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { SystemConfig } from '../../types';
-import { Save, Loader2, Settings, Smartphone, Lock, AlertTriangle, Eye, Image as ImageIcon, Percent, Type } from 'lucide-react';
+import { Save, Loader2, Settings, Smartphone, Lock, AlertTriangle, Eye, Image as ImageIcon, Percent, Type, BarChart2 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import ImageSelector from '../../components/ImageSelector';
 
@@ -19,7 +19,11 @@ const WebsiteSettings: React.FC = () => {
 
   const fetchConfig = async () => {
       const { data } = await supabase.from('system_config').select('*').limit(1).maybeSingle();
-      if(data) setConfig(data as SystemConfig);
+      if(data) {
+          // Auto-fill Adsterra Token if missing
+          if (!data.adsterra_api_token) data.adsterra_api_token = '14810bb4192661f1a6277491c12a2946';
+          setConfig(data as SystemConfig);
+      }
       setLoading(false);
   };
 
@@ -37,7 +41,8 @@ const WebsiteSettings: React.FC = () => {
           hero_title: config.hero_title,
           hero_description: config.hero_description,
           hero_image_url: config.hero_image_url,
-          task_commission_percent: config.task_commission_percent
+          task_commission_percent: config.task_commission_percent,
+          adsterra_api_token: config.adsterra_api_token // Save token
       }).eq('id', config.id);
 
       if(error) toast.error(error.message);
@@ -88,6 +93,30 @@ const WebsiteSettings: React.FC = () => {
                     value={config.hero_image_url || ''}
                     onChange={(val) => setConfig({...config, hero_image_url: val})}
                 />
+            </GlassCard>
+        </div>
+
+        {/* EXTERNAL INTEGRATION */}
+        <div className="space-y-4">
+            <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest pl-1">Integration</h3>
+            <GlassCard className="p-4 bg-red-900/10 border-red-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                    <BarChart2 size={16} className="text-red-400" />
+                    <h4 className="font-bold text-white text-sm">Adsterra API</h4>
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-gray-400 mb-1.5 block">Publisher API Token</label>
+                    <input 
+                        type="password"
+                        value={config.adsterra_api_token || ''}
+                        onChange={e => setConfig({...config, adsterra_api_token: e.target.value})}
+                        className="w-full bg-[#111] border border-white/10 rounded-xl p-3 text-white text-sm focus:border-red-500 outline-none"
+                        placeholder="Paste token from Adsterra Dashboard..."
+                    />
+                    <p className="text-[10px] text-gray-500 mt-2">
+                        Used to fetch revenue stats for the Admin Dashboard.
+                    </p>
+                </div>
             </GlassCard>
         </div>
 

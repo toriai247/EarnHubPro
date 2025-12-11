@@ -1,4 +1,5 @@
 
+
 export interface PublishedSite {
     id: string;
     name: string;
@@ -287,6 +288,7 @@ export interface SystemConfig {
     hero_description?: string;
     hero_image_url?: string;
     task_commission_percent?: number;
+    adsterra_api_token?: string; // New
 }
 export interface HelpRequest { id: string; user_id?: string; email: string; message: string; status: 'pending' | 'resolved'; admin_response?: string; resolved_at?: string; created_at: string; }
 export interface KycRequest { id: string; user_id: string; full_name: string; id_type: string; id_number: string; front_image_url: string; back_image_url: string; status: 'pending' | 'approved' | 'rejected'; admin_note?: string; created_at: string; profile?: UserProfile; }

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
@@ -11,6 +10,7 @@ import {
     CheckCircle2, Megaphone, ArrowDownLeft, ArrowUpRight, User
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import GoogleAd from '../components/GoogleAd';
 
 interface MenuItem {
     name: string;
@@ -185,6 +185,9 @@ const Menu: React.FC = () => {
                     </>
                 )}
             </div>
+
+            {/* AD PLACEMENT: DISPLAY RESPONSIVE */}
+            <GoogleAd slot="9579822529" format="auto" responsive="true" />
         </div>
     );
 };

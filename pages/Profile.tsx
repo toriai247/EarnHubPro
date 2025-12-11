@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { 
   Edit2, LogOut, Copy, ShieldCheck, MapPin, Smartphone, 
@@ -13,6 +12,7 @@ import Loader from '../components/Loader';
 import { useUI } from '../context/UIContext';
 import { useSystem } from '../context/SystemContext';
 import { useCurrency } from '../context/CurrencyContext';
+import GoogleAd from '../components/GoogleAd';
 
 const Profile: React.FC = () => {
   const { toast } = useUI();
@@ -158,6 +158,9 @@ const Profile: React.FC = () => {
                 </div>
             </div>
         </div>
+
+        {/* AD PLACEMENT: DISPLAY RESPONSIVE */}
+        <GoogleAd slot="9579822529" format="auto" responsive="true" />
 
         {/* TABS */}
         <div className="flex border-b border-[#222]">

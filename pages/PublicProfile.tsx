@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
@@ -13,6 +12,7 @@ import Skeleton from '../components/Skeleton';
 import { motion } from 'framer-motion';
 import { useUI } from '../context/UIContext';
 import { BADGES } from '../constants';
+import GoogleAd from '../components/GoogleAd';
 
 const PublicProfile: React.FC = () => {
     const { uid } = useParams<{ uid: string }>();
@@ -308,6 +308,9 @@ const PublicProfile: React.FC = () => {
                         </div>
                     </motion.div>
                 )}
+                
+                {/* AD PLACEMENT: DISPLAY RESPONSIVE */}
+                <GoogleAd slot="9579822529" format="auto" responsive="true" />
 
                 {/* Suggested Users */}
                 {suggestedUsers.length > 0 && (

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
@@ -15,6 +14,7 @@ import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
 import { useSystem } from '../context/SystemContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import SmartAd from '../components/SmartAd';
 
 const MotionDiv = motion.div as any;
 
@@ -257,6 +257,11 @@ const Home: React.FC = () => {
                  </div>
              </div>
 
+             {/* AD PLACEMENT: MULTIPLEX */}
+             <div className="px-4 max-w-lg mx-auto mb-8">
+                 <SmartAd slot="8977187296" />
+             </div>
+
              {/* 5. FOOTER */}
              <div className="border-t border-white/10 py-10 bg-black/50 text-center">
                  <div className="w-10 h-10 bg-white/5 rounded-xl border border-white/10 flex items-center justify-center mx-auto mb-4">
@@ -397,6 +402,11 @@ const Home: React.FC = () => {
               <GridItem to="/support" icon={HelpCircle} label="Help" />
               <GridItem to="/menu" icon={Grid} label="More" />
           </div>
+      </MotionDiv>
+
+      {/* AD PLACEMENT: MULTIPLEX */}
+      <MotionDiv variants={item}>
+          <SmartAd slot="8977187296" />
       </MotionDiv>
 
     </MotionDiv>

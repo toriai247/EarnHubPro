@@ -21,12 +21,38 @@ const TABLE_LIST = [
     'ludo_cards', 'spin_items', 'bot_profiles', 'help_requests', 
     'game_configs', 'task_attempts', 'daily_bonus_config', 'daily_streaks',
     'influencer_campaigns', 'influencer_submissions', 'published_sites', 'video_ads',
-    'task_reports'
+    'task_reports', 'ad_interactions'
 ];
 
 // SQL Templates Library
 const SQL_TOOLS = {
     setup: [
+        {
+            title: 'System: Ad Analytics Table',
+            desc: 'Creates a table to track ad clicks and impressions for AdSense, Adsterra, and Monetag.',
+            sql: `
+CREATE TABLE IF NOT EXISTS public.ad_interactions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    network TEXT NOT NULL, -- 'adsterra', 'monetag', 'google'
+    ad_unit_id TEXT, -- specific link or slot id
+    action_type TEXT DEFAULT 'click', -- 'click' or 'view'
+    user_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS but allow inserts from authenticated users
+ALTER TABLE public.ad_interactions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public insert access" ON public.ad_interactions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Admin view access" ON public.ad_interactions FOR SELECT USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'admin' OR admin_user = true)));
+`
+        },
+        {
+            title: 'System: Adsterra Integration',
+            desc: 'Adds API Token column to system config for revenue tracking.',
+            sql: `
+ALTER TABLE public.system_config ADD COLUMN IF NOT EXISTS adsterra_api_token TEXT;
+`
+        },
         {
             title: 'System: Wallet Auditor (Strict Math)',
             desc: 'Creates a function to recalculate wallet balances based purely on transaction history. Use this to fix discrepancies.',
@@ -50,28 +76,18 @@ BEGIN
     WHERE user_id = target_user_id 
     AND type IN ('deposit', 'admin_credit_deposit');
 
-    -- Subtract investments/transfers from deposit if logical flow exists (Simplified for generic)
-    -- For now, we assume simple additive flows for audit baseline.
-
     -- 2. Calculate Earnings (Tasks + Referrals + Video)
     SELECT COALESCE(SUM(amount), 0) INTO calc_earning
     FROM transactions
     WHERE user_id = target_user_id
     AND type IN ('earn', 'referral', 'sponsorship');
 
-    -- 3. Calculate Game Balance (Wins - Losses/Bets if tracked separately)
-    -- Note: This is tricky if bets are deducted from main. 
-    -- We assume Game Balance = Total Wins stored in Game Wallet.
+    -- 3. Calculate Game Balance (Wins)
     SELECT COALESCE(SUM(amount), 0) INTO calc_game
     FROM transactions
     WHERE user_id = target_user_id
     AND type IN ('game_win');
 
-    -- 4. Calculate Main Balance (Withdrawals are negative, Transfers, etc)
-    -- This assumes 'withdraw' type amount is negative or we subtract it.
-    -- Ideally, we sum EVERYTHING else here or perform specific logic.
-    
-    -- Returning calculated values for Admin Review
     RETURN QUERY SELECT calc_main, calc_deposit, calc_earning, calc_game;
 END;
 $$;
@@ -79,35 +95,23 @@ $$;
 -- Function to FORCE SYNC (Dangerous: Overwrites Wallet)
 CREATE OR REPLACE FUNCTION force_sync_wallet(target_user_id UUID) RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
-    -- Variables to hold sums
     sum_deposits NUMERIC;
     sum_withdrawals NUMERIC;
     sum_earnings NUMERIC;
     sum_game_wins NUMERIC;
     sum_game_bets NUMERIC;
-    sum_transfers_in NUMERIC;
-    sum_transfers_out NUMERIC;
-    
     final_balance NUMERIC;
 BEGIN
-    -- Calculate purely based on history
     SELECT COALESCE(SUM(amount), 0) INTO sum_deposits FROM transactions WHERE user_id = target_user_id AND type = 'deposit';
     SELECT COALESCE(SUM(amount), 0) INTO sum_withdrawals FROM transactions WHERE user_id = target_user_id AND type = 'withdraw';
     SELECT COALESCE(SUM(amount), 0) INTO sum_earnings FROM transactions WHERE user_id = target_user_id AND type IN ('earn', 'referral', 'bonus');
     SELECT COALESCE(SUM(amount), 0) INTO sum_game_wins FROM transactions WHERE user_id = target_user_id AND type = 'game_win';
     SELECT COALESCE(SUM(amount), 0) INTO sum_game_bets FROM transactions WHERE user_id = target_user_id AND type = 'game_bet'; -- Negative
     
-    -- Logic: Total Net Worth = (Inflows) - (Outflows)
-    -- We will update MAIN BALANCE to reflect the 'Net Worth' minus specific restricted wallets if needed.
-    -- For simplicity in this 'Strict Mode':
-    -- Balance = (Deposits + Earnings + GameWins + Bonus) - (Withdrawals + |GameBets|)
-    
     final_balance := (sum_deposits + sum_earnings + sum_game_wins) - (sum_withdrawals + ABS(sum_game_bets));
     
-    -- Prevent negative
     IF final_balance < 0 THEN final_balance := 0; END IF;
 
-    -- Update Wallet
     UPDATE wallets 
     SET 
         main_balance = final_balance,
@@ -145,22 +149,6 @@ CREATE POLICY "Admins view reports" ON public.task_reports FOR SELECT USING (EXI
 DROP POLICY IF EXISTS "Admins update reports" ON public.task_reports;
 CREATE POLICY "Admins update reports" ON public.task_reports FOR UPDATE USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'admin' OR admin_user = true)));
 `
-        },
-        {
-            title: 'Upgrade: Deposit System (Auto Approve)',
-            desc: 'Adds user note column and auto-approval function for deposits > 5h.',
-            sql: `
-ALTER TABLE public.deposit_requests ADD COLUMN IF NOT EXISTS user_note TEXT;
-
-CREATE OR REPLACE FUNCTION auto_approve_old_deposits() 
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
-BEGIN
-  -- UPDATE public.deposit_requests 
-  -- SET status = 'approved', admin_note = 'Auto Approved (Time Limit Exceeded)'
-  -- WHERE status = 'pending' AND created_at < NOW() - INTERVAL '5 hours 5 minutes';
-END;
-$$;
-`
         }
     ],
     maintenance: [
@@ -183,26 +171,6 @@ ALTER TABLE public.video_ads ADD CONSTRAINT video_ads_creator_id_fkey FOREIGN KE
 -- 4. Reload Schema
 NOTIFY pgrst, 'reload config';
 `
-        },
-        {
-            title: 'Repair Missing Tables',
-            desc: 'Creates video_ads if missing.',
-            sql: `
-CREATE TABLE IF NOT EXISTS public.video_ads (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    creator_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    video_url TEXT NOT NULL,
-    thumbnail_url TEXT,
-    duration INTEGER DEFAULT 60,
-    total_budget NUMERIC(10, 2) DEFAULT 0,
-    remaining_budget NUMERIC(10, 2) DEFAULT 0,
-    cost_per_view NUMERIC(10, 2) DEFAULT 0.50,
-    status TEXT DEFAULT 'active',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.video_ads ENABLE ROW LEVEL SECURITY;
-`
         }
     ],
     danger: [
@@ -219,6 +187,7 @@ TRUNCATE TABLE public.influencer_submissions;
 UPDATE public.wallets SET main_balance = 0, bonus_balance = 0, deposit_balance = 0, game_balance = 0, earning_balance = 0, investment_balance = 0, referral_balance = 0, commission_balance = 0, balance = 0, deposit = 0, withdrawable = 0, total_earning = 0, today_earning = 0, pending_withdraw = 0, referral_earnings = 0;
 TRUNCATE TABLE public.daily_streaks;
 TRUNCATE TABLE public.task_reports;
+TRUNCATE TABLE public.ad_interactions;
 `
         }
     ]

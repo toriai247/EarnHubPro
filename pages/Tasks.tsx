@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
@@ -13,6 +12,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import Skeleton from '../components/Skeleton';
 import { updateWallet, createTransaction } from '../lib/actions';
 import SmartImage from '../components/SmartImage';
+import SmartAd from '../components/SmartAd';
 
 type TaskStatus = 'active' | 'pending' | 'approved' | 'rejected' | 'locked' | 'cooldown';
 
@@ -346,6 +346,11 @@ const Tasks: React.FC = () => {
                   </button>
               ))}
           </div>
+      </div>
+
+      {/* AD PLACEMENT: IN-FEED */}
+      <div className="px-4 sm:px-0">
+          <SmartAd slot="4491147378" />
       </div>
 
       {/* TASK LIST */}
@@ -771,6 +776,11 @@ const Tasks: React.FC = () => {
               </motion.div>
           )}
       </AnimatePresence>
+
+      {/* AD PLACEMENT: MULTIPLEX */}
+      <div className="px-4 sm:px-0">
+          <SmartAd slot="8977187296" />
+      </div>
 
     </div>
   );

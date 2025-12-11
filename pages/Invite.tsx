@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { Users, Copy, Trophy, Crown, Share2, UserPlus, Calendar, Activity, Link as LinkIcon, TrendingUp, Search, Wallet, Percent, User, MessageCircle, Megaphone, Check, Facebook, Twitter, Instagram, Send, Globe, Phone, Briefcase } from 'lucide-react';
@@ -8,6 +7,7 @@ import Skeleton from '../components/Skeleton';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
+import GoogleAd from '../components/GoogleAd';
 
 interface ReferredUser {
     id: string;
@@ -250,6 +250,11 @@ const Invite: React.FC = () => {
                 <button onClick={() => setActiveTab('network')} className={`px-4 py-2 text-xs font-bold rounded-lg transition ${activeTab === 'network' ? 'bg-white text-black' : 'text-gray-400'}`}>My Team</button>
             </div>
        </header>
+
+       {/* AD PLACEMENT: IN-ARTICLE */}
+       <div className="px-4 sm:px-0">
+           <GoogleAd slot="3493119845" layout="in-article" />
+       </div>
 
        {/* INVITE DASHBOARD */}
        {activeTab === 'invite' && (
