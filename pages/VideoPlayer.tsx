@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
@@ -6,7 +7,7 @@ import GlassCard from '../components/GlassCard';
 import { 
     ArrowLeft, Play, Pause, CheckCircle2, 
     Clock, DollarSign, Share2, Maximize, Minimize, 
-    AlertCircle, Flag, Heart, Loader2, Zap, User as UserIcon, Volume2, VolumeX
+    AlertCircle, Flag, Heart, Loader2, Zap, User as UserIcon, Volume2, VolumeX, ExternalLink
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -63,9 +64,18 @@ const VideoPlayer: React.FC = () => {
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.hidden) {
-                if (videoRef.current) videoRef.current.pause();
-                setIsPlaying(false);
-                stopIframeTimer();
+                if (videoRef.current) {
+                    videoRef.current.pause();
+                    setIsPlaying(false);
+                }
+                // For iframes, we pause the timer to prevent cheating via background tabs
+                if (timerRef.current) {
+                    clearInterval(timerRef.current);
+                    setIsPlaying(false);
+                }
+            } else {
+                // If native video was playing, maybe resume? No, let user resume manually.
+                // For iframe, if they come back, they need to click "Resume" or we rely on them continuing to watch.
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -155,14 +165,16 @@ const VideoPlayer: React.FC = () => {
         const currentTime = videoRef.current.currentTime;
         const diff = currentTime - lastTimeRef.current;
 
-        // Anti-Cheat: Only count if playback is continuous (no seeking)
-        if (diff > 1.5) {
-            videoRef.current.currentTime = lastTimeRef.current; // Revert seek
-            toast.error("Seeking is locked.");
+        // Anti-Cheat: If diff is too large (seeking forward), revert.
+        // Allow small skips (lag) or backward seeking.
+        if (diff > 2) {
+            videoRef.current.currentTime = lastTimeRef.current; 
+            toast.error("Fast-forwarding is disabled.");
             return;
         }
 
-        if (diff > 0 && isPlaying) {
+        // Only increment if playing forward normally
+        if (diff > 0) {
             setWatchedSeconds(prev => {
                 const newVal = prev + diff;
                 if (newVal >= requiredSeconds) {
@@ -184,12 +196,12 @@ const VideoPlayer: React.FC = () => {
 
     const togglePlay = () => {
         if (videoRef.current) {
-            if (isPlaying) {
+            if (videoRef.current.paused) {
+                videoRef.current.play().catch(e => console.error("Play error", e));
+                setIsPlaying(true);
+            } else {
                 videoRef.current.pause();
                 setIsPlaying(false);
-            } else {
-                videoRef.current.play();
-                setIsPlaying(true);
             }
         }
     };
@@ -203,7 +215,6 @@ const VideoPlayer: React.FC = () => {
 
     const handleWaiting = () => {
         setIsBuffering(true);
-        setIsPlaying(false); 
     };
 
     const handlePlaying = () => {
@@ -216,12 +227,13 @@ const VideoPlayer: React.FC = () => {
         setIsPlaying(false);
     };
 
-    // --- FALLBACK: IFRAME TIMER ---
+    // --- IFRAME LOGIC FIX ---
     const startIframeTimer = () => {
         if (hasClaimedToday || canClaim) return;
         setIframeInteracted(true);
-        setIsPlaying(true);
+        setIsPlaying(true); // Visual state for timer
         
+        // Start Timer
         stopIframeTimer();
         timerRef.current = setInterval(() => {
             setWatchedSeconds(prev => {
@@ -276,7 +288,8 @@ const VideoPlayer: React.FC = () => {
     const getEmbedUrl = (url: string) => {
         if (url.includes('youtube.com') || url.includes('youtu.be')) {
             const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([\w-]{11})/);
-            return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&controls=0&rel=0` : url;
+            // Autoplay=1 to start, but user still needs to interact with browser usually
+            return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&controls=1&rel=0` : url;
         }
         return url;
     };
@@ -327,13 +340,13 @@ const VideoPlayer: React.FC = () => {
                 {/* VIDEO STAGE */}
                 <div className={`relative w-full bg-black group ${cinemaMode ? 'h-full' : 'aspect-video shadow-2xl border-b border-white/5'}`}>
                     
-                    {/* VIDEO ELEMENT (LOCKED INTERACTION) */}
+                    {/* VIDEO ELEMENT */}
                     {isNative ? (
                         <video 
                             ref={videoRef}
                             src={video.video_url} 
-                            className="w-full h-full object-contain pointer-events-none" // Completely disable interactions
-                            controls={false}
+                            className="w-full h-full object-contain cursor-pointer"
+                            onClick={togglePlay}
                             playsInline
                             onTimeUpdate={handleTimeUpdate}
                             onLoadedMetadata={handleLoadedMetadata}
@@ -348,13 +361,14 @@ const VideoPlayer: React.FC = () => {
                                     <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mb-4 shadow-[0_0_30px_#dc2626] animate-pulse">
                                         <Play size={32} fill="white" className="ml-1" />
                                     </div>
-                                    <p className="text-white font-bold uppercase tracking-widest text-sm">Tap to Watch</p>
+                                    <p className="text-white font-bold uppercase tracking-widest text-sm">Tap to Start</p>
                                 </div>
                             ) : null}
+                            {/* Allow interaction with iframe for manual play */}
                             {iframeInteracted && (
                                 <iframe 
                                     src={getEmbedUrl(video.video_url)} 
-                                    className="w-full h-full pointer-events-none" // Lock Iframe
+                                    className="w-full h-full"
                                     frameBorder="0"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
@@ -378,7 +392,7 @@ const VideoPlayer: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* OVERLAY: BIG PLAY BUTTON (If Paused) */}
+                    {/* OVERLAY: BIG PLAY BUTTON (Native Only - If Paused) */}
                     {!isPlaying && !isBuffering && isNative && (
                         <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
                             <button 
@@ -398,7 +412,7 @@ const VideoPlayer: React.FC = () => {
                         </div>
                     )}
 
-                    {/* OVERLAY: CONTROLS BAR (LOCKED SEEKING) */}
+                    {/* OVERLAY: CONTROLS BAR (Locked Seeking for Native, Hidden for Iframe) */}
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent pt-12 pb-3 px-4 z-40 flex flex-col gap-3">
                         
                         {/* Progress Bar (Visual Only) */}
@@ -409,30 +423,37 @@ const VideoPlayer: React.FC = () => {
                                 animate={{ width: `${progressPercent}%` }}
                                 transition={{ ease: "linear" }}
                             />
-                            {/* Gray bar for video actual time */}
-                            <div 
-                                className="absolute top-0 left-0 h-full bg-white/50" 
-                                style={{ width: `${(videoRef.current?.currentTime || 0) / duration * 100}%`, opacity: 0.3 }}
-                            />
                         </div>
 
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <button onClick={togglePlay} className="text-white hover:text-blue-400 transition p-1">
-                                    {isPlaying ? <Pause size={24} fill="currentColor"/> : <Play size={24} fill="currentColor"/>}
-                                </button>
-                                
-                                <button onClick={toggleMute} className="text-white hover:text-gray-300 p-1">
-                                    {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
-                                </button>
+                                {/* Native Controls */}
+                                {isNative && (
+                                    <>
+                                        <button onClick={togglePlay} className="text-white hover:text-blue-400 transition p-1">
+                                            {isPlaying ? <Pause size={24} fill="currentColor"/> : <Play size={24} fill="currentColor"/>}
+                                        </button>
+                                        
+                                        <button onClick={toggleMute} className="text-white hover:text-gray-300 p-1">
+                                            {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
+                                        </button>
 
-                                <span className="text-xs font-mono font-medium text-white/90">
-                                    {formatTime(videoRef.current?.currentTime || 0)} / {formatTime(duration)}
-                                </span>
+                                        <span className="text-xs font-mono font-medium text-white/90">
+                                            {formatTime(videoRef.current?.currentTime || 0)} / {formatTime(duration)}
+                                        </span>
+                                    </>
+                                )}
+                                {/* Iframe Info */}
+                                {!isNative && (
+                                    <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
+                                        <ExternalLink size={14}/> External Player
+                                    </span>
+                                )}
                             </div>
 
-                            <div className="bg-black/50 px-3 py-1 rounded-lg border border-white/10 text-[10px] text-green-400 font-bold uppercase flex items-center gap-2">
-                                <Clock size={12}/> {Math.round(watchedSeconds)}s / {requiredSeconds}s
+                            {/* Timer Badge */}
+                            <div className={`px-3 py-1 rounded-lg border text-[10px] font-bold uppercase flex items-center gap-2 ${isPlaying ? 'bg-black/50 border-white/10 text-green-400' : 'bg-yellow-500/20 border-yellow-500 text-yellow-400'}`}>
+                                <Clock size={12}/> {isPlaying ? `${Math.round(watchedSeconds)}s / ${requiredSeconds}s` : 'Paused'}
                             </div>
                         </div>
                     </div>

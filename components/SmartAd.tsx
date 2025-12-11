@@ -1,21 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
 import GoogleAd from './GoogleAd';
-import { ExternalLink, PlayCircle, Loader2, Sparkles, Zap } from 'lucide-react';
+import { ExternalLink, Zap, Gift, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
-import { updateWallet, createTransaction } from '../lib/actions';
+import { updateWallet } from '../lib/actions';
 import { useUI } from '../context/UIContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- AD NETWORK CONFIGURATION ---
-interface AdLink {
-    url: string;
-    network: 'adsterra' | 'monetag' | 'cpa';
-}
-
-const HIGH_CPM_LINKS: AdLink[] = [
-    { url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', network: 'adsterra' },
-    // { url: 'https://monetag.com/example', network: 'monetag' },
+// Add your Direct Links here (Adsterra, Monetag, etc.)
+const DIRECT_LINKS = [
+    { url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', label: 'Adsterra Offer' },
+    // { url: 'YOUR_MONETAG_DIRECT_LINK', label: 'Monetag Deal' } 
 ];
 
 interface SmartAdProps {
@@ -25,115 +21,119 @@ interface SmartAdProps {
     className?: string;
 }
 
-const SmartAd: React.FC<SmartAdProps> = ({ slot, format = 'auto', height = '100px', className = '' }) => {
+const SmartAd: React.FC<SmartAdProps> = ({ slot, format = 'horizontal', className = '' }) => {
     const { toast } = useUI();
-    const [adType, setAdType] = useState<'google' | 'direct'>('google');
-    const [activeAd, setActiveAd] = useState<AdLink | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [key, setKey] = useState(0); 
+    const [mode, setMode] = useState<'google' | 'direct'>('direct'); // Default to 'direct' to avoid blank google ads initially
+    const [activeLink, setActiveLink] = useState(DIRECT_LINKS[0]);
+    const [isClicked, setIsClicked] = useState(false);
 
     useEffect(() => {
-        // Strategy: 
-        // 50% chance to show Google Ad (Safe, clean)
-        // 50% chance to show High CPM Direct Link Button (User Initiated = Safe from bans)
-        const isDirect = Math.random() < 0.5;
-        rotateAd(isDirect ? 'direct' : 'google');
+        // Randomly decide whether to show Google Ad or Direct Link
+        // 70% chance for Direct Link (Higher earnings, less blank space)
+        // 30% chance for Google Ad
+        const random = Math.random();
+        if (random > 0.7) {
+            setMode('google');
+        } else {
+            setMode('direct');
+            const randomLink = DIRECT_LINKS[Math.floor(Math.random() * DIRECT_LINKS.length)];
+            setActiveLink(randomLink);
+        }
     }, []);
 
-    const rotateAd = (forcedType?: 'google' | 'direct') => {
-        const nextType = forcedType || (Math.random() < 0.6 ? 'google' : 'direct');
-        setAdType(nextType);
-        
-        if (nextType === 'direct') {
-            const randomIndex = Math.floor(Math.random() * HIGH_CPM_LINKS.length);
-            setActiveAd(HIGH_CPM_LINKS[randomIndex]);
-        }
-        setKey(prev => prev + 1);
-    };
-
     const handleDirectClick = async () => {
-        if (loading || !activeAd) return;
-        setLoading(true);
-
-        // 1. Open the Ad Network Link in new tab
-        window.open(activeAd.url, '_blank');
+        if (isClicked) return; // Prevent double clicks
+        
+        // 1. Open Link Immediately
+        window.open(activeLink.url, '_blank');
+        setIsClicked(true);
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            const userId = session?.user?.id;
-
-            // 2. Log Click for Analytics
-            await supabase.from('ad_interactions').insert({
-                network: activeAd.network,
-                ad_unit_id: activeAd.url,
-                action_type: 'click',
-                user_id: userId || null
-            });
-
-            if (userId) {
-                // 3. Reward User (Incentivized Traffic)
+            if (session) {
+                // 2. Reward User (0.01 TK)
                 const rewardAmount = 0.01; 
-                await updateWallet(userId, rewardAmount, 'increment', 'earning_balance');
-                // Silent log to avoid database bloat, or keep simple log
-                // await createTransaction(userId, 'earn', rewardAmount, 'Sponsored Ad Visit');
-                toast.success(`Bonus +৳${rewardAmount} added!`);
+                await updateWallet(session.user.id, rewardAmount, 'increment', 'earning_balance');
+                
+                // Track click internally if needed
+                await supabase.from('ad_interactions').insert({
+                    network: 'direct',
+                    ad_unit_id: activeLink.url,
+                    action_type: 'click',
+                    user_id: session.user.id
+                });
+
+                toast.success(`Ad Bonus: +৳${rewardAmount} added!`);
             }
         } catch (e) {
-            console.error("Ad log error", e);
-        } finally {
-            setLoading(false);
-            // 4. Switch back to Google Ad after click to look natural/safe
-            setTimeout(() => rotateAd('google'), 500);
+            console.error("Ad reward error", e);
         }
+
+        // Reset after 5 seconds so they can click again if ad rotates
+        setTimeout(() => {
+            setIsClicked(false);
+            // Rotate to a new ad visual
+            setMode(Math.random() > 0.5 ? 'google' : 'direct');
+        }, 5000);
     };
 
     return (
-        <div className={`my-6 ${className}`}>
+        <div className={`w-full overflow-hidden my-2 ${className}`}>
             <AnimatePresence mode="wait">
-                <motion.div
-                    key={key}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.3 }}
-                    className="relative overflow-hidden rounded-xl border border-white/5 bg-[#0a0a0a] shadow-md group"
-                >
-                    {/* Label */}
-                    <div className="absolute top-0 right-0 bg-white/5 px-2 py-0.5 rounded-bl-lg text-[9px] font-bold text-gray-600 z-10 border-b border-l border-white/5 uppercase tracking-wider">
-                        Sponsored
-                    </div>
-
-                    {adType === 'google' ? (
-                        <div className="min-h-[100px] flex items-center justify-center bg-black/20">
-                            <GoogleAd slot={slot} format={format} className="!my-0 !border-0 !bg-transparent w-full" />
-                        </div>
-                    ) : (
-                        <div 
-                            onClick={handleDirectClick}
-                            className="relative cursor-pointer min-h-[120px] flex flex-col items-center justify-center p-4 text-center hover:bg-white/5 transition-colors group"
-                        >
-                            {/* Animated Background Gradient */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/5 to-blue-600/5 opacity-30 group-hover:opacity-60 transition-opacity"></div>
+                {mode === 'google' ? (
+                    <motion.div
+                        key="google"
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="min-h-[60px] bg-[#111] rounded-lg flex items-center justify-center border border-white/5"
+                    >
+                        <GoogleAd slot={slot} format={format} responsive="true" className="!my-0 !w-full" />
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="direct"
+                        initial={{ opacity: 0, scale: 0.98 }} 
+                        animate={{ opacity: 1, scale: 1 }} 
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        onClick={handleDirectClick}
+                        className="relative cursor-pointer group"
+                    >
+                        {/* Compact Banner Layout */}
+                        <div className="flex items-center justify-between bg-gradient-to-r from-emerald-900/40 to-[#111] border border-emerald-500/20 rounded-lg p-2.5 shadow-sm hover:border-emerald-500/40 transition-all">
                             
-                            <div className="relative z-10 flex items-center gap-4">
-                                <div className="p-3 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.3)] animate-pulse-slow">
-                                    {loading ? <Loader2 className="animate-spin text-white" size={24} /> : <Zap className="text-white fill-white" size={24} />}
+                            {/* Left: Icon & Text */}
+                            <div className="flex items-center gap-3 overflow-hidden">
+                                <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 ${isClicked ? 'bg-green-500 text-black' : 'bg-emerald-500/10 text-emerald-400 animate-pulse'}`}>
+                                    {isClicked ? <CheckCircle2 size={20}/> : <Gift size={20} />}
                                 </div>
-                                <div className="text-left">
-                                    <h4 className="text-white font-bold text-sm flex items-center gap-2">
-                                        Special Offer Available <ExternalLink size={12} className="text-gray-400"/>
+                                <div className="flex flex-col justify-center">
+                                    <h4 className="text-sm font-bold text-white leading-tight truncate">
+                                        {isClicked ? 'Bonus Claimed!' : 'Special Offer Available'}
                                     </h4>
-                                    <p className="text-[10px] text-gray-400 mt-0.5 max-w-[200px] leading-tight">
-                                        View this sponsor to unlock a bonus reward instantly.
-                                    </p>
-                                    <div className="mt-1.5 inline-flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                                        <Sparkles size={8} /> +৳0.01 Reward
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className="text-[10px] bg-yellow-500/10 text-yellow-500 px-1.5 rounded border border-yellow-500/20 font-bold">
+                                            +৳0.01
+                                        </span>
+                                        <span className="text-[10px] text-gray-500 truncate">
+                                            Tap to claim reward
+                                        </span>
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Right: CTA Button */}
+                            <div className="pl-2">
+                                <div className="bg-white text-black text-[10px] font-black py-1.5 px-3 rounded uppercase tracking-wider group-hover:bg-gray-200 transition flex items-center gap-1">
+                                    {isClicked ? 'OPENED' : 'VISIT'} <ExternalLink size={10} />
+                                </div>
+                            </div>
                         </div>
-                    )}
-                </motion.div>
+
+                        {/* "Sponsored" Label */}
+                        <div className="absolute top-0 right-0 text-[8px] text-gray-600 bg-black/40 px-1 rounded-bl">
+                            AD
+                        </div>
+                    </motion.div>
+                )}
             </AnimatePresence>
         </div>
     );
