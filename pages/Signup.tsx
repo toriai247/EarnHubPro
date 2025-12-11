@@ -73,10 +73,11 @@ const Signup: React.FC = () => {
            // Ensure local storage is set for persistence
            localStorage.setItem('eh_theme_id', selectedTheme);
            
-           navigate('/');
+           // Navigate with New User Flag
+           navigate('/', { state: { isNewUser: true } });
         } catch (dbError: any) {
            console.error("DB Init Error:", dbError);
-           navigate('/'); 
+           navigate('/', { state: { isNewUser: true } }); 
         }
       } else {
         setError('Confirmation email sent. Please check your inbox.');

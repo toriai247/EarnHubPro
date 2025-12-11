@@ -49,6 +49,7 @@ const Admin = lazy(() => import('./pages/admin/Admin'));
 const DealerDashboard = lazy(() => import('./pages/dealer/DealerDashboard'));
 const CreateCampaign = lazy(() => import('./pages/dealer/CreateCampaign'));
 const ManageCampaigns = lazy(() => import('./pages/dealer/ManageCampaigns'));
+const DealerInbox = lazy(() => import('./pages/dealer/DealerInbox'));
 const DealerProfile = lazy(() => import('./pages/dealer/DealerProfile'));
 const StaffDashboard = lazy(() => import('./pages/staff/StaffDashboard'));
 const SiteViewer = lazy(() => import('./pages/SiteViewer'));
@@ -186,6 +187,7 @@ const AppContent: React.FC = () => {
             <Route path="/dealer/dashboard" element={<RequireDealer session={session}><DealerDashboard /></RequireDealer>} />
             <Route path="/dealer/create" element={<RequireDealer session={session}><CreateCampaign /></RequireDealer>} />
             <Route path="/dealer/campaigns" element={<RequireDealer session={session}><ManageCampaigns /></RequireDealer>} />
+            <Route path="/dealer/inbox" element={<RequireDealer session={session}><DealerInbox /></RequireDealer>} />
             <Route path="/dealer/profile" element={<RequireDealer session={session}><DealerProfile /></RequireDealer>} />
 
             {/* STAFF ROUTES */}

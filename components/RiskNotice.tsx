@@ -2,19 +2,23 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, ShieldAlert, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import GlassCard from './GlassCard';
 
 const RiskNotice: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const location = useLocation();
 
     useEffect(() => {
-        // Check if user has agreed globally on this device
+        // Only show if user hasn't agreed globally AND they are a new user (passed from Signup)
         const hasAgreed = localStorage.getItem('risk_accepted_global');
-        if (!hasAgreed) {
-            // Delay slightly for effect
+        const isNewUser = location.state?.isNewUser;
+
+        if (!hasAgreed && isNewUser) {
+            // Delay slightly for effect on first landing
             setTimeout(() => setIsOpen(true), 1500);
         }
-    }, []);
+    }, [location]);
 
     const handleAccept = () => {
         localStorage.setItem('risk_accepted_global', 'true');

@@ -3,15 +3,16 @@ import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
   BadgeCheck, RefreshCw, Smartphone, Youtube, Share2, 
-  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, ArrowRight, Flame, Building2, Star, Flag, Briefcase, MessageCircle, Crown, User, ExternalLink, FileCheck, UploadCloud, Type, Send, CheckCircle2, Timer
+  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, ArrowRight, Flame, Building2, Star, Flag, Briefcase, MessageCircle, Crown, User, ExternalLink, FileCheck, UploadCloud, Type, Send, CheckCircle2, Timer, MoreVertical, EyeOff, LayoutGrid, AlertCircle, Zap
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Skeleton from '../components/Skeleton';
 import { updateWallet, createTransaction } from '../lib/actions';
+import SmartImage from '../components/SmartImage';
 
 type TaskStatus = 'active' | 'pending' | 'approved' | 'rejected' | 'locked' | 'cooldown';
 
@@ -25,10 +26,11 @@ const Tasks: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [filter, setFilter] = useState('all');
   
-  // Modals
+  // Modals & Menus
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [reportTask, setReportTask] = useState<any | null>(null);
   const [reportReason, setReportReason] = useState('');
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   // Execution State (Merged from TaskBrowser)
   const [executionTask, setExecutionTask] = useState<any | null>(null);
@@ -73,10 +75,11 @@ const Tasks: React.FC = () => {
      // 1. Get All Active Tasks with Creator Profile joined
      const { data: allTasks, error } = await supabase
         .from('marketplace_tasks')
-        .select('*, creator:profiles(role, is_dealer, name_1, is_kyc_1)')
+        .select('*, creator:profiles(role, is_dealer, name_1, is_kyc_1, avatar_1, user_uid)')
         .eq('status', 'active')
         .gt('remaining_quantity', 0)
-        .order('worker_reward', {ascending: false}); 
+        .order('is_featured', {ascending: false})
+        .order('created_at', {ascending: false}); 
      
      if (error) {
          console.error("Error fetching tasks:", error);
@@ -118,10 +121,6 @@ const Tasks: React.FC = () => {
                  const autoHours = task.auto_approve_hours || 24;
                  
                  if (hoursPassed > autoHours) {
-                     // It essentially becomes approved, check cooldown logic immediately
-                     const completionTime = submitTime; // Treated as approved at submit time for simplicity, or we could say now.
-                     // If it auto-approves, we usually treat it as "Done". 
-                     // Let's set it to approved for logic flow, then let the next block handle cooldown.
                      s.status = 'approved'; 
                  }
              }
@@ -136,15 +135,7 @@ const Tasks: React.FC = () => {
                  // Less than 24 hours? Cooldown.
                  statusMap[s.task_id] = 'cooldown';
                  cooldownMap[s.task_id] = submissionTime + ONE_DAY_MS;
-             } else {
-                 // More than 24 hours? It's Active again! 
-                 // We do NOT set it in statusMap, so it appears as default (Active)
              }
-         } else if (s.status === 'rejected') {
-             // If rejected, user can usually try again immediately, or we can lock it.
-             // For now, let's allow retry immediately (so don't set statusMap, or set to 'rejected' if we want to show history)
-             // Let's allow retry:
-             // statusMap[s.task_id] = 'rejected'; 
          }
      }
 
@@ -155,6 +146,12 @@ const Tasks: React.FC = () => {
   };
 
   const handleOpenTask = (task: any) => {
+      // If menu is open, don't open task
+      if (menuOpenId) {
+          setMenuOpenId(null);
+          return;
+      }
+
       const status = taskStatuses[task.id];
       
       if (status === 'locked') { toast.error("Locked due to failed attempts."); return; }
@@ -269,9 +266,6 @@ const Tasks: React.FC = () => {
               submission_data: { method: executionTask.proof_type, answer: quizAnswer, file: uploadedFile?.name }
           });
 
-          // Decrement Qty
-          // Ideally use: await supabase.rpc('decrement_task_quantity', { task_id: executionTask.id });
-          
           // Pay User
           await updateWallet(userId, executionTask.worker_reward, 'increment', 'earning_balance');
           await createTransaction(userId, 'earn', executionTask.worker_reward, `Task: ${executionTask.title}`);
@@ -306,6 +300,12 @@ const Tasks: React.FC = () => {
       
       setReportTask(null);
       setReportReason('');
+      setMenuOpenId(null);
+  };
+
+  const toggleMenu = (e: React.MouseEvent, taskId: string) => {
+      e.stopPropagation();
+      setMenuOpenId(menuOpenId === taskId ? null : taskId);
   };
 
   const formatTimeRemaining = (endTime: number) => {
@@ -313,24 +313,7 @@ const Tasks: React.FC = () => {
       if (diff <= 0) return "Ready";
       const h = Math.floor(diff / (1000 * 60 * 60));
       const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((diff % (1000 * 60)) / 1000);
-      return `${h}h ${m}m ${s}s`;
-  };
-
-  const getCreatorBadge = (creator: any) => {
-      if (creator?.role === 'admin' || creator?.admin_user) {
-          return <span className="bg-purple-500/20 text-purple-400 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1"><Crown size={10} fill="currentColor"/> ADMIN</span>;
-      }
-      if (creator?.is_dealer) {
-          return <span className="bg-amber-500/20 text-amber-400 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1"><Briefcase size={10}/> DEALER</span>;
-      }
-      if (creator?.role === 'staff') {
-          return <span className="bg-blue-500/20 text-blue-400 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1"><Star size={10} fill="currentColor"/> STAFF</span>;
-      }
-      if (creator?.is_kyc_1) {
-          return <span className="bg-green-500/20 text-green-400 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1"><ShieldCheck size={10}/> VERIFIED</span>;
-      }
-      return <span className="bg-gray-500/20 text-gray-400 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1"><User size={10}/> USER</span>;
+      return `${h}h ${m}m`;
   };
 
   const sortedTasks = tasks.filter((t: any) => filter === 'all' || t.category === filter);
@@ -366,7 +349,7 @@ const Tasks: React.FC = () => {
       </div>
 
       {/* TASK LIST */}
-      <div className="space-y-3 px-4 sm:px-0">
+      <div className="space-y-4 px-4 sm:px-0" onClick={() => setMenuOpenId(null)}>
           {sortedTasks.length === 0 ? (
               <div className="text-center py-12 bg-[#111] rounded-2xl border border-[#222]">
                   <Briefcase size={40} className="mx-auto text-gray-600 mb-3" />
@@ -382,6 +365,8 @@ const Tasks: React.FC = () => {
                     }
 
                     const isHot = task.worker_reward > 5 || task.is_featured;
+                    const isMenuOpen = menuOpenId === task.id;
+                    const dealer = task.creator || {};
                     
                     return (
                         <motion.div 
@@ -391,63 +376,133 @@ const Tasks: React.FC = () => {
                         >
                             <GlassCard 
                                 onClick={() => handleOpenTask(task)}
-                                className={`flex items-center justify-between p-4 group transition border relative overflow-hidden rounded-2xl cursor-pointer ${
+                                className={`p-4 group transition border relative overflow-visible rounded-2xl cursor-pointer ${
                                     status === 'pending' ? 'border-yellow-500/30 bg-yellow-500/5' :
-                                    status === 'cooldown' ? 'border-gray-700 bg-[#0f0f0f] opacity-80 grayscale-[0.5]' :
+                                    status === 'cooldown' ? 'border-gray-700 bg-[#0f0f0f] opacity-80' :
                                     'border-white/10 hover:border-white/20 bg-[#111]'
                                 }`}
                             >
                                 {isHot && !status && (
-                                    <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-black px-2 py-0.5 rounded-bl-lg">HOT</div>
+                                    <div className="absolute top-0 right-10 bg-gradient-to-r from-red-600 to-orange-600 text-white text-[9px] font-black px-2 py-0.5 rounded-b-lg shadow-lg z-10 flex items-center gap-1">
+                                        <Flame size={8} fill="currentColor"/> HOT
+                                    </div>
                                 )}
 
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border shrink-0 ${status ? 'bg-black/20 border-transparent' : 'bg-white/5 border-white/5'}`}>
+                                {/* HEADER ROW: Dealer Info & Menu */}
+                                <div className="flex justify-between items-start mb-3 border-b border-white/5 pb-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
+                                            <SmartImage src={dealer.avatar_1} className="w-full h-full object-cover" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-bold text-white flex items-center gap-1">
+                                                {dealer.name_1 || 'Unknown'}
+                                                {dealer.is_kyc_1 && <BadgeCheck size={12} className="text-blue-400 fill-black" />}
+                                            </h4>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-[9px] text-gray-500 font-mono">ID: {dealer.user_uid}</span>
+                                                {dealer.is_dealer && <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded border border-amber-500/30 font-bold uppercase">Dealer</span>}
+                                                {dealer.role === 'admin' && <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1 rounded border border-purple-500/30 font-bold uppercase">Admin</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={(e) => toggleMenu(e, task.id)}
+                                        className="p-1.5 text-gray-500 hover:text-white transition rounded-full hover:bg-white/10"
+                                    >
+                                        <MoreVertical size={16} />
+                                    </button>
+                                </div>
+
+                                {/* CONTENT ROW */}
+                                <div className="flex justify-between items-center mb-3">
+                                    <div className="flex-1 pr-4">
+                                        <h3 className={`font-bold text-sm mb-1 ${status === 'cooldown' ? 'text-gray-500' : 'text-white'}`}>{task.title}</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                                                task.category === 'social' ? 'text-blue-300 border-blue-500/30 bg-blue-500/10' :
+                                                task.category === 'video' ? 'text-red-300 border-red-500/30 bg-red-500/10' :
+                                                'text-green-300 border-green-500/30 bg-green-500/10'
+                                            }`}>
+                                                {task.category}
+                                            </span>
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border border-white/10 bg-white/5 text-gray-400 flex items-center gap-1">
+                                                <Clock size={8}/> {task.timer_seconds}s
+                                            </span>
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border border-white/10 bg-white/5 text-gray-400">
+                                                {task.proof_type === 'ai_quiz' ? 'Auto' : 'Manual'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {/* Big Icon based on Category */}
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shrink-0 ${status ? 'bg-black/20 border-transparent grayscale opacity-50' : 'bg-white/5 border-white/5'}`}>
                                         {task.category === 'social' ? <MessageCircle size={20} className="text-blue-400"/> :
                                         task.category === 'video' ? <Youtube size={20} className="text-red-500"/> :
                                         <Globe size={20} className="text-green-400"/>}
                                     </div>
-                                    
-                                    <div className="min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            {getCreatorBadge(task.creator)}
-                                            <span className="text-[9px] text-gray-500">• {task.timer_seconds}s</span>
-                                        </div>
-                                        <h3 className={`font-bold text-sm truncate ${status ? 'text-gray-400' : 'text-white'}`}>{task.title}</h3>
-                                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                                            <span className="bg-white/5 px-1.5 rounded text-[10px] uppercase font-bold">
-                                                {task.proof_type === 'ai_quiz' ? 'AUTO' : task.proof_type === 'file_check' ? 'FILE' : 'MANUAL'}
-                                            </span>
-                                        </div>
-                                    </div>
                                 </div>
 
-                                <div className="flex flex-col items-end gap-2 shrink-0">
+                                {/* FOOTER ROW */}
+                                <div className={`flex items-center justify-between p-2 rounded-xl ${status === 'cooldown' ? 'bg-black/30' : 'bg-black/20'}`}>
                                     {status === 'cooldown' ? (
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-orange-400 font-bold text-[10px] flex items-center gap-1 mb-1"><Timer size={10}/> NEXT IN</span>
+                                        <div className="w-full flex justify-between items-center px-1">
+                                            <span className="text-orange-400 font-bold text-[10px] flex items-center gap-1"><Timer size={10}/> NEXT IN</span>
                                             <span className="font-mono text-xs text-gray-400">{formatTimeRemaining(cooldownEnds[task.id])}</span>
                                         </div>
                                     ) : status === 'pending' ? (
-                                        <span className="text-yellow-500 font-bold text-xs flex items-center gap-1"><Clock size={14}/> REVIEW</span>
-                                    ) : (
-                                        <div className="bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-lg">
-                                            <p className="text-green-400 font-black text-xs"><BalanceDisplay amount={task.worker_reward} decimals={2} /></p>
+                                        <div className="w-full flex justify-between items-center px-1">
+                                            <span className="text-yellow-500 font-bold text-[10px] flex items-center gap-1"><Clock size={10}/> PENDING</span>
+                                            <span className="text-[10px] text-gray-500">Reviewing...</span>
                                         </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex flex-col">
+                                                <div className="text-[9px] text-gray-500 font-bold uppercase mb-0.5">Reward</div>
+                                                <span className="text-green-400 font-black text-sm"><BalanceDisplay amount={task.worker_reward} /></span>
+                                            </div>
+                                            <div className="flex flex-col items-end">
+                                                <div className="text-[9px] text-gray-500 font-bold uppercase mb-0.5">Remaining</div>
+                                                <span className="text-white font-mono text-xs">{task.remaining_quantity}</span>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
+
+                                {/* Dropdown Menu (Absolute) */}
+                                <AnimatePresence>
+                                    {isMenuOpen && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, scale: 0.9, y: -10 }} 
+                                            animate={{ opacity: 1, scale: 1, y: 0 }} 
+                                            exit={{ opacity: 0, scale: 0.9 }}
+                                            className="absolute right-2 top-10 w-36 bg-[#151515] border border-white/20 rounded-xl shadow-2xl overflow-hidden z-30"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <button 
+                                                onClick={() => { setReportTask(task); setMenuOpenId(null); }}
+                                                className="w-full text-left px-4 py-3 text-xs text-gray-300 hover:bg-white/10 hover:text-white flex items-center gap-2 transition"
+                                            >
+                                                <Flag size={12} className="text-red-400" /> Report Task
+                                            </button>
+                                            <button 
+                                                onClick={() => { setMenuOpenId(null); toast.info("Task hidden temporarily"); }}
+                                                className="w-full text-left px-4 py-3 text-xs text-gray-300 hover:bg-white/10 hover:text-white flex items-center gap-2 transition"
+                                            >
+                                                <EyeOff size={12} /> Hide Task
+                                            </button>
+                                            {dealer.user_uid && (
+                                                <Link 
+                                                    to={`/u/${dealer.user_uid}`}
+                                                    className="w-full text-left px-4 py-3 text-xs text-gray-300 hover:bg-white/10 hover:text-white flex items-center gap-2 border-t border-white/10 transition"
+                                                >
+                                                    <User size={12} /> View Dealer
+                                                </Link>
+                                            )}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
                             </GlassCard>
-                            
-                            {/* Report Button */}
-                            {!status && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setReportTask(task); }}
-                                    className="absolute top-2 right-2 p-1.5 text-gray-600 hover:text-red-400 transition z-10"
-                                    title="Report Fake Task"
-                                >
-                                    <Flag size={12} />
-                                </button>
-                            )}
                         </motion.div>
                     );
               })
@@ -463,25 +518,37 @@ const Tasks: React.FC = () => {
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
              >
-                 <GlassCard className="w-full max-w-md bg-[#111] border-white/10">
+                 <GlassCard className="w-full max-w-md bg-[#111] border-white/10 relative">
                      <button onClick={() => setSelectedTask(null)} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={20}/></button>
                      
-                     <div className="text-center mb-6">
+                     <div className="flex flex-col items-center text-center mb-6 pt-2">
+                         <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4 text-white border border-white/10">
+                             {selectedTask.category === 'social' ? <MessageCircle size={32} /> : selectedTask.category === 'video' ? <Youtube size={32}/> : <Globe size={32}/>}
+                         </div>
                          <h2 className="text-xl font-bold text-white mb-2">{selectedTask.title}</h2>
-                         <p className="text-gray-400 text-sm">{selectedTask.description}</p>
+                         <p className="text-gray-400 text-sm max-w-xs">{selectedTask.description}</p>
                      </div>
 
                      <div className="grid grid-cols-2 gap-3 mb-6">
                          <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
-                             <p className="text-[10px] text-gray-500 uppercase font-bold">Reward</p>
-                             <p className="text-green-400 font-bold"><BalanceDisplay amount={selectedTask.worker_reward} /></p>
+                             <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Reward</p>
+                             <p className="text-green-400 font-bold text-lg"><BalanceDisplay amount={selectedTask.worker_reward} /></p>
                          </div>
                          <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
-                             <p className="text-[10px] text-gray-500 uppercase font-bold">Type</p>
-                             <p className="text-white font-bold capitalize">
-                                {selectedTask.proof_type === 'ai_quiz' ? 'Instant' : selectedTask.proof_type === 'file_check' ? 'File Check' : 'Manual Review'}
+                             <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Verification</p>
+                             <p className="text-white font-bold capitalize text-sm flex items-center justify-center gap-1 h-7">
+                                {selectedTask.proof_type === 'ai_quiz' ? <><Zap size={14} className="text-yellow-400"/> Instant</> : 
+                                 selectedTask.proof_type === 'file_check' ? <><FileCheck size={14} className="text-blue-400"/> File</> : 
+                                 <><ShieldCheck size={14} className="text-green-400"/> Manual</>}
                              </p>
                          </div>
+                     </div>
+
+                     <div className="p-3 bg-blue-900/10 border border-blue-500/20 rounded-xl mb-6 flex gap-3">
+                         <Info size={16} className="text-blue-400 shrink-0 mt-0.5" />
+                         <p className="text-xs text-blue-200 leading-relaxed">
+                             Complete the task and submit proof to earn. Fake submissions will lead to account suspension.
+                         </p>
                      </div>
 
                      <button 
@@ -670,26 +737,37 @@ const Tasks: React.FC = () => {
           {reportTask && (
               <motion.div 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
+                className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
               >
-                  <GlassCard className="w-full max-w-sm bg-red-950/20 border-red-500/30">
+                  <motion.div 
+                    initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+                    className="w-full max-w-sm bg-[#111] border border-red-500/30 rounded-2xl p-6 shadow-2xl relative"
+                  >
+                      <button onClick={() => setReportTask(null)} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={20}/></button>
+                      
                       <h3 className="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
                           <AlertTriangle size={20}/> Report Issue
                       </h3>
-                      <p className="text-xs text-gray-400 mb-4">Task: {reportTask.title}</p>
-                      
-                      <textarea 
-                        value={reportReason}
-                        onChange={e => setReportReason(e.target.value)}
-                        placeholder="Describe the issue (e.g. Broken link, Fake task)..."
-                        className="w-full bg-black/50 border border-red-500/20 rounded-xl p-3 text-white text-sm focus:border-red-500 outline-none h-24 resize-none mb-4"
-                      />
-                      
-                      <div className="flex gap-2">
-                          <button onClick={() => setReportTask(null)} className="flex-1 py-2 bg-white/5 text-gray-400 rounded-lg hover:text-white">Cancel</button>
-                          <button onClick={handleReport} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-500">Submit Report</button>
+                      <div className="bg-red-950/20 p-3 rounded-lg border border-red-500/10 mb-4">
+                          <p className="text-xs text-gray-400">Task: <span className="text-white font-bold">{reportTask.title}</span></p>
+                          <p className="text-[10px] text-gray-500 mt-1">ID: {reportTask.id}</p>
                       </div>
-                  </GlassCard>
+                      
+                      <div className="space-y-2 mb-4">
+                          <p className="text-xs font-bold text-gray-400 uppercase">Reason</p>
+                          <textarea 
+                            value={reportReason}
+                            onChange={e => setReportReason(e.target.value)}
+                            placeholder="Describe the issue (e.g. Broken link, Fake task, Offensive content)..."
+                            className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-red-500 outline-none h-28 resize-none"
+                          />
+                      </div>
+                      
+                      <div className="flex gap-3">
+                          <button onClick={() => setReportTask(null)} className="flex-1 py-3 bg-white/5 text-gray-400 rounded-xl hover:text-white hover:bg-white/10 text-xs font-bold">Cancel</button>
+                          <button onClick={handleReport} disabled={!reportReason.trim()} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-500 text-xs disabled:opacity-50 disabled:cursor-not-allowed">Submit Report</button>
+                      </div>
+                  </motion.div>
               </motion.div>
           )}
       </AnimatePresence>
@@ -699,3 +777,23 @@ const Tasks: React.FC = () => {
 };
 
 export default Tasks;
+function Info(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </svg>
+  )
+}

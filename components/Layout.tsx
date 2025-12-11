@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, User, Bell, 
-  Wallet, Briefcase, BarChart3, PlusCircle, Globe, Shield
+  Wallet, Briefcase, BarChart3, PlusCircle, Globe, Shield, Inbox
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import BalanceDisplay from './BalanceDisplay';
@@ -47,9 +47,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   // --- NAVIGATION CONFIGURATION ---
   const dealerNavItems = [
       { path: '/dealer/dashboard', icon: BarChart3, label: 'DASH' },
+      { path: '/dealer/inbox', icon: Inbox, label: 'INBOX' },
       { path: '/dealer/campaigns', icon: Briefcase, label: 'ADS' },
       { path: '/dealer/create', icon: PlusCircle, label: 'NEW' },
-      { path: '/dealer/profile', icon: User, label: 'CORP' },
   ];
 
   // SIMPLIFIED USER NAV - CORE PILLARS ONLY
