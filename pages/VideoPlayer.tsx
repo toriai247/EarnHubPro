@@ -7,7 +7,7 @@ import GlassCard from '../components/GlassCard';
 import { 
     ArrowLeft, Play, Pause, CheckCircle2, 
     Clock, DollarSign, Share2, Maximize, Minimize, 
-    AlertCircle, Flag, Heart, Loader2, Zap, User as UserIcon
+    AlertCircle, Flag, Heart, Loader2, Zap, User as UserIcon, Volume2, VolumeX
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -29,8 +29,10 @@ const VideoPlayer: React.FC = () => {
     // Player Logic State
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(false);
-    const [watchedSeconds, setWatchedSeconds] = useState(0); // Actual watched duration
-    const [requiredSeconds, setRequiredSeconds] = useState(30); // Target duration
+    const [watchedSeconds, setWatchedSeconds] = useState(0); 
+    const [requiredSeconds, setRequiredSeconds] = useState(30); 
+    const [duration, setDuration] = useState(0); 
+    const [isMuted, setIsMuted] = useState(false);
     
     const [hasClaimedToday, setHasClaimedToday] = useState(false);
     const [canClaim, setCanClaim] = useState(false);
@@ -117,7 +119,7 @@ const VideoPlayer: React.FC = () => {
             setVideo(ad);
             setHasClaimedToday(isClaimed);
             
-            // Set Target Time: Min 10s, Max 60s, or Video Duration
+            // Set Target Time
             const target = Math.max(10, Math.min(ad.duration, 60)); 
             setRequiredSeconds(target);
             
@@ -153,9 +155,14 @@ const VideoPlayer: React.FC = () => {
         const currentTime = videoRef.current.currentTime;
         const diff = currentTime - lastTimeRef.current;
 
-        // Anti-Cheat: Only count if playback is continuous and normal speed (approx 1s diff)
-        // If user seeks/skips (diff > 1.5s), we do NOT add to watchedSeconds.
-        if (diff > 0 && diff < 1.5) {
+        // Anti-Cheat: Only count if playback is continuous (no seeking)
+        if (diff > 1.5) {
+            videoRef.current.currentTime = lastTimeRef.current; // Revert seek
+            toast.error("Seeking is locked.");
+            return;
+        }
+
+        if (diff > 0 && isPlaying) {
             setWatchedSeconds(prev => {
                 const newVal = prev + diff;
                 if (newVal >= requiredSeconds) {
@@ -169,9 +176,34 @@ const VideoPlayer: React.FC = () => {
         lastTimeRef.current = currentTime;
     };
 
+    const handleLoadedMetadata = () => {
+        if (videoRef.current) {
+            setDuration(videoRef.current.duration);
+        }
+    };
+
+    const togglePlay = () => {
+        if (videoRef.current) {
+            if (isPlaying) {
+                videoRef.current.pause();
+                setIsPlaying(false);
+            } else {
+                videoRef.current.play();
+                setIsPlaying(true);
+            }
+        }
+    };
+
+    const toggleMute = () => {
+        if (videoRef.current) {
+            videoRef.current.muted = !isMuted;
+            setIsMuted(!isMuted);
+        }
+    };
+
     const handleWaiting = () => {
         setIsBuffering(true);
-        // Timer effectively stops because timeUpdate won't fire
+        setIsPlaying(false); 
     };
 
     const handlePlaying = () => {
@@ -184,13 +216,11 @@ const VideoPlayer: React.FC = () => {
         setIsPlaying(false);
     };
 
-    // --- FALLBACK: IFRAME TIMER (YouTube/Vimeo) ---
-    // Note: Can't detect buffering perfectly in iframe without API, but strict interval helps.
+    // --- FALLBACK: IFRAME TIMER ---
     const startIframeTimer = () => {
+        if (hasClaimedToday || canClaim) return;
         setIframeInteracted(true);
         setIsPlaying(true);
-        
-        if (hasClaimedToday || canClaim) return;
         
         stopIframeTimer();
         timerRef.current = setInterval(() => {
@@ -219,25 +249,17 @@ const VideoPlayer: React.FC = () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("No session");
 
-            // Database RPC or Manual Update
-            const { error } = await supabase.rpc('claim_video_reward', {
-                p_ad_id: video.id,
-                p_user_id: session.user.id
-            });
-
-            if (error) {
-                // Fallback for missing RPC
-                await updateWallet(session.user.id, video.cost_per_view, 'increment', 'earning_balance');
-                await createTransaction(
-                    session.user.id, 
-                    'earn', 
-                    video.cost_per_view, 
-                    `Video Reward: ${video.title}`
-                );
-                await supabase.from('video_ads').update({ 
-                    remaining_budget: Math.max(0, video.remaining_budget - video.cost_per_view)
-                }).eq('id', video.id);
-            }
+            // Fallback for missing RPC
+            await updateWallet(session.user.id, video.cost_per_view, 'increment', 'earning_balance');
+            await createTransaction(
+                session.user.id, 
+                'earn', 
+                video.cost_per_view, 
+                `Video Reward: ${video.title}`
+            );
+            await supabase.from('video_ads').update({ 
+                remaining_budget: Math.max(0, video.remaining_budget - video.cost_per_view)
+            }).eq('id', video.id);
 
             toast.success(`Reward Claimed: ৳${video.cost_per_view.toFixed(2)}`);
             setHasClaimedToday(true);
@@ -257,6 +279,12 @@ const VideoPlayer: React.FC = () => {
             return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&controls=0&rel=0` : url;
         }
         return url;
+    };
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-black"><Loader /></div>;
@@ -280,12 +308,10 @@ const VideoPlayer: React.FC = () => {
     return (
         <div className={`min-h-screen bg-[#050505] text-white flex flex-col ${cinemaMode ? 'z-[100] fixed inset-0' : 'pb-24'}`}>
             
-            {/* Header */}
+            {/* Header (Hidden in Cinema Mode to reduce distraction, Back button is in player) */}
             {!cinemaMode && (
                 <div className="bg-black/80 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
-                    <button onClick={() => navigate('/video')} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition">
-                        <ArrowLeft size={18} />
-                    </button>
+                    <span className="font-bold text-sm text-gray-400">Watch & Earn</span>
                     <div className="flex items-center gap-2">
                         <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Reward</div>
                         <div className="bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full text-green-400 font-mono font-bold text-xs">
@@ -301,18 +327,19 @@ const VideoPlayer: React.FC = () => {
                 {/* VIDEO STAGE */}
                 <div className={`relative w-full bg-black group ${cinemaMode ? 'h-full' : 'aspect-video shadow-2xl border-b border-white/5'}`}>
                     
+                    {/* VIDEO ELEMENT (LOCKED INTERACTION) */}
                     {isNative ? (
                         <video 
                             ref={videoRef}
                             src={video.video_url} 
-                            className="w-full h-full object-contain"
-                            controls
-                            controlsList="nodownload"
+                            className="w-full h-full object-contain pointer-events-none" // Completely disable interactions
+                            controls={false}
+                            playsInline
                             onTimeUpdate={handleTimeUpdate}
+                            onLoadedMetadata={handleLoadedMetadata}
                             onWaiting={handleWaiting}
                             onPlaying={handlePlaying}
                             onPause={handlePause}
-                            playsInline
                         />
                     ) : (
                         <div className="relative w-full h-full">
@@ -327,7 +354,7 @@ const VideoPlayer: React.FC = () => {
                             {iframeInteracted && (
                                 <iframe 
                                     src={getEmbedUrl(video.video_url)} 
-                                    className="w-full h-full"
+                                    className="w-full h-full pointer-events-none" // Lock Iframe
                                     frameBorder="0"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
@@ -337,49 +364,91 @@ const VideoPlayer: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Buffering Overlay */}
-                    {isBuffering && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-30 backdrop-blur-sm">
-                            <Loader2 className="animate-spin text-white mb-2" size={32} />
-                            <p className="text-xs font-bold text-white uppercase tracking-wider">Network Slow... Paused</p>
+                    {/* OVERLAY: BACK BUTTON */}
+                    <div className="absolute top-4 left-4 z-50">
+                        <button onClick={() => navigate('/video')} className="p-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 border border-white/10">
+                            <ArrowLeft size={20} />
+                        </button>
+                    </div>
+
+                    {/* OVERLAY: CINEMA TOGGLE */}
+                    <div className="absolute top-4 right-4 z-50">
+                        <button onClick={() => setCinemaMode(!cinemaMode)} className="p-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 border border-white/10">
+                            {cinemaMode ? <Minimize size={20} /> : <Maximize size={20} />}
+                        </button>
+                    </div>
+
+                    {/* OVERLAY: BIG PLAY BUTTON (If Paused) */}
+                    {!isPlaying && !isBuffering && isNative && (
+                        <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                            <button 
+                                onClick={togglePlay} 
+                                className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center hover:bg-white/30 transition border border-white/20 pointer-events-auto shadow-2xl"
+                            >
+                                <Play size={36} fill="white" className="ml-1 text-white"/>
+                            </button>
                         </div>
                     )}
 
-                    {/* Progress Bar (Overlay) */}
-                    <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gray-800 z-40">
-                        <motion.div 
-                            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 relative"
-                            style={{ width: `${progressPercent}%` }}
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progressPercent}%` }}
-                            transition={{ ease: "linear" }}
-                        >
-                            {progressPercent < 100 && (
-                                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-[0_0_10px_white]"></div>
-                            )}
-                        </motion.div>
+                    {/* OVERLAY: BUFFERING */}
+                    {isBuffering && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-30 backdrop-blur-sm">
+                            <Loader2 className="animate-spin text-white mb-2" size={32} />
+                            <p className="text-xs font-bold text-white uppercase tracking-wider">Loading...</p>
+                        </div>
+                    )}
+
+                    {/* OVERLAY: CONTROLS BAR (LOCKED SEEKING) */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent pt-12 pb-3 px-4 z-40 flex flex-col gap-3">
+                        
+                        {/* Progress Bar (Visual Only) */}
+                        <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden relative">
+                            <motion.div 
+                                className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
+                                style={{ width: `${progressPercent}%` }}
+                                animate={{ width: `${progressPercent}%` }}
+                                transition={{ ease: "linear" }}
+                            />
+                            {/* Gray bar for video actual time */}
+                            <div 
+                                className="absolute top-0 left-0 h-full bg-white/50" 
+                                style={{ width: `${(videoRef.current?.currentTime || 0) / duration * 100}%`, opacity: 0.3 }}
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <button onClick={togglePlay} className="text-white hover:text-blue-400 transition p-1">
+                                    {isPlaying ? <Pause size={24} fill="currentColor"/> : <Play size={24} fill="currentColor"/>}
+                                </button>
+                                
+                                <button onClick={toggleMute} className="text-white hover:text-gray-300 p-1">
+                                    {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
+                                </button>
+
+                                <span className="text-xs font-mono font-medium text-white/90">
+                                    {formatTime(videoRef.current?.currentTime || 0)} / {formatTime(duration)}
+                                </span>
+                            </div>
+
+                            <div className="bg-black/50 px-3 py-1 rounded-lg border border-white/10 text-[10px] text-green-400 font-bold uppercase flex items-center gap-2">
+                                <Clock size={12}/> {Math.round(watchedSeconds)}s / {requiredSeconds}s
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Cinema Toggle */}
-                    <button 
-                        onClick={() => setCinemaMode(!cinemaMode)}
-                        className="absolute top-4 right-4 z-40 p-2 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition backdrop-blur-md hover:bg-black/70"
-                    >
-                        {cinemaMode ? <Minimize size={20} /> : <Maximize size={20} />}
-                    </button>
-
-                    {/* Claim Overlay */}
+                    {/* OVERLAY: CLAIM BUTTON */}
                     <AnimatePresence>
                         {canClaim && !hasClaimedToday && (
                             <motion.div 
                                 initial={{ y: 50, opacity: 0 }} 
                                 animate={{ y: 0, opacity: 1 }}
-                                className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 w-auto"
+                                className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 w-auto"
                             >
                                 <button 
                                     onClick={handleClaim}
                                     disabled={claiming}
-                                    className="px-8 py-3 bg-green-500 hover:bg-green-400 text-black font-black text-sm uppercase tracking-wider rounded-full shadow-[0_0_30px_rgba(34,197,94,0.6)] flex items-center gap-2 transition hover:scale-105 animate-bounce-subtle"
+                                    className="px-8 py-3 bg-green-500 hover:bg-green-400 text-black font-black text-sm uppercase tracking-wider rounded-full shadow-[0_0_30px_rgba(34,197,94,0.6)] flex items-center gap-2 transition hover:scale-105 animate-bounce-subtle pointer-events-auto"
                                 >
                                     {claiming ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle2 size={18} />}
                                     CLAIM REWARD
@@ -429,7 +498,6 @@ const VideoPlayer: React.FC = () => {
                                 <div className="flex gap-2">
                                     <button className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"><Share2 size={16}/></button>
                                     <button className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition"><Heart size={16}/></button>
-                                    <button className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"><Flag size={16}/></button>
                                 </div>
                             </GlassCard>
 

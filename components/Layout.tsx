@@ -41,7 +41,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const [isSuspended, setIsSuspended] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   
-  const isVideoPage = location.pathname === '/video';
+  // NOTE: We allow the nav to show on video pages now per user request
+  const isVideoPage = location.pathname.startsWith('/video/watch'); 
   const isGuest = !session;
 
   // --- NAVIGATION CONFIGURATION ---
@@ -186,11 +187,12 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
           </motion.div>
         </AnimatePresence>
         
-        {!isVideoPage && <Footer onOpenReview={() => setShowReviewModal(true)} />}
+        {/* Footer is always visible now except for full-screen interactions if needed, but keeping it visible ensures buttons are there */}
+        <Footer onOpenReview={() => setShowReviewModal(true)} />
       </main>
 
       {/* BOTTOM NAV (Mobile) */}
-      <nav className={`fixed bottom-0 left-0 right-0 z-30 sm:hidden border-t border-border-base pb-safe transition-colors duration-500 ${isDealerRoute ? 'bg-[#1a1500] border-amber-900/30' : 'bg-card'}`}>
+      <nav className={`fixed bottom-0 left-0 right-0 z-50 sm:hidden border-t border-border-base pb-safe transition-colors duration-500 ${isDealerRoute ? 'bg-[#1a1500] border-amber-900/30' : 'bg-card'}`}>
         <div className="flex justify-around items-center h-16">
           {activeNavItems.map((item) => {
             const isActive = location.pathname === item.path;
