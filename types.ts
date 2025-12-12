@@ -1,5 +1,4 @@
 
-
 export interface PublishedSite {
     id: string;
     name: string;

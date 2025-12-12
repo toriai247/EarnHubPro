@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
   BadgeCheck, RefreshCw, Smartphone, Youtube, Share2, 
-  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, ArrowRight, Flame, Building2, Star, Flag, Briefcase, MessageCircle, Crown, User, ExternalLink, FileCheck, UploadCloud, Type, Send, CheckCircle2, Timer, MoreVertical, EyeOff, LayoutGrid, AlertCircle, Zap
+  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, ArrowRight, Flame, Building2, Star, Flag, Briefcase, MessageCircle, Crown, User, ExternalLink, FileCheck, UploadCloud, Type, Send, CheckCircle2, Timer, MoreVertical, EyeOff, LayoutGrid, AlertCircle, Zap, XCircle
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useUI } from '../context/UIContext';
@@ -126,16 +127,22 @@ const Tasks: React.FC = () => {
              }
          }
 
-         // Handle Approved / Rejected
+         // Handle Approved
          if (s.status === 'approved') {
              const submissionTime = new Date(s.created_at).getTime();
              const timeDiff = now - submissionTime;
 
              if (timeDiff < ONE_DAY_MS) {
-                 // Less than 24 hours? Cooldown.
-                 statusMap[s.task_id] = 'cooldown';
+                 // Less than 24 hours? Show as Approved/Cooldown.
+                 statusMap[s.task_id] = 'approved';
                  cooldownMap[s.task_id] = submissionTime + ONE_DAY_MS;
              }
+             // Else: Available again
+         }
+         
+         // Handle Rejected
+         if (s.status === 'rejected') {
+             statusMap[s.task_id] = 'rejected';
          }
      }
 
@@ -157,17 +164,19 @@ const Tasks: React.FC = () => {
       if (status === 'locked') { toast.error("Locked due to failed attempts."); return; }
       if (status === 'pending') { toast.info("Submission under review."); return; }
       
-      if (status === 'cooldown') {
+      // Check cooldown for approved tasks
+      if (status === 'approved' && cooldownEnds[task.id]) {
           const endTime = cooldownEnds[task.id];
           const remaining = endTime - Date.now();
           if (remaining > 0) {
               const hours = Math.floor(remaining / (1000 * 60 * 60));
               const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-              toast.info(`Task available in ${hours}h ${minutes}m`);
+              toast.info(`Task completed. Next available in ${hours}h ${minutes}m`);
               return;
           }
       }
 
+      // Allow if active, rejected (retry), or expired cooldown
       setSelectedTask(task);
   };
 
@@ -271,8 +280,8 @@ const Tasks: React.FC = () => {
           await createTransaction(userId, 'earn', executionTask.worker_reward, `Task: ${executionTask.title}`);
 
           setExecutionStep('completed');
-          // Set to cooldown immediately in UI
-          setTaskStatuses(prev => ({...prev, [executionTask.id]: 'cooldown'}));
+          // Set to approved/cooldown immediately in UI
+          setTaskStatuses(prev => ({...prev, [executionTask.id]: 'approved'}));
           setCooldownEnds(prev => ({...prev, [executionTask.id]: Date.now() + (24 * 60 * 60 * 1000)}));
           
           toast.success("Verified! Reward Credited.");
@@ -365,7 +374,7 @@ const Tasks: React.FC = () => {
               sortedTasks.map((task) => {
                     let status = taskStatuses[task.id];
                     // Double check cooldown expiration visually
-                    if (status === 'cooldown' && cooldownEnds[task.id] && cooldownEnds[task.id] <= currentTime) {
+                    if (status === 'approved' && cooldownEnds[task.id] && cooldownEnds[task.id] <= currentTime) {
                         status = undefined; // Expired, back to active
                     }
 
@@ -383,7 +392,8 @@ const Tasks: React.FC = () => {
                                 onClick={() => handleOpenTask(task)}
                                 className={`p-4 group transition border relative overflow-visible rounded-2xl cursor-pointer ${
                                     status === 'pending' ? 'border-yellow-500/30 bg-yellow-500/5' :
-                                    status === 'cooldown' ? 'border-gray-700 bg-[#0f0f0f] opacity-80' :
+                                    status === 'approved' ? 'border-green-500/20 bg-green-900/5 opacity-80' :
+                                    status === 'rejected' ? 'border-red-500/30 bg-red-500/5' :
                                     'border-white/10 hover:border-white/20 bg-[#111]'
                                 }`}
                             >
@@ -422,7 +432,7 @@ const Tasks: React.FC = () => {
                                 {/* CONTENT ROW */}
                                 <div className="flex justify-between items-center mb-3">
                                     <div className="flex-1 pr-4">
-                                        <h3 className={`font-bold text-sm mb-1 ${status === 'cooldown' ? 'text-gray-500' : 'text-white'}`}>{task.title}</h3>
+                                        <h3 className={`font-bold text-sm mb-1 ${status === 'approved' ? 'text-gray-400 line-through' : 'text-white'}`}>{task.title}</h3>
                                         <div className="flex flex-wrap gap-2">
                                             <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${
                                                 task.category === 'social' ? 'text-blue-300 border-blue-500/30 bg-blue-500/10' :
@@ -448,16 +458,21 @@ const Tasks: React.FC = () => {
                                 </div>
 
                                 {/* FOOTER ROW */}
-                                <div className={`flex items-center justify-between p-2 rounded-xl ${status === 'cooldown' ? 'bg-black/30' : 'bg-black/20'}`}>
-                                    {status === 'cooldown' ? (
+                                <div className={`flex items-center justify-between p-2 rounded-xl ${status === 'approved' ? 'bg-black/30' : 'bg-black/20'}`}>
+                                    {status === 'approved' ? (
                                         <div className="w-full flex justify-between items-center px-1">
-                                            <span className="text-orange-400 font-bold text-[10px] flex items-center gap-1"><Timer size={10}/> NEXT IN</span>
-                                            <span className="font-mono text-xs text-gray-400">{formatTimeRemaining(cooldownEnds[task.id])}</span>
+                                            <span className="text-green-500 font-bold text-[10px] flex items-center gap-1"><CheckCircle2 size={10}/> APPROVED</span>
+                                            <span className="font-mono text-xs text-gray-400">Next: {formatTimeRemaining(cooldownEnds[task.id])}</span>
                                         </div>
                                     ) : status === 'pending' ? (
                                         <div className="w-full flex justify-between items-center px-1">
-                                            <span className="text-yellow-500 font-bold text-[10px] flex items-center gap-1"><Clock size={10}/> PENDING</span>
+                                            <span className="text-yellow-500 font-bold text-[10px] flex items-center gap-1"><Clock size={10}/> PENDING APPROVAL</span>
                                             <span className="text-[10px] text-gray-500">Reviewing...</span>
+                                        </div>
+                                    ) : status === 'rejected' ? (
+                                        <div className="w-full flex justify-between items-center px-1">
+                                            <span className="text-red-500 font-bold text-[10px] flex items-center gap-1"><XCircle size={10}/> REJECTED</span>
+                                            <span className="text-[10px] text-gray-400 font-bold underline cursor-pointer">Tap to Retry</span>
                                         </div>
                                     ) : (
                                         <>
@@ -706,10 +721,21 @@ const Tasks: React.FC = () => {
                                                   <span className="text-xs font-bold text-amber-400 uppercase">Input Required</span>
                                               </div>
                                               <p className="text-sm text-white font-medium">{executionTask.proof_question || "Enter required details:"}</p>
-                                              <input type="text" value={manualInput} onChange={e => setManualInput(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none placeholder-gray-600 text-sm" placeholder="Type answer here..."/>
+                                              <input 
+                                                  type="text" 
+                                                  value={manualInput} 
+                                                  onChange={e => setManualInput(e.target.value)} 
+                                                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-amber-500 outline-none placeholder-gray-600 text-sm"
+                                                  placeholder="Type answer here..."
+                                              />
                                           </div>
                                       )}
-                                      <button onClick={handleSubmitProof} disabled={isSubmitting || (executionTask.proof_type === 'ai_quiz' && quizAnswer === null) || (executionTask.proof_type === 'text_input' && !manualInput.trim()) || (executionTask.proof_type === 'file_check' && !uploadedFile)} className="w-full py-4 bg-green-500 text-black font-black uppercase rounded-xl hover:bg-green-400 transition shadow-lg shadow-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+
+                                      <button 
+                                          onClick={handleSubmitProof}
+                                          disabled={isSubmitting || (executionTask.proof_type === 'ai_quiz' && quizAnswer === null) || (executionTask.proof_type === 'text_input' && !manualInput.trim()) || (executionTask.proof_type === 'file_check' && !uploadedFile)}
+                                          className="w-full py-4 bg-green-500 text-black font-black uppercase rounded-xl hover:bg-green-400 transition shadow-lg shadow-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                      >
                                           {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : <><Send size={18}/> SUBMIT PROOF</>}
                                       </button>
                                   </motion.div>
@@ -718,8 +744,12 @@ const Tasks: React.FC = () => {
                               {executionStep === 'pending_approval' && (
                                   <motion.div key="pending" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-6">
                                       <p className="text-yellow-400 font-bold mb-2">Verification Pending</p>
-                                      <p className="text-xs text-gray-500 max-w-xs mx-auto mb-4">The ad runner will review your submission.</p>
-                                      <button onClick={() => setExecutionTask(null)} className="text-sm text-white bg-white/10 px-6 py-2 rounded-lg hover:bg-white/20">Close</button>
+                                      <p className="text-xs text-gray-500 max-w-xs mx-auto mb-4">
+                                          The ad runner will review your submission. If no action is taken within {executionTask.auto_approve_hours || 24} hours, it will auto-approve.
+                                      </p>
+                                      <button onClick={() => setExecutionTask(null)} className="text-sm text-white bg-white/10 px-6 py-2 rounded-lg hover:bg-white/20">
+                                          Return to Task List
+                                      </button>
                                   </motion.div>
                               )}
 
@@ -727,9 +757,12 @@ const Tasks: React.FC = () => {
                                   <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-6">
                                       <div className="text-green-500 font-black text-2xl mb-2">+<BalanceDisplay amount={executionTask.worker_reward} /></div>
                                       <p className="text-xs text-gray-500">Credited to Earnings Wallet</p>
-                                      <button onClick={() => setExecutionTask(null)} className="mt-6 text-sm text-white hover:underline">Close</button>
+                                      <button onClick={() => setExecutionTask(null)} className="mt-6 text-sm text-white hover:underline">
+                                          Return to Task List
+                                      </button>
                                   </motion.div>
                               )}
+
                           </AnimatePresence>
                       </GlassCard>
                   </div>

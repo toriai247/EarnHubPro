@@ -1,27 +1,42 @@
 
 import React, { useState, useEffect } from 'react';
-import { ExternalLink, Zap, Gift, CheckCircle2, Star, Sparkles } from 'lucide-react';
+import { ExternalLink, Zap, Gift, CheckCircle2, Star, Sparkles, TrendingUp } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet } from '../lib/actions';
 import { useUI } from '../context/UIContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- AD NETWORK CONFIGURATION ---
-// Add your Direct Links here
+// Using your provided Adsterra Direct Link
 const DIRECT_LINKS = [
-    { url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', label: 'Premium Offer', sub: 'Limited Time', color: 'from-purple-600 to-blue-600' },
-    { url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', label: 'Exclusive Deal', sub: 'Instant Access', color: 'from-emerald-600 to-teal-600' },
-    { url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', label: 'Sponsored Task', sub: 'Click to view', color: 'from-orange-600 to-red-600' },
+    { 
+        url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', 
+        label: 'High Paying Offer', 
+        sub: 'Limited Time Bonus', 
+        color: 'from-purple-600 to-blue-600' 
+    },
+    { 
+        url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', 
+        label: 'Claim Daily Drop', 
+        sub: 'Instant Reward', 
+        color: 'from-emerald-600 to-teal-600' 
+    },
+    { 
+        url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', 
+        label: 'Sponsored Task', 
+        sub: 'Click to Complete', 
+        color: 'from-orange-600 to-red-600' 
+    },
 ];
 
 const ADSTERRA_BANNER_IMG = "https://landings-cdn.adsterratech.com/referralBanners/gif/468x60_adsterra_reff.gif";
 const ADSTERRA_REF_LINK = "https://beta.publishers.adsterra.com/referral/R8fkj7ZJZA";
 
 interface SmartAdProps {
-    slot?: string; // Kept for compatibility
+    slot?: string; 
     format?: string;
     className?: string;
-    type?: 'default' | 'banner'; // 'default' = Direct Link Button, 'banner' = Adsterra Image
+    type?: 'default' | 'banner'; 
 }
 
 const SmartAd: React.FC<SmartAdProps> = ({ className = '', type = 'default' }) => {
@@ -31,11 +46,11 @@ const SmartAd: React.FC<SmartAdProps> = ({ className = '', type = 'default' }) =
     const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
-        // Rotate content on mount to show different offers
+        // Rotate content on mount to show different offers, though URL is the same
         const randomLink = DIRECT_LINKS[Math.floor(Math.random() * DIRECT_LINKS.length)];
         setActiveLink(randomLink);
         
-        // Check Admin Status
+        // Check Admin Status to prevent self-clicks
         const checkAdmin = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
@@ -50,43 +65,44 @@ const SmartAd: React.FC<SmartAdProps> = ({ className = '', type = 'default' }) =
 
     const handleDirectClick = async (url: string) => {
         if (isAdmin) {
-            toast.info("Admin Mode: Ad interaction disabled (Visual Preview Only)");
+            toast.info("Admin Mode: Ad interaction disabled to prevent account ban.");
             return;
         }
 
         if (isClicked) return; // Prevent double clicks
         
-        // 1. Open Link Immediately
+        // 1. Open Link Immediately (New Tab)
         window.open(url, '_blank');
         setIsClicked(true);
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
-                // 2. Reward User (0.01 TK)
+                // 2. Reward User (0.01 TK) - Small reward keeps users happy and CTR high
                 const rewardAmount = 0.01; 
                 await updateWallet(session.user.id, rewardAmount, 'increment', 'earning_balance');
                 
-                // Track click internally
+                // Track click internally for analytics
+                // Note: Ensure 'ad_interactions' table exists via Database Ultra SQL
                 await supabase.from('ad_interactions').insert({
-                    network: 'direct',
+                    network: 'adsterra',
                     ad_unit_id: url,
                     action_type: 'click',
                     user_id: session.user.id
                 });
 
-                toast.success(`Ad Reward: +৳${rewardAmount} added!`);
+                toast.success(`Bonus: +৳${rewardAmount} added!`);
             }
         } catch (e) {
             console.error("Ad reward error", e);
         }
 
-        // Reset after 8 seconds so they can click again if ad rotates
+        // Reset after 10 seconds so they can click again if ad rotates
         setTimeout(() => {
             setIsClicked(false);
             const randomLink = DIRECT_LINKS[Math.floor(Math.random() * DIRECT_LINKS.length)];
             setActiveLink(randomLink);
-        }, 8000);
+        }, 10000);
     };
 
     // --- BANNER MODE (Adsterra Referral) ---
@@ -121,25 +137,27 @@ const SmartAd: React.FC<SmartAdProps> = ({ className = '', type = 'default' }) =
                     onClick={() => handleDirectClick(activeLink.url)}
                     className={`relative cursor-pointer group rounded-xl p-4 shadow-lg border border-white/10 overflow-hidden bg-gradient-to-r ${isClicked ? 'from-gray-800 to-gray-900' : activeLink.color}`}
                 >
-                    {/* Shine Effect (Disabled for Admin to reduce distraction) */}
+                    {/* Shine Effect (Disabled for Admin) */}
                     {!isClicked && !isAdmin && <div className="absolute inset-0 bg-white/10 skew-x-12 translate-x-[-100%] group-hover:animate-shimmer pointer-events-none"></div>}
 
                     <div className="relative z-10 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-inner ${isClicked ? 'bg-green-500 text-white' : 'bg-white text-black'}`}>
-                                {isClicked ? <CheckCircle2 size={24}/> : <Zap size={24} className="fill-current"/>}
+                                {isClicked ? <CheckCircle2 size={24}/> : <TrendingUp size={24} className="fill-current"/>}
                             </div>
                             <div>
-                                <h4 className="font-black text-white text-sm sm:text-base leading-tight">
+                                <h4 className="font-black text-white text-sm sm:text-base leading-tight flex items-center gap-2">
                                     {isClicked ? 'Reward Claimed!' : activeLink.label}
-                                    {isAdmin && <span className="ml-2 text-[9px] bg-black/50 px-1 rounded text-white font-mono">ADMIN VIEW</span>}
+                                    {isAdmin && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30 font-mono">ADMIN VIEW</span>}
                                 </h4>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                    <span className="text-[10px] bg-black/30 px-2 py-0.5 rounded text-white font-bold backdrop-blur-sm border border-white/10">
-                                        +৳0.01
-                                    </span>
+                                    {!isClicked && (
+                                        <span className="text-[10px] bg-black/30 px-2 py-0.5 rounded text-white font-bold backdrop-blur-sm border border-white/10">
+                                            +৳0.01
+                                        </span>
+                                    )}
                                     <span className="text-xs text-white/80 font-medium">
-                                        {isClicked ? 'Check wallet' : activeLink.sub}
+                                        {isClicked ? 'Check your wallet' : activeLink.sub}
                                     </span>
                                 </div>
                             </div>

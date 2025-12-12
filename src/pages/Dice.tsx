@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Volume2, VolumeX, RefreshCw, Zap, Trophy, Play, Settings2, BarChart2 } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, RefreshCw, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';

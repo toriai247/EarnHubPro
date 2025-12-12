@@ -145,7 +145,9 @@ const Dashboard: React.FC = () => {
         if (logs) setRecentTransactions(logs);
         
         // --- ADSTERRA FETCH ---
+        // Uses the configured token or the hardcoded fallback
         const apiToken = config?.adsterra_api_token || ADSTERRA_TOKEN;
+        
         if (apiToken) {
             try {
                 // Attempt to fetch stats. Note: This may be blocked by CORS in a pure browser environment

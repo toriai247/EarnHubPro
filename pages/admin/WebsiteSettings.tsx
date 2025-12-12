@@ -20,7 +20,7 @@ const WebsiteSettings: React.FC = () => {
   const fetchConfig = async () => {
       const { data } = await supabase.from('system_config').select('*').limit(1).maybeSingle();
       if(data) {
-          // Auto-fill Adsterra Token if missing
+          // Auto-fill Adsterra Token if missing (User provided: 14810bb4192661f1a6277491c12a2946)
           if (!data.adsterra_api_token) data.adsterra_api_token = '14810bb4192661f1a6277491c12a2946';
           setConfig(data as SystemConfig);
       }

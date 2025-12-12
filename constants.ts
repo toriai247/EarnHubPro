@@ -75,4 +75,5 @@ export const BADGES = [
   { id: 'high_roller', name: 'High Roller', icon: '💎', description: 'Deposited over 10,000 TK.' },
   { id: 'top_inviter', name: 'Influencer', icon: '👑', description: 'Invited 50+ active users.' },
   { id: 'verified', name: 'KYC Verified', icon: '🛡️', description: 'Identity verified successfully.' },
+  { id: 'vip', name: 'VIP User', icon: '👑', description: 'Exclusive VIP status.' },
 ];

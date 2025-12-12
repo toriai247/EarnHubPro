@@ -135,7 +135,7 @@ const Withdraw: React.FC = () => {
                    </div>
                    <h2 className="text-lg font-bold text-white uppercase mb-2">Account Locked</h2>
                    <p className="text-gray-400 text-sm max-w-sm mx-auto mb-8">
-                       Activate your account by depositing <span className="text-white font-bold">{format(config.activation_amount || 0)}</span>.
+                       Activate your account by depositing <span className="text-white font-bold">{format(config.activation_amount || 0)}</span>. This ensures security and unlocks instant withdrawals.
                    </p>
                    <Link to="/deposit" className="px-6 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition">
                        Go to Deposit

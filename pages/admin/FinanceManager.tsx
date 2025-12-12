@@ -73,6 +73,20 @@ const FinanceManager: React.FC = () => {
           if (isApproved) {
               await updateWallet(req.user_id, req.amount, 'increment', 'deposit_balance');
               await createTransaction(req.user_id, 'deposit', req.amount, `Deposit via ${req.method_name} (Approved)`);
+
+              // --- AUTO ACTIVATION LOGIC ---
+              const { data: sysConfig } = await supabase.from('system_config').select('is_activation_enabled, activation_amount').single();
+              if (sysConfig && sysConfig.is_activation_enabled) {
+                  if (req.amount >= (sysConfig.activation_amount || 500)) {
+                      await supabase.from('profiles').update({ is_account_active: true }).eq('id', req.user_id);
+                      await supabase.from('notifications').insert({
+                          user_id: req.user_id,
+                          title: 'Account Activated',
+                          message: `Your deposit of $${req.amount} has unlocked all features including Withdrawals!`,
+                          type: 'success'
+                      });
+                  }
+              }
           }
 
           toast.success(`Deposit ${status} successfully`);

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { 
   Edit2, LogOut, Copy, ShieldCheck, MapPin, Smartphone, 
@@ -63,8 +64,11 @@ const Profile: React.FC = () => {
             const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
             if (profileData) setUser(profileData as UserProfile);
             
-            const { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
+            const { data: walletData } = await supabase.from('wallets').select('*').eq('id', session.user.id).single(); // Use user_id
             if (walletData) setWallet(walletData as WalletData);
+            // Fix: wallet selection based on user_id might return multiple if schema changed, ensuring single
+            const { data: w } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).maybeSingle();
+            if (w) setWallet(w as WalletData);
         }
     } catch (e) { console.error(e); } 
     finally { setLoading(false); }
@@ -105,8 +109,20 @@ const Profile: React.FC = () => {
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0">
         
         {/* HEADER SECTION */}
-        <div className="bg-[#111] border border-[#222] rounded-2xl p-6">
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+        <div className="bg-[#111] border border-[#222] rounded-2xl p-6 relative overflow-hidden">
+            {/* Active Banner */}
+            {user?.is_account_active && (
+                <div className="absolute top-0 right-0 bg-green-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-lg flex items-center gap-1 z-10">
+                    <CheckCircle2 size={10} /> ACTIVE
+                </div>
+            )}
+            {!user?.is_account_active && (
+                <div className="absolute top-0 right-0 bg-red-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-lg flex items-center gap-1 z-10">
+                    <Lock size={10} /> INACTIVE
+                </div>
+            )}
+
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6 relative z-0">
                 
                 {/* Avatar */}
                 <div className="relative">
