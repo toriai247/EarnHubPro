@@ -24,7 +24,7 @@ const HeadTail: React.FC = () => {
   // 3D Rotation State
   const [rotation, setRotation] = useState(0);
   
-  const [history, setHistory] = useState<'head' | 'tail'[]>([]);
+  const [history, setHistory] = useState<('head' | 'tail')[]>([]);
   const [soundOn, setSoundOn] = useState(true);
 
   // Audio Refs
@@ -91,21 +91,17 @@ const HeadTail: React.FC = () => {
       try {
           // Logic Result
           const resultIsHead = Math.random() < 0.5;
-          const result = resultIsHead ? 'head' : 'tail';
+          const result: 'head' | 'tail' = resultIsHead ? 'head' : 'tail';
           const isWin = choice === result;
           const payout = isWin ? amount * MULTIPLIER : 0;
 
           // Animation Math
-          // We add exactly 5 full spins (1800 deg) + adjustment to land correctly
-          // Head = 0deg mod 360, Tail = 180deg mod 360
-          // We keep adding to 'rotation' so it always spins forward
           const currentRotation = rotation;
           const spins = 1800; // 5 full spins
           const targetAngle = resultIsHead ? 0 : 180;
           
-          // Calculate remainder of current rotation
           const remainder = currentRotation % 360;
-          const adjustment = targetAngle - remainder + 360; // Ensure positive
+          const adjustment = targetAngle - remainder + 360; 
 
           const newRotation = currentRotation + spins + adjustment;
           setRotation(newRotation);
@@ -117,11 +113,11 @@ const HeadTail: React.FC = () => {
           // Wait for animation
           setTimeout(async () => {
               setIsFlipping(false);
-              setHistory(prev => [result, ...prev].slice(0, 10) as any);
+              setHistory(prev => [result, ...prev].slice(0, 10));
 
               if (isWin) {
                   if (soundOn) winSound.current.play().catch(() => {});
-                  vibrate([100, 50, 100]); // Win vibration pattern
+                  vibrate([100, 50, 100]); 
                   
                   toast.success(`You Won ${format(payout)}!`);
                   confetti({
