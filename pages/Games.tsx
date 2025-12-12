@@ -1,12 +1,37 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
-import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy, Lock, AlertTriangle } from 'lucide-react';
+import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy, Lock, AlertTriangle, Coins, EyeOff, Apple, Pyramid, GitGraph } from 'lucide-react';
 import { Game } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import SmartAd from '../components/SmartAd';
 
 const GAMES_META: Game[] = [
+    {
+      id: 'plinko',
+      name: 'Plinko',
+      description: 'Drop the ball through the pyramid for high multipliers.',
+      icon: GitGraph,
+      color: 'text-purple-400',
+      bgColor: 'bg-purple-900/20',
+      path: '/games/plinko',
+      status: 'active',
+      players: 3200,
+      type: 'crash'
+    },
+    {
+      id: 'reels',
+      name: 'Reels of Gods',
+      description: 'Spin the ancient slots. Match 3 symbols for divine riches.',
+      icon: Pyramid,
+      color: 'text-amber-400',
+      bgColor: 'bg-amber-900/20',
+      path: '/games/reels-of-gods',
+      status: 'active',
+      players: 1054,
+      type: 'slots'
+    },
     {
       id: 'dice',
       name: 'Lucky Dice',
@@ -20,6 +45,42 @@ const GAMES_META: Game[] = [
       type: 'slots' 
     },
     {
+      id: 'headtail',
+      name: 'Head & Tail',
+      description: 'Classic coin flip. Double your money instantly.',
+      icon: Coins,
+      color: 'text-yellow-400',
+      bgColor: 'bg-yellow-900/20',
+      path: '/games/head-tail',
+      status: 'active',
+      players: 1420,
+      type: 'slots'
+    },
+    {
+      id: 'thimbles',
+      name: 'Thimbles',
+      description: 'Find the ball under the cup. High stakes shuffle.',
+      icon: EyeOff,
+      color: 'text-red-400',
+      bgColor: 'bg-red-900/20',
+      path: '/games/thimbles',
+      status: 'active',
+      players: 560,
+      type: 'slots'
+    },
+    {
+      id: 'apple',
+      name: 'Apple Fortune',
+      description: 'Climb the ladder, avoid the bad apples. High risk!',
+      icon: Apple,
+      color: 'text-pink-400',
+      bgColor: 'bg-pink-900/20',
+      path: '/games/apple-fortune',
+      status: 'active',
+      players: 980,
+      type: 'slots'
+    },
+    {
       id: 'spin',
       name: 'Lucky Spin',
       description: 'Spin the wheel to win cash prizes instantly.',
@@ -27,7 +88,7 @@ const GAMES_META: Game[] = [
       color: 'text-purple-400',
       bgColor: 'bg-purple-900/20',
       path: '/games/spin',
-      status: 'maintenance', // User asked for 1 game, let's keep others maint
+      status: 'maintenance', 
       players: 1205,
       type: 'wheel'
     },
@@ -36,8 +97,8 @@ const GAMES_META: Game[] = [
       name: 'Space Crash',
       description: 'Eject before the rocket crashes! High risk, high reward.',
       icon: Rocket,
-      color: 'text-red-400',
-      bgColor: 'bg-red-900/20',
+      color: 'text-blue-400',
+      bgColor: 'bg-blue-900/20',
       path: '/games/crash',
       status: 'maintenance', 
       players: 4203,
@@ -48,8 +109,8 @@ const GAMES_META: Game[] = [
       name: 'Ludo King',
       description: 'Classic board game. PvP with Bot. Win 70% of pot.',
       icon: Grid,
-      color: 'text-yellow-400',
-      bgColor: 'bg-yellow-900/20',
+      color: 'text-orange-400',
+      bgColor: 'bg-orange-900/20',
       path: '/games/ludo',
       status: 'maintenance',
       players: 310,
@@ -104,19 +165,6 @@ const Games: React.FC = () => {
               </p>
           </div>
       </div>
-
-      <GlassCard className="bg-[#111] border-[#222] p-6 relative overflow-hidden">
-         <div className="relative z-10">
-            <div className="inline-flex items-center gap-1 bg-green-900/20 text-green-400 px-2 py-1 rounded-lg text-[10px] font-bold uppercase mb-2 border border-green-500/30">
-                <Trophy size={12} /> Featured Game
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Lucky Dice is LIVE!</h2>
-            <p className="text-gray-300 text-sm mb-4 max-w-xs">Predict the roll and win big. Instant payouts to your main wallet.</p>
-            <Link to="/games/dice" className="inline-block bg-white text-black px-6 py-2.5 rounded-xl font-bold hover:scale-105 transition">
-                Play Now
-            </Link>
-         </div>
-      </GlassCard>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {games.map((game, index) => (

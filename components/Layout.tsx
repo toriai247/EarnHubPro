@@ -65,6 +65,29 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const activeNavItems = (isDealer && isDealerRoute) ? dealerNavItems : userNavItems;
 
   useEffect(() => {
+    // ADSTERRA SCRIPT INJECTION (Blocked for Admins)
+    const injectAds = async () => {
+        if (!isAdmin && !document.getElementById('adsterra-popunder')) {
+            const script = document.createElement('script');
+            script.id = 'adsterra-popunder';
+            script.src = "//pl28239628.effectivegatecpm.com/13/6e/86/136e8611d131c94ee0c19190cf3bce9a.js";
+            script.type = "text/javascript";
+            document.body.appendChild(script);
+        } else if (isAdmin) {
+            // Cleanup if became admin
+            const existing = document.getElementById('adsterra-popunder');
+            if (existing) existing.remove();
+        }
+    };
+    // Only inject if session exists and role check is complete, or if guest (guests see ads)
+    if (session) {
+        if (isAdmin === false) injectAds();
+    } else {
+        injectAds(); // Guests see ads
+    }
+  }, [isAdmin, session]);
+
+  useEffect(() => {
     if (!session) {
         setBalance(0);
         setUnreadCount(0);

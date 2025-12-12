@@ -1,51 +1,63 @@
 
 import React, { useState, useEffect } from 'react';
-import GoogleAd from './GoogleAd';
-import { ExternalLink, Zap, Gift, CheckCircle2 } from 'lucide-react';
+import { ExternalLink, Zap, Gift, CheckCircle2, Star, Sparkles } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet } from '../lib/actions';
 import { useUI } from '../context/UIContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- AD NETWORK CONFIGURATION ---
-// Add your Direct Links here (Adsterra, Monetag, etc.)
+// Add your Direct Links here
 const DIRECT_LINKS = [
-    { url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', label: 'Adsterra Offer' },
-    // { url: 'YOUR_MONETAG_DIRECT_LINK', label: 'Monetag Deal' } 
+    { url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', label: 'Premium Offer', sub: 'Limited Time', color: 'from-purple-600 to-blue-600' },
+    { url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', label: 'Exclusive Deal', sub: 'Instant Access', color: 'from-emerald-600 to-teal-600' },
+    { url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', label: 'Sponsored Task', sub: 'Click to view', color: 'from-orange-600 to-red-600' },
 ];
 
+const ADSTERRA_BANNER_IMG = "https://landings-cdn.adsterratech.com/referralBanners/gif/468x60_adsterra_reff.gif";
+const ADSTERRA_REF_LINK = "https://beta.publishers.adsterra.com/referral/R8fkj7ZJZA";
+
 interface SmartAdProps {
-    slot: string; // Google AdSlot ID
+    slot?: string; // Kept for compatibility
     format?: string;
-    height?: string;
     className?: string;
+    type?: 'default' | 'banner'; // 'default' = Direct Link Button, 'banner' = Adsterra Image
 }
 
-const SmartAd: React.FC<SmartAdProps> = ({ slot, format = 'horizontal', className = '' }) => {
+const SmartAd: React.FC<SmartAdProps> = ({ className = '', type = 'default' }) => {
     const { toast } = useUI();
-    const [mode, setMode] = useState<'google' | 'direct'>('direct'); // Default to 'direct' to avoid blank google ads initially
     const [activeLink, setActiveLink] = useState(DIRECT_LINKS[0]);
     const [isClicked, setIsClicked] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
-        // Randomly decide whether to show Google Ad or Direct Link
-        // 70% chance for Direct Link (Higher earnings, less blank space)
-        // 30% chance for Google Ad
-        const random = Math.random();
-        if (random > 0.7) {
-            setMode('google');
-        } else {
-            setMode('direct');
-            const randomLink = DIRECT_LINKS[Math.floor(Math.random() * DIRECT_LINKS.length)];
-            setActiveLink(randomLink);
-        }
+        // Rotate content on mount to show different offers
+        const randomLink = DIRECT_LINKS[Math.floor(Math.random() * DIRECT_LINKS.length)];
+        setActiveLink(randomLink);
+        
+        // Check Admin Status
+        const checkAdmin = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                const { data } = await supabase.from('profiles').select('role, admin_user').eq('id', session.user.id).single();
+                if (data && (data.role === 'admin' || data.admin_user)) {
+                    setIsAdmin(true);
+                }
+            }
+        };
+        checkAdmin();
     }, []);
 
-    const handleDirectClick = async () => {
+    const handleDirectClick = async (url: string) => {
+        if (isAdmin) {
+            toast.info("Admin Mode: Ad interaction disabled (Visual Preview Only)");
+            return;
+        }
+
         if (isClicked) return; // Prevent double clicks
         
         // 1. Open Link Immediately
-        window.open(activeLink.url, '_blank');
+        window.open(url, '_blank');
         setIsClicked(true);
 
         try {
@@ -55,85 +67,89 @@ const SmartAd: React.FC<SmartAdProps> = ({ slot, format = 'horizontal', classNam
                 const rewardAmount = 0.01; 
                 await updateWallet(session.user.id, rewardAmount, 'increment', 'earning_balance');
                 
-                // Track click internally if needed
+                // Track click internally
                 await supabase.from('ad_interactions').insert({
                     network: 'direct',
-                    ad_unit_id: activeLink.url,
+                    ad_unit_id: url,
                     action_type: 'click',
                     user_id: session.user.id
                 });
 
-                toast.success(`Ad Bonus: +৳${rewardAmount} added!`);
+                toast.success(`Ad Reward: +৳${rewardAmount} added!`);
             }
         } catch (e) {
             console.error("Ad reward error", e);
         }
 
-        // Reset after 5 seconds so they can click again if ad rotates
+        // Reset after 8 seconds so they can click again if ad rotates
         setTimeout(() => {
             setIsClicked(false);
-            // Rotate to a new ad visual
-            setMode(Math.random() > 0.5 ? 'google' : 'direct');
-        }, 5000);
+            const randomLink = DIRECT_LINKS[Math.floor(Math.random() * DIRECT_LINKS.length)];
+            setActiveLink(randomLink);
+        }, 8000);
     };
 
+    // --- BANNER MODE (Adsterra Referral) ---
+    if (type === 'banner') {
+        return (
+            <div className={`flex justify-center my-4 ${className}`}>
+                 <a 
+                    href={isAdmin ? '#' : ADSTERRA_REF_LINK} 
+                    target={isAdmin ? '_self' : '_blank'} 
+                    rel="nofollow" 
+                    onClick={(e) => {
+                        if (isAdmin) { e.preventDefault(); toast.info("Admin Mode: Banner Link disabled"); }
+                        else handleDirectClick(ADSTERRA_REF_LINK);
+                    }}
+                    className="hover:opacity-80 transition opacity-100"
+                >
+                    <img src={ADSTERRA_BANNER_IMG} alt="Partner" className="rounded-lg border border-white/10 shadow-lg max-w-full h-auto" />
+                 </a>
+            </div>
+        );
+    }
+
+    // --- DEFAULT MODE (Direct Link Offer Button) ---
     return (
-        <div className={`w-full overflow-hidden my-2 ${className}`}>
+        <div className={`w-full my-4 ${className}`}>
             <AnimatePresence mode="wait">
-                {mode === 'google' ? (
-                    <motion.div
-                        key="google"
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="min-h-[60px] bg-[#111] rounded-lg flex items-center justify-center border border-white/5"
-                    >
-                        <GoogleAd slot={slot} format={format} responsive="true" className="!my-0 !w-full" />
-                    </motion.div>
-                ) : (
-                    <motion.div
-                        key="direct"
-                        initial={{ opacity: 0, scale: 0.98 }} 
-                        animate={{ opacity: 1, scale: 1 }} 
-                        exit={{ opacity: 0, scale: 0.98 }}
-                        onClick={handleDirectClick}
-                        className="relative cursor-pointer group"
-                    >
-                        {/* Compact Banner Layout */}
-                        <div className="flex items-center justify-between bg-gradient-to-r from-emerald-900/40 to-[#111] border border-emerald-500/20 rounded-lg p-2.5 shadow-sm hover:border-emerald-500/40 transition-all">
-                            
-                            {/* Left: Icon & Text */}
-                            <div className="flex items-center gap-3 overflow-hidden">
-                                <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 ${isClicked ? 'bg-green-500 text-black' : 'bg-emerald-500/10 text-emerald-400 animate-pulse'}`}>
-                                    {isClicked ? <CheckCircle2 size={20}/> : <Gift size={20} />}
-                                </div>
-                                <div className="flex flex-col justify-center">
-                                    <h4 className="text-sm font-bold text-white leading-tight truncate">
-                                        {isClicked ? 'Bonus Claimed!' : 'Special Offer Available'}
-                                    </h4>
-                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                        <span className="text-[10px] bg-yellow-500/10 text-yellow-500 px-1.5 rounded border border-yellow-500/20 font-bold">
-                                            +৳0.01
-                                        </span>
-                                        <span className="text-[10px] text-gray-500 truncate">
-                                            Tap to claim reward
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+                <motion.div
+                    key={activeLink.label + isClicked}
+                    initial={{ opacity: 0, scale: 0.98 }} 
+                    animate={{ opacity: 1, scale: 1 }} 
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    onClick={() => handleDirectClick(activeLink.url)}
+                    className={`relative cursor-pointer group rounded-xl p-4 shadow-lg border border-white/10 overflow-hidden bg-gradient-to-r ${isClicked ? 'from-gray-800 to-gray-900' : activeLink.color}`}
+                >
+                    {/* Shine Effect (Disabled for Admin to reduce distraction) */}
+                    {!isClicked && !isAdmin && <div className="absolute inset-0 bg-white/10 skew-x-12 translate-x-[-100%] group-hover:animate-shimmer pointer-events-none"></div>}
 
-                            {/* Right: CTA Button */}
-                            <div className="pl-2">
-                                <div className="bg-white text-black text-[10px] font-black py-1.5 px-3 rounded uppercase tracking-wider group-hover:bg-gray-200 transition flex items-center gap-1">
-                                    {isClicked ? 'OPENED' : 'VISIT'} <ExternalLink size={10} />
+                    <div className="relative z-10 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-inner ${isClicked ? 'bg-green-500 text-white' : 'bg-white text-black'}`}>
+                                {isClicked ? <CheckCircle2 size={24}/> : <Zap size={24} className="fill-current"/>}
+                            </div>
+                            <div>
+                                <h4 className="font-black text-white text-sm sm:text-base leading-tight">
+                                    {isClicked ? 'Reward Claimed!' : activeLink.label}
+                                    {isAdmin && <span className="ml-2 text-[9px] bg-black/50 px-1 rounded text-white font-mono">ADMIN VIEW</span>}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[10px] bg-black/30 px-2 py-0.5 rounded text-white font-bold backdrop-blur-sm border border-white/10">
+                                        +৳0.01
+                                    </span>
+                                    <span className="text-xs text-white/80 font-medium">
+                                        {isClicked ? 'Check wallet' : activeLink.sub}
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* "Sponsored" Label */}
-                        <div className="absolute top-0 right-0 text-[8px] text-gray-600 bg-black/40 px-1 rounded-bl">
-                            AD
+                        <div className="bg-white/20 p-2 rounded-full backdrop-blur-md group-hover:bg-white/30 transition shadow-sm">
+                            <ExternalLink size={18} className="text-white"/>
                         </div>
-                    </motion.div>
-                )}
+                    </div>
+                </motion.div>
             </AnimatePresence>
         </div>
     );

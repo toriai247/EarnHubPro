@@ -10,7 +10,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { SystemProvider, useSystem } from './context/SystemContext';
 import InstallPWA from './components/InstallPWA'; 
 import FeatureAccessBlock from './components/FeatureAccessBlock';
-import RiskNotice from './components/RiskNotice'; // Imported
+import RiskNotice from './components/RiskNotice'; 
 
 // --- LAZY LOADED COMPONENTS (Code Splitting) ---
 const Home = lazy(() => import('./pages/Home'));
@@ -24,6 +24,11 @@ const Games = lazy(() => import('./pages/Games'));
 const Spin = lazy(() => import('./pages/Spin'));
 const Crash = lazy(() => import('./pages/Crash'));
 const Dice = lazy(() => import('./pages/Dice'));
+const HeadTail = lazy(() => import('./pages/HeadTail'));
+const Thimbles = lazy(() => import('./pages/Thimbles')); 
+const AppleFortune = lazy(() => import('./pages/AppleFortune')); 
+const ReelsOfGods = lazy(() => import('./pages/ReelsOfGods')); 
+const Plinko = lazy(() => import('./pages/Plinko')); // Added
 const LudoLobby = lazy(() => import('./pages/LudoLobby'));
 const LudoKing = lazy(() => import('./pages/LudoKing'));
 const Wallet = lazy(() => import('./pages/Wallet'));
@@ -207,6 +212,11 @@ const AppContent: React.FC = () => {
             <Route path="/games/spin" element={<RequireAuth session={session}><FeatureGuard feature="games"><Spin /></FeatureGuard></RequireAuth>} />
             <Route path="/games/crash" element={<RequireAuth session={session}><FeatureGuard feature="games"><Crash /></FeatureGuard></RequireAuth>} />
             <Route path="/games/dice" element={<RequireAuth session={session}><FeatureGuard feature="games"><Dice /></FeatureGuard></RequireAuth>} />
+            <Route path="/games/head-tail" element={<RequireAuth session={session}><FeatureGuard feature="games"><HeadTail /></FeatureGuard></RequireAuth>} />
+            <Route path="/games/thimbles" element={<RequireAuth session={session}><FeatureGuard feature="games"><Thimbles /></FeatureGuard></RequireAuth>} />
+            <Route path="/games/apple-fortune" element={<RequireAuth session={session}><FeatureGuard feature="games"><AppleFortune /></FeatureGuard></RequireAuth>} />
+            <Route path="/games/reels-of-gods" element={<RequireAuth session={session}><FeatureGuard feature="games"><ReelsOfGods /></FeatureGuard></RequireAuth>} />
+            <Route path="/games/plinko" element={<RequireAuth session={session}><FeatureGuard feature="games"><Plinko /></FeatureGuard></RequireAuth>} />
             <Route path="/games/ludo" element={<RequireAuth session={session}><FeatureGuard feature="games"><LudoLobby /></FeatureGuard></RequireAuth>} />
             <Route path="/games/ludo/play/:stake" element={<RequireAuth session={session}><FeatureGuard feature="games"><LudoKing /></FeatureGuard></RequireAuth>} />
             

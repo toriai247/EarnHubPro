@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
@@ -7,7 +8,7 @@ import {
     ArrowRightLeft, Send, RefreshCw, Globe, Search, Trophy, ShieldCheck, 
     HelpCircle, FileText, Bell, Lock, LogOut, Settings, Award, 
     Zap, Palette, Fingerprint, Crown, BarChart3, Grid, Activity, Dice1, PlayCircle,
-    CheckCircle2, Megaphone, ArrowDownLeft, ArrowUpRight, User
+    CheckCircle2, Megaphone, ArrowDownLeft, ArrowUpRight, User, EyeOff, Apple, Pyramid, GitGraph
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import GoogleAd from '../components/GoogleAd';
@@ -34,9 +35,13 @@ const MENU_ITEMS: MenuItem[] = [
     { name: 'Advertise', path: '/advertise', icon: Megaphone, color: 'text-orange-400', roles: ['user'] },
 
     // --- GAMES ---
+    { name: 'Plinko', path: '/games/plinko', icon: GitGraph, color: 'text-purple-400', roles: ['user'] },
     { name: 'Dice', path: '/games/dice', icon: Dice1, color: 'text-white', roles: ['user'] },
-    { name: 'Spin', path: '/games/spin', icon: RefreshCw, color: 'text-cyan-400', roles: ['user'] },
-    { name: 'Crash', path: '/games/crash', icon: TrendingUp, color: 'text-red-500', roles: ['user'] },
+    { name: 'Gods Reels', path: '/games/reels-of-gods', icon: Pyramid, color: 'text-amber-400', roles: ['user'] },
+    { name: 'Head & Tail', path: '/games/head-tail', icon: RefreshCw, color: 'text-yellow-400', roles: ['user'] },
+    { name: 'Thimbles', path: '/games/thimbles', icon: EyeOff, color: 'text-red-400', roles: ['user'] },
+    { name: 'Apple', path: '/games/apple-fortune', icon: Apple, color: 'text-pink-400', roles: ['user'] },
+    { name: 'Crash', path: '/games/crash', icon: TrendingUp, color: 'text-blue-500', roles: ['user'] },
 
     // --- FINANCE ---
     { name: 'Wallet', path: '/wallet', icon: Wallet, color: 'text-emerald-400', roles: ['user'] },
