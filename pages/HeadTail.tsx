@@ -24,7 +24,8 @@ const HeadTail: React.FC = () => {
   // 3D Rotation State
   const [rotation, setRotation] = useState(0);
   
-  const [history, setHistory] = useState<'head' | 'tail'[]>([]);
+  // Corrected type definition
+  const [history, setHistory] = useState<('head' | 'tail')[]>([]);
   const [soundOn, setSoundOn] = useState(true);
 
   // Audio Refs
@@ -117,7 +118,10 @@ const HeadTail: React.FC = () => {
           // Wait for animation
           setTimeout(async () => {
               setIsFlipping(false);
-              setHistory(prev => [result, ...prev].slice(0, 10) as any);
+              setHistory(prev => {
+                  const arr = Array.isArray(prev) ? prev : [];
+                  return [result, ...arr].slice(0, 10);
+              });
 
               if (isWin) {
                   if (soundOn) winSound.current.play().catch(() => {});
@@ -159,6 +163,9 @@ const HeadTail: React.FC = () => {
       }
   };
 
+  // Safe History for Mapping
+  const safeHistory = Array.isArray(history) ? history : [];
+
   return (
     <div className="pb-32 pt-4 px-4 max-w-lg mx-auto min-h-screen relative font-sans flex flex-col">
         
@@ -178,7 +185,7 @@ const HeadTail: React.FC = () => {
         {/* History Bar */}
         <div className="flex justify-center gap-2 mb-4 h-8 z-10">
             <AnimatePresence>
-                {history.map((res, idx) => (
+                {safeHistory.map((res, idx) => (
                     <motion.div 
                         key={`${idx}-${res}`}
                         initial={{ scale: 0, x: -10 }}
