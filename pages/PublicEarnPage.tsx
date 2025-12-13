@@ -92,13 +92,27 @@ const PublicEarnPage: React.FC = () => {
     const [timer, setTimer] = useState(10); // 10 Seconds Wait
     const [hasScrolled, setHasScrolled] = useState(false);
     const [isReady, setIsReady] = useState(false);
-    const [rewardClaimed, setRewardClaimed] = useState(false);
     
     // Tracking Data
     const [ipData, setIpData] = useState<{ip: string, country: string, city: string} | null>(null);
     
     // Scroll Tracking
     const { scrollYProgress } = useScroll();
+
+    // --- IFRAME CLICK DETECTION ---
+    // This detects when user clicks on an ad banner (which blurs the window)
+    useEffect(() => {
+        const handleBlur = () => {
+            // Check if the active element is an iframe
+            if (document.activeElement && document.activeElement.tagName === 'IFRAME') {
+                console.log("Ad Clicked via Iframe");
+                recordAction('click'); // Track ad click
+            }
+        };
+
+        window.addEventListener('blur', handleBlur);
+        return () => window.removeEventListener('blur', handleBlur);
+    }, [ipData, uid]); // Re-bind if important data changes
 
     useEffect(() => {
         const unsubscribe = scrollYProgress.on("change", (latest) => {
@@ -114,9 +128,15 @@ const PublicEarnPage: React.FC = () => {
                 const res = await fetch('https://ipapi.co/json/');
                 const data = await res.json();
                 setIpData({ ip: data.ip, country: data.country_name, city: data.city });
+                
+                // Track initial VIEW after getting IP
+                if(uid) {
+                     recordAction('view', { ip: data.ip, country: data.country_name, city: data.city });
+                }
             } catch (e) {
                 console.error("IP Fetch failed", e);
                 setIpData({ ip: '0.0.0.0', country: 'Unknown', city: 'Unknown' });
+                if(uid) recordAction('view');
             }
         };
         fetchIp();
@@ -168,24 +188,28 @@ const PublicEarnPage: React.FC = () => {
         }
     }, [timer, hasScrolled]);
 
-    const recordAction = async (type: 'view' | 'click') => {
-        if (!ipData) return; // Wait for IP
+    const recordAction = async (type: 'view' | 'click', overrideIpData?: any) => {
+        const currentIp = overrideIpData || ipData;
+        // Allow tracking even if IP fetch failed slightly, use defaults
+        const finalIp = currentIp?.ip || '0.0.0.0';
+        const finalCountry = currentIp?.country || 'Unknown';
+        const finalCity = currentIp?.city || 'Unknown';
 
         const { browser, os, deviceType, ua } = getBrowserInfo();
 
         try {
-            // Updated RPC call to V2
             await supabase.rpc('track_unlimited_action_v2', {
                 p_referrer_uid: parseInt(uid || '0'),
                 p_action_type: type,
-                p_visitor_ip: ipData.ip,
-                p_country: ipData.country,
-                p_city: ipData.city,
+                p_visitor_ip: finalIp,
+                p_country: finalCountry,
+                p_city: finalCity,
                 p_device_type: deviceType,
                 p_browser: browser,
                 p_os: os,
                 p_user_agent: ua
             });
+            console.log(`Tracked: ${type}`);
         } catch (e) {
             console.error("Tracking error", e);
         }
@@ -194,12 +218,7 @@ const PublicEarnPage: React.FC = () => {
     const handleClickAd = async () => {
         if (!isReady) return;
         
-        if (!rewardClaimed) {
-             await recordAction('view'); // Reward for completing the view cycle
-             setRewardClaimed(true);
-        }
-        
-        await recordAction('click'); // Track the outgoing click
+        await recordAction('click'); // Always track click, unlimited times
         window.open('https://roomsmergeshipwreck.com/j71nuij9?key=4b9e21ee5c0ca9b796f1f4c5991c4d49', '_blank');
     };
 
