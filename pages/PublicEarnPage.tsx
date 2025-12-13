@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
-import { Loader2, ArrowRight, BookOpen, Clock, User, Download, Dice5, Globe, Heart, Star, Moon } from 'lucide-react';
+import { Loader2, ArrowRight, BookOpen, Clock, User, Download, Dice5, Globe, Heart, Star, Moon, Gift, Zap, CheckCircle2, AlertCircle, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SmartAd from '../components/SmartAd';
 
@@ -9,8 +9,9 @@ const PublicEarnPage: React.FC = () => {
     const { uid } = useParams<{ uid: string }>();
     const location = useLocation();
     const [loading, setLoading] = useState(true);
-    const [referrerName, setReferrerName] = useState<string>('Anonymous');
-    const [timer, setTimer] = useState(15); 
+    const [referrerName, setReferrerName] = useState<string>('Naxxivo User');
+    const [referralCode, setReferralCode] = useState<string>('');
+    const [timer, setTimer] = useState(10); 
     const [canProceed, setCanProceed] = useState(false);
     const [category, setCategory] = useState('normal');
     
@@ -27,8 +28,12 @@ const PublicEarnPage: React.FC = () => {
         
         const fetchInfo = async () => {
             if (/^\d+$/.test(uid)) {
-                const { data } = await supabase.from('profiles').select('name_1').eq('user_uid', parseInt(uid)).single();
-                if (data && data.name_1) setReferrerName(data.name_1);
+                // Fetch Name AND Ref Code
+                const { data } = await supabase.from('profiles').select('name_1, ref_code_1').eq('user_uid', parseInt(uid)).single();
+                if (data) {
+                    if (data.name_1) setReferrerName(data.name_1);
+                    if (data.ref_code_1) setReferralCode(data.ref_code_1);
+                }
             }
             // Record View (Client-side trigger, secured by SQL logic)
             if (!hasTrackedView.current) {
@@ -77,142 +82,221 @@ const PublicEarnPage: React.FC = () => {
         window.open('https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', '_blank');
     };
 
-    // --- CONTENT GENERATOR BASED ON CATEGORY ---
+    const handleJoinNaxxivo = () => {
+        const url = `${window.location.origin}/#/signup?ref=${referralCode}`;
+        window.open(url, '_blank');
+    };
+
+    // --- CONTENT GENERATOR ---
     const getContent = () => {
         switch(category) {
             case 'islamic':
                 return {
-                    title: 'The Light of Knowledge',
-                    subtitle: 'Peace through Understanding',
-                    icon: <Moon size={28} className="text-green-500" />,
-                    text1: "Seeking knowledge is a duty upon every Muslim. In a world full of noise, finding moments of spiritual reflection is essential for the soul.",
-                    text2: "Patience (Sabr) and Gratitude (Shukr) are the two wings of faith. By holding onto these, one can navigate any storm.",
-                    color: 'text-green-800',
-                    bgColor: 'bg-[#f0fdf4]',
-                    btnColor: 'bg-green-600 hover:bg-green-700'
+                    theme: 'islamic',
+                    title: 'জ্ঞান ও শান্তি (Knowledge & Peace)',
+                    subtitle: 'Daily Islamic Reminders',
+                    icon: <Moon size={32} className="text-emerald-500" />,
+                    accent: 'emerald',
+                    bg: 'bg-[#f0fdf4]',
+                    cardBg: 'bg-white',
+                    textColor: 'text-emerald-900',
+                    btnGradient: 'from-emerald-600 to-green-500',
+                    articles: [
+                        {
+                            head: "ধৈর্য (Sabr) - The Key to Success",
+                            body: "In every hardship, there is ease. Patience is not just waiting; it's how we behave while waiting. Trust in the plan, for every delay has a blessing."
+                        },
+                        {
+                            head: "কৃতজ্ঞতা (Gratitude)",
+                            body: "If you are grateful, I will surely increase you in favor. Gratitude turns what we have into enough."
+                        }
+                    ]
                 };
             case 'betting':
                 return {
-                    title: 'Pro Betting Insights',
-                    subtitle: 'Winning Strategies 2025',
-                    icon: <Dice5 size={28} className="text-yellow-500" />,
-                    text1: "Success in betting isn't just luck; it's about disciplined bankroll management and finding value. Smart players never chase losses.",
-                    text2: "Analyze the odds, understand the market, and stay ahead of the game. The key to long-term profit is consistency.",
-                    color: 'text-yellow-900',
-                    bgColor: 'bg-[#fffbeb]',
-                    btnColor: 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                    theme: 'betting',
+                    title: 'JACKPOT PREDICTION',
+                    subtitle: 'Sure Shot Winning Tips 2025',
+                    icon: <Dice5 size={32} className="text-yellow-400" />,
+                    accent: 'yellow',
+                    bg: 'bg-[#1a1a1a]',
+                    cardBg: 'bg-[#2a2a2a]',
+                    textColor: 'text-yellow-400',
+                    btnGradient: 'from-yellow-600 to-orange-500',
+                    articles: [
+                        {
+                            head: "🔥 Today's Hot Prediction",
+                            body: "Don't play blind. Use data-driven strategies. The secret to winning isn't luck, it's managing your bankroll and striking when the odds are skewed."
+                        },
+                        {
+                            head: "💎 VIP Insider Signal",
+                            body: "Unlock the hidden potential of multipliers. The next big crash game is about to peak. Are you ready to cash out?"
+                        }
+                    ]
                 };
             case 'adult':
                 return {
-                    title: 'Entertainment & Gossips',
-                    subtitle: 'Trending Viral News (18+)',
-                    icon: <Heart size={28} className="text-red-500" />,
-                    text1: "Get the latest scoop on celebrity lifestyles, viral trends, and exclusive stories that are breaking the internet right now.",
-                    text2: "From red carpet shocks to behind-the-scenes drama, stay updated with the hottest entertainment news daily.",
-                    color: 'text-red-900',
-                    bgColor: 'bg-[#fef2f2]',
-                    btnColor: 'bg-red-600 hover:bg-red-700'
+                    theme: 'viral',
+                    title: 'EXCLUSIVE LEAKS 18+',
+                    subtitle: 'Viral Trending Videos',
+                    icon: <Flame size={32} className="text-red-500" />,
+                    accent: 'red',
+                    bg: 'bg-[#fff1f2]',
+                    cardBg: 'bg-white',
+                    textColor: 'text-red-900',
+                    btnGradient: 'from-red-600 to-pink-500',
+                    articles: [
+                        {
+                            head: "😱 SHOCKING: Just Leaked!",
+                            body: "You won't believe what happened in this video. It's trending everywhere right now. Watch before it gets deleted!"
+                        },
+                        {
+                            head: "🔥 Celebrity Secret Exposed",
+                            body: "The truth is finally out. Behind the scenes footage that changes everything. Click the link below to access the full gallery."
+                        }
+                    ]
                 };
-            default: // Normal / Tech
+            default: // Normal
                 return {
-                    title: 'The Hidden Treasure of Digital Age',
-                    subtitle: 'Unlock Your Potential',
-                    icon: <Globe size={28} className="text-blue-500" />,
-                    text1: "In a world driven by connectivity, opportunities hide in plain sight. Technology has bridged the gap between dreams and reality.",
-                    text2: "Imagine a system where your time is valued, and your efforts are rewarded instantly. This is the reality of the modern digital ecosystem.",
-                    color: 'text-gray-900',
-                    bgColor: 'bg-[#f8f9fa]',
-                    btnColor: 'bg-blue-600 hover:bg-blue-700'
+                    theme: 'normal',
+                    title: 'Earn Money Online 2025',
+                    subtitle: 'Passive Income Secrets',
+                    icon: <Globe size={32} className="text-blue-500" />,
+                    accent: 'blue',
+                    bg: 'bg-[#f8f9fa]',
+                    cardBg: 'bg-white',
+                    textColor: 'text-slate-900',
+                    btnGradient: 'from-blue-600 to-indigo-600',
+                    articles: [
+                        {
+                            head: "💰 $50 Daily Strategy",
+                            body: "Stop wasting time scrolling. Turn your phone into an ATM. Thousands are earning daily using this simple copy-paste method."
+                        },
+                        {
+                            head: "🚀 The Digital Gold Rush",
+                            body: "Opportunities hide in plain sight. Discover the platform that pays you to perform simple tasks. No experience needed."
+                        }
+                    ]
                 };
         }
     };
 
-    const content = getContent();
+    const c = getContent();
 
-    if (loading) return <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
+    if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-white" size={40} /></div>;
 
     return (
-        <div className={`min-h-screen ${content.bgColor} font-sans pb-24`}>
+        <div className={`min-h-screen ${c.bg} font-sans pb-32 flex flex-col relative overflow-hidden`}>
             
-            {/* Header */}
-            <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-                <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                         <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center font-bold border border-gray-200">
-                             {referrerName[0].toUpperCase()}
-                         </div>
-                         <div className="text-xs">
-                             <p className="text-gray-500 font-medium">Shared by</p>
-                             <p className="font-bold text-gray-800">{referrerName}</p>
-                         </div>
-                    </div>
-                    {canProceed ? (
-                        <button 
-                            onClick={handleClickAd}
-                            className={`${content.btnColor} ${category === 'betting' ? 'text-black' : 'text-white'} px-5 py-2 rounded-full text-xs font-bold animate-pulse transition flex items-center gap-2`}
-                        >
-                            Get Link <ArrowRight size={14} />
-                        </button>
-                    ) : (
-                        <div className="flex items-center gap-2 text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100">
-                            <Clock size={14} /> Please wait {timer}s
-                        </div>
-                    )}
-                </div>
-            </header>
+            {/* --- TOP HOOK BANNER --- */}
+            <motion.div 
+                initial={{ y: -50 }} animate={{ y: 0 }}
+                className={`w-full py-3 px-4 text-center font-bold text-sm shadow-lg flex items-center justify-center gap-2 z-20 ${category === 'betting' ? 'bg-yellow-500 text-black' : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'}`}
+            >
+                <Gift size={18} className="animate-bounce" />
+                <span>Login & Win <span className="font-black text-lg mx-1">12,000 TK</span> Bonus!</span>
+            </motion.div>
 
-            <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
+            {/* --- MAIN CONTENT --- */}
+            <main className="flex-1 px-4 py-6 max-w-lg mx-auto w-full z-10 space-y-6">
                 
-                {/* AD SLOT 1 */}
-                <div className="w-full bg-white rounded-lg overflow-hidden min-h-[100px] flex items-center justify-center border border-gray-200 shadow-sm">
-                     <SmartAd type="banner" className="m-0 border-0" />
+                {/* Header Profile */}
+                <div className="flex items-center gap-3 bg-opacity-50 p-2 rounded-full border border-gray-200/20 backdrop-blur-sm self-start">
+                     <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border-2 border-white">
+                         <div className={`w-full h-full flex items-center justify-center font-bold text-lg ${c.textColor}`}>
+                             {referrerName.charAt(0)}
+                         </div>
+                     </div>
+                     <div className="leading-tight">
+                         <p className={`text-xs font-medium opacity-70 ${category === 'betting' ? 'text-gray-400' : 'text-gray-500'}`}>Recommended by</p>
+                         <p className={`text-sm font-bold ${c.textColor}`}>{referrerName}</p>
+                     </div>
                 </div>
 
-                <article className="prose prose-slate max-w-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h1 className={`text-2xl font-black mb-1 ${content.color} flex items-center gap-2`}>
-                        {content.icon}
-                        {content.title}
+                {/* Hero Title */}
+                <div className="text-center space-y-2 py-4">
+                    <motion.div 
+                        initial={{ scale: 0.8 }} animate={{ scale: 1 }}
+                        className="flex justify-center mb-2"
+                    >
+                        {c.icon}
+                    </motion.div>
+                    <h1 className={`text-3xl font-black uppercase tracking-tight ${c.textColor}`}>
+                        {c.title}
                     </h1>
-                    <p className="text-sm font-bold text-gray-400 mb-4 uppercase tracking-wider">{content.subtitle}</p>
-                    
-                    <p className="text-gray-600 leading-relaxed mb-4">
-                        {content.text1}
+                    <p className={`text-sm font-medium opacity-80 ${c.textColor}`}>
+                        {c.subtitle}
                     </p>
-                    <p className="text-gray-600 leading-relaxed">
-                        {content.text2}
+                </div>
+
+                {/* AD SLOT 1 (Native Style) */}
+                <div className={`w-full rounded-2xl overflow-hidden shadow-sm border ${category === 'betting' ? 'bg-[#222] border-[#333]' : 'bg-white border-gray-200'}`}>
+                     <div className="p-2 border-b border-gray-100/10 flex justify-between items-center">
+                         <span className="text-[10px] font-bold text-gray-400 uppercase">Sponsored</span>
+                         <Star size={10} className="text-yellow-400 fill-yellow-400" />
+                     </div>
+                     <SmartAd type="banner" className="m-0" />
+                </div>
+
+                {/* ARTICLE 1 */}
+                <div className={`p-6 rounded-2xl shadow-sm border ${c.cardBg} ${category === 'betting' ? 'border-[#333]' : 'border-gray-100'}`}>
+                    <h2 className={`text-xl font-bold mb-3 ${c.textColor}`}>{c.articles[0].head}</h2>
+                    <p className={`text-sm leading-relaxed opacity-80 ${c.textColor}`}>
+                        {c.articles[0].body}
                     </p>
-                </article>
+                </div>
 
                 {/* AD SLOT 2 */}
                 <div className="w-full">
-                     <SmartAd className="shadow-none border-gray-200 bg-white" />
+                     <SmartAd className="shadow-none" />
                 </div>
 
-                <div className="bg-white border border-gray-200 p-4 rounded-xl flex items-start gap-3 shadow-sm">
-                    <User className="text-gray-400 shrink-0 mt-1" size={20} />
-                    <div>
-                        <h4 className="font-bold text-gray-800 text-sm">Community Verified</h4>
-                        <p className="text-xs text-gray-600 mt-1">
-                            This content is verified by the community. Safe and secure browsing.
+                {/* ARTICLE 2 */}
+                <div className={`p-6 rounded-2xl shadow-sm border ${c.cardBg} ${category === 'betting' ? 'border-[#333]' : 'border-gray-100'}`}>
+                    <h2 className={`text-xl font-bold mb-3 ${c.textColor}`}>{c.articles[1].head}</h2>
+                    <p className={`text-sm leading-relaxed opacity-80 ${c.textColor}`}>
+                        {c.articles[1].body}
+                    </p>
+                </div>
+
+                {/* NAXXIVO JOIN CTA */}
+                {referralCode && (
+                    <div className="mt-8 p-6 bg-gradient-to-br from-[#000000] to-[#1a1a1a] rounded-3xl text-center text-white border border-gray-800 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl"></div>
+                        <h3 className="text-xl font-black mb-2 relative z-10">Want to Earn Too?</h3>
+                        <p className="text-gray-400 text-sm mb-4 relative z-10">
+                            Join Naxxivo and start earning daily income like {referrerName}. Use code for bonus.
                         </p>
+                        <div className="bg-white/10 p-2 rounded-lg font-mono text-lg font-bold tracking-widest mb-4 border border-white/10 inline-block px-6">
+                            {referralCode}
+                        </div>
+                        <button 
+                            onClick={handleJoinNaxxivo}
+                            className="w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition"
+                        >
+                            Sign Up Now
+                        </button>
                     </div>
-                </div>
-
+                )}
             </main>
-            
-            {/* Floating Action Button for Mobile */}
-            <div className="fixed bottom-6 left-0 right-0 px-6 z-40 flex justify-center">
-                 <button 
-                    onClick={handleClickAd}
-                    disabled={!canProceed}
-                    className={`w-full max-w-md py-4 rounded-xl font-black uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all transform ${
-                        canProceed 
-                        ? `${content.btnColor} ${category === 'betting' ? 'text-black' : 'text-white'} hover:scale-105 hover:-translate-y-1` 
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                 >
-                    {canProceed ? <><Download size={20} /> Continue to Link</> : `Wait ${timer} seconds...`}
-                 </button>
+
+            {/* --- STICKY FLOATING CTA --- */}
+            <div className={`fixed bottom-0 left-0 right-0 p-4 z-50 backdrop-blur-xl border-t ${category === 'betting' ? 'bg-black/80 border-[#333]' : 'bg-white/80 border-gray-200'}`}>
+                <div className="max-w-md mx-auto">
+                    {!canProceed ? (
+                        <button disabled className="w-full py-4 rounded-xl font-bold text-white bg-gray-400 cursor-not-allowed flex items-center justify-center gap-2">
+                             <Loader2 size={20} className="animate-spin" /> Please Wait {timer}s...
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={handleClickAd}
+                            className={`w-full py-4 rounded-xl font-black text-lg text-white shadow-xl shadow-${c.accent}-500/30 flex items-center justify-center gap-2 bg-gradient-to-r ${c.btnGradient} animate-pulse`}
+                        >
+                            <Download size={24} /> 
+                            {category === 'adult' ? 'WATCH VIDEO' : category === 'betting' ? 'GET PREDICTION' : 'CONTINUE TO LINK'}
+                        </button>
+                    )}
+                </div>
             </div>
 
         </div>

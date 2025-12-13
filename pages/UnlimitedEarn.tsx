@@ -4,7 +4,7 @@ import { supabase } from '../integrations/supabase/client';
 import { 
     Link as LinkIcon, Copy, TrendingUp, Users, Globe, Monitor, 
     MousePointer, Eye, Loader2, ArrowRight, Zap, AlertCircle, Activity,
-    Map as MapIcon, Smartphone, RefreshCw, BookOpen, Flame, Dice5, Check
+    Map as MapIcon, Smartphone, RefreshCw, BookOpen, Flame, Dice5, Check, Share2
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -29,10 +29,10 @@ const UnlimitedEarn: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<string>('normal');
 
     const CATEGORIES = [
-        { id: 'normal', label: 'Normal / Tech', icon: Globe, color: 'text-blue-400', border: 'border-blue-500' },
-        { id: 'islamic', label: 'Islamic Content', icon: BookOpen, color: 'text-green-400', border: 'border-green-500' },
-        { id: 'betting', label: 'Betting Tips', icon: Dice5, color: 'text-yellow-400', border: 'border-yellow-500' },
-        { id: 'adult', label: '18+ / News', icon: Flame, color: 'text-red-500', border: 'border-red-500' },
+        { id: 'normal', label: 'Money / Tech', icon: Globe, color: 'text-blue-400', border: 'border-blue-500' },
+        { id: 'islamic', label: 'Islamic', icon: BookOpen, color: 'text-green-400', border: 'border-green-500' },
+        { id: 'betting', label: 'Betting / Games', icon: Dice5, color: 'text-yellow-400', border: 'border-yellow-500' },
+        { id: 'adult', label: 'Viral / News', icon: Flame, color: 'text-red-500', border: 'border-red-500' },
     ];
 
     useEffect(() => {
@@ -105,6 +105,22 @@ const UnlimitedEarn: React.FC = () => {
         toast.success(`Copied ${selectedCategory.toUpperCase()} Link!`);
     };
 
+    const shareLink = async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Check this out!',
+                    text: 'Login and win 12000 TK Bonus instantly!',
+                    url: promoLink
+                });
+            } catch (err) {
+                console.error('Share failed:', err);
+            }
+        } else {
+            copyLink();
+        }
+    };
+
     if (loading) return <div className="p-10"><Loader2 className="animate-spin mx-auto text-cyan-500" /></div>;
 
     return (
@@ -113,10 +129,10 @@ const UnlimitedEarn: React.FC = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h2 className="text-3xl font-display font-black text-white flex items-center gap-2">
-                        <Zap className="text-cyan-400" size={32} /> Unlimited Earn
+                        <Zap className="text-cyan-400" size={32} /> Affiliate Link
                     </h2>
                     <p className="text-gray-400 text-sm mt-1 max-w-lg">
-                        Select a category, copy your link, and share. The landing page content will adapt automatically.
+                        Share your unique link. When users click "Continue" on the landing page, you get paid.
                     </p>
                 </div>
                 <button onClick={fetchData} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white transition">
@@ -125,22 +141,25 @@ const UnlimitedEarn: React.FC = () => {
             </div>
 
             {/* CATEGORY SELECTOR */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {CATEGORIES.map(cat => (
-                    <button
-                        key={cat.id}
-                        onClick={() => setSelectedCategory(cat.id)}
-                        className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${
-                            selectedCategory === cat.id 
-                            ? `bg-white/10 ${cat.border} ${cat.color} shadow-lg`
-                            : 'bg-[#111] border-white/5 text-gray-500 hover:bg-white/5'
-                        }`}
-                    >
-                        <cat.icon size={24} />
-                        <span className="text-xs font-bold uppercase">{cat.label}</span>
-                        {selectedCategory === cat.id && <div className="w-1.5 h-1.5 rounded-full bg-current"></div>}
-                    </button>
-                ))}
+            <div>
+                <p className="text-xs font-bold text-gray-500 uppercase mb-2 pl-1">Select Landing Page Theme</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {CATEGORIES.map(cat => (
+                        <button
+                            key={cat.id}
+                            onClick={() => setSelectedCategory(cat.id)}
+                            className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${
+                                selectedCategory === cat.id 
+                                ? `bg-white/10 ${cat.border} ${cat.color} shadow-lg`
+                                : 'bg-[#111] border-white/5 text-gray-500 hover:bg-white/5'
+                            }`}
+                        >
+                            <cat.icon size={24} />
+                            <span className="text-xs font-bold uppercase">{cat.label}</span>
+                            {selectedCategory === cat.id && <div className="w-1.5 h-1.5 rounded-full bg-current"></div>}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* LINK GENERATOR */}
@@ -156,9 +175,14 @@ const UnlimitedEarn: React.FC = () => {
                         <code className="text-white font-mono text-xs sm:text-sm truncate mr-2">{promoLink}</code>
                         <Copy size={16} className="text-cyan-500 group-hover:text-white transition shrink-0" />
                     </div>
-                    <button onClick={copyLink} className="bg-cyan-500 text-black font-bold px-6 py-3 rounded-xl hover:bg-cyan-400 transition shadow-lg shadow-cyan-500/20 whitespace-nowrap">
-                        Copy Link
-                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={copyLink} className="bg-cyan-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-cyan-500 transition shadow-lg shadow-cyan-500/20 whitespace-nowrap">
+                            Copy Link
+                        </button>
+                        <button onClick={shareLink} className="p-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition border border-white/10">
+                            <Share2 size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -168,8 +192,8 @@ const UnlimitedEarn: React.FC = () => {
                     <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-1 rounded border border-blue-500/30 font-bold">
                         0.05 BDT / Click
                     </span>
-                    <span className="text-[10px] bg-red-500/10 text-red-300 px-2 py-1 rounded border border-red-500/20 flex items-center gap-1">
-                        <AlertCircle size={10} /> 1 IP / 24h
+                    <span className="text-[10px] bg-yellow-500/10 text-yellow-300 px-2 py-1 rounded border border-yellow-500/20 flex items-center gap-1">
+                        <Activity size={10} /> High Conversion Layout
                     </span>
                 </div>
             </GlassCard>
@@ -184,7 +208,7 @@ const UnlimitedEarn: React.FC = () => {
                     </div>
                 </GlassCard>
                 <GlassCard className="p-4 bg-black/40 border-white/5">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Link Clicks</p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Ad Clicks</p>
                     <div className="flex items-center gap-2">
                         <MousePointer size={20} className="text-cyan-500" />
                         <span className="text-2xl font-black text-white">{stats.clicks.toLocaleString()}</span>

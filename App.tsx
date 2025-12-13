@@ -10,6 +10,7 @@ import { SystemProvider, useSystem } from './context/SystemContext';
 import InstallPWA from './components/InstallPWA'; 
 import FeatureAccessBlock from './components/FeatureAccessBlock';
 import RiskNotice from './components/RiskNotice'; 
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 // --- LAZY LOADED COMPONENTS (Code Splitting) ---
 const Home = lazy(() => import('./pages/Home'));
@@ -126,40 +127,76 @@ const RequireStaff: React.FC<{ session: any; children: React.ReactNode }> = ({ s
 const AppContent: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isStuck, setIsStuck] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+
+    // Safety Timeout: If Supabase takes > 6 seconds, show the manual fix button
+    const stuckTimer = setTimeout(() => {
+        if (mounted && loading) setIsStuck(true);
+    }, 6000);
+
     const checkSession = async () => {
       try {
+        // Try getting session
         const { data, error } = await supabase.auth.getSession();
-        setSession(data.session);
+        if (mounted) {
+            setSession(data.session);
+            setLoading(false);
+        }
         
         if (data.session && Notification.permission === 'default') {
             Notification.requestPermission();
         }
       } catch (e) {
         console.error("Auth check failed", e);
-      } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-      setSession(session);
-      setLoading(false);
+      if (mounted) {
+          setSession(session);
+          setLoading(false);
+      }
     });
 
     return () => {
+        mounted = false;
+        clearTimeout(stuckTimer);
         subscription.unsubscribe();
     };
   }, []);
 
+  // Manual Reset Function for users stuck on loading
+  const handleManualReset = () => {
+      // Clear Supabase Local Storage
+      localStorage.clear(); // Nuclear option to ensure clean slate
+      window.location.reload();
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-void flex flex-col items-center justify-center text-brand p-4">
-        <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mb-4"></div>
-        <div className="font-display font-bold tracking-wider text-lg text-main">NAXXIVO</div>
+      <div className="min-h-screen bg-void flex flex-col items-center justify-center text-brand p-6">
+        <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mb-6"></div>
+        <div className="font-display font-bold tracking-wider text-lg text-main mb-2">NAXXIVO</div>
+        
+        {isStuck && (
+            <div className="mt-8 animate-fade-in flex flex-col items-center">
+                <div className="flex items-center gap-2 text-yellow-500 text-xs font-bold mb-3 bg-yellow-500/10 px-3 py-2 rounded-lg border border-yellow-500/20">
+                    <AlertTriangle size={14} /> Connection taking longer than usual...
+                </div>
+                <button 
+                    onClick={handleManualReset}
+                    className="flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-xl shadow-lg hover:bg-gray-200 transition text-sm"
+                >
+                    <RefreshCw size={16} /> Tap to Fix & Reload
+                </button>
+            </div>
+        )}
       </div>
     );
   }
