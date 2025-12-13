@@ -1,22 +1,17 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
-import { Loader2, AlertCircle, ArrowRight, ShieldCheck, Zap, ExternalLink, Lock, CheckCircle2, Download } from 'lucide-react';
+import { Loader2, ArrowRight, BookOpen, Clock, User, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SmartAd from '../components/SmartAd';
 
 const PublicEarnPage: React.FC = () => {
     const { uid } = useParams<{ uid: string }>();
     const [loading, setLoading] = useState(true);
-    const [referrerName, setReferrerName] = useState<string | null>(null);
-    const [timer, setTimer] = useState(5); 
+    const [referrerName, setReferrerName] = useState<string>('Anonymous');
+    const [timer, setTimer] = useState(15); 
     const [canProceed, setCanProceed] = useState(false);
-    const [viewRecorded, setViewRecorded] = useState(false);
     
-    // Matrix effect state
-    const [decryptText, setDecryptText] = useState("ENCRYPTED_CONNECTION");
-
     // Tracking Ref
     const hasTrackedView = useRef(false);
 
@@ -26,7 +21,7 @@ const PublicEarnPage: React.FC = () => {
         const fetchInfo = async () => {
             if (/^\d+$/.test(uid)) {
                 const { data } = await supabase.from('profiles').select('name_1').eq('user_uid', parseInt(uid)).single();
-                if (data) setReferrerName(data.name_1);
+                if (data && data.name_1) setReferrerName(data.name_1);
             }
             // Record View (Client-side trigger, secured by SQL logic)
             if (!hasTrackedView.current) {
@@ -37,23 +32,11 @@ const PublicEarnPage: React.FC = () => {
         };
         fetchInfo();
 
-        // Matrix Effect
-        let interval: any;
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        interval = setInterval(() => {
-            setDecryptText(prev => prev.split('').map((char, i) => {
-                if (Math.random() > 0.9) return chars[Math.floor(Math.random() * chars.length)];
-                return char;
-            }).join(''));
-        }, 100);
-
         // Timer
         const timeInt = setInterval(() => {
             setTimer(prev => {
                 if (prev <= 1) {
                     clearInterval(timeInt);
-                    clearInterval(interval);
-                    setDecryptText("SECURE_CONNECTION_ESTABLISHED");
                     setCanProceed(true);
                     return 0;
                 }
@@ -62,7 +45,6 @@ const PublicEarnPage: React.FC = () => {
         }, 1000);
 
         return () => {
-            clearInterval(interval);
             clearInterval(timeInt);
         };
     }, [uid]);
@@ -88,86 +70,106 @@ const PublicEarnPage: React.FC = () => {
         window.open('https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', '_blank');
     };
 
-    if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin" size={40} /></div>;
+    if (loading) return <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
 
     return (
-        <div className="min-h-screen bg-[#050505] text-white font-mono flex flex-col items-center p-4 relative overflow-hidden">
+        <div className="min-h-screen bg-[#f8f9fa] text-gray-900 font-sans pb-24">
             
-            {/* Matrix BG */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-            
-            <div className="w-full max-w-lg mt-8 mb-6 text-center z-10">
-                <div className="inline-flex items-center gap-2 bg-green-900/30 border border-green-500/30 px-3 py-1 rounded-full mb-4">
-                    <Lock size={12} className="text-green-500" />
-                    <span className="text-[10px] text-green-400 font-bold tracking-widest">{decryptText}</span>
+            {/* Header */}
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+                <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                             {referrerName[0].toUpperCase()}
+                         </div>
+                         <div className="text-xs">
+                             <p className="text-gray-500 font-medium">Shared by</p>
+                             <p className="font-bold text-gray-800">{referrerName}</p>
+                         </div>
+                    </div>
+                    {canProceed ? (
+                        <button 
+                            onClick={handleClickAd}
+                            className="bg-green-600 text-white px-5 py-2 rounded-full text-xs font-bold animate-pulse hover:bg-green-700 transition flex items-center gap-2"
+                        >
+                            Get Link <ArrowRight size={14} />
+                        </button>
+                    ) : (
+                        <div className="flex items-center gap-2 text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100">
+                            <Clock size={14} /> Please wait {timer}s
+                        </div>
+                    )}
                 </div>
-                
-                <h1 className="text-3xl font-black uppercase tracking-tighter mb-2 text-white glitch-text">
-                    SECURE GATEWAY
-                </h1>
-                <p className="text-gray-500 text-xs uppercase tracking-widest">
-                    Shared by: <span className="text-white font-bold">{referrerName || 'Anonymous'}</span>
-                </p>
-            </div>
+            </header>
 
-            <div className="w-full max-w-md space-y-6 z-10">
+            <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
                 
-                {/* 1. Main Locker Box */}
-                <div className="bg-[#111] border border-white/10 rounded-xl p-1 relative shadow-2xl">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-50"></div>
-                    
-                    <div className="bg-[#0a0a0a] rounded-lg p-6 text-center">
-                        <AnimatePresence mode="wait">
-                            {!canProceed ? (
-                                <motion.div 
-                                    key="wait"
-                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                    className="py-4"
-                                >
-                                    <div className="w-16 h-16 rounded-full border-4 border-white/10 border-t-green-500 animate-spin mx-auto mb-4"></div>
-                                    <h3 className="text-lg font-bold text-white mb-2">Analyzing Request...</h3>
-                                    <p className="text-gray-500 text-xs">Scanning for threats. Please wait {timer}s.</p>
-                                </motion.div>
-                            ) : (
-                                <motion.div 
-                                    key="proceed"
-                                    initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                                    className="py-2"
-                                >
-                                    <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-500/30 shadow-[0_0_20px_rgba(34,197,94,0.2)]">
-                                        <ShieldCheck size={32} className="text-green-500" />
-                                    </div>
-                                    <h3 className="text-xl font-bold text-white mb-1">Link Decrypted</h3>
-                                    <p className="text-gray-400 text-xs mb-6">Destination is safe. Click below to proceed.</p>
-                                    
-                                    <button 
-                                        onClick={handleClickAd}
-                                        className="w-full py-4 bg-green-600 text-white font-black uppercase rounded-lg hover:bg-green-500 transition shadow-lg flex items-center justify-center gap-2 group animate-pulse"
-                                    >
-                                        <Download size={18} className="group-hover:animate-bounce"/> GET ACCESS
-                                    </button>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                {/* AD SLOT 1 */}
+                <div className="w-full bg-gray-200 rounded-lg overflow-hidden min-h-[100px] flex items-center justify-center border border-gray-300">
+                     <SmartAd type="banner" className="m-0 border-0" />
+                </div>
+
+                <article className="prose prose-slate max-w-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h1 className="text-2xl font-black mb-4 text-gray-900 flex items-center gap-2">
+                        <BookOpen className="text-blue-600" size={28}/> 
+                        The Hidden Treasure of Digital Age
+                    </h1>
+                    <p className="text-gray-600 leading-relaxed mb-4">
+                        In a world driven by connectivity, opportunities hide in plain sight. 
+                        Just like finding a rare gem in a vast desert, discovering the right platform can change everything.
+                        Technology has bridged the gap between dreams and reality, allowing anyone with determination to build something great.
+                    </p>
+                    <p className="text-gray-600 leading-relaxed">
+                        Imagine a system where your time is valued, and your efforts are rewarded instantly. 
+                        This is not just a story; it is the reality of the modern digital ecosystem. 
+                        Keep reading to unlock the gateway to this new world.
+                    </p>
+                </article>
+
+                {/* AD SLOT 2 */}
+                <div className="w-full">
+                     <SmartAd className="shadow-none border-gray-200 bg-white" />
+                </div>
+
+                <article className="prose prose-slate max-w-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 className="text-xl font-bold mb-4 text-gray-800">অজানার পথে যাত্রা (The Journey to the Unknown)</h2>
+                    <p className="text-gray-600 leading-relaxed mb-4">
+                        প্রযুক্তির এই বিশাল সাগরে আমরা সবাই নাবিক। প্রতিটি ক্লিক, প্রতিটি পদক্ষেপ আমাদের নতুন দিগন্তের দিকে নিয়ে যায়।
+                        সাফল্য কোনো গন্তব্য নয়, এটি একটি যাত্রা। ধৈর্য এবং নিষ্ঠার সাথে এগিয়ে গেলে, আপনিও খুঁজে পাবেন আপনার কাঙ্ক্ষিত রত্ন।
+                    </p>
+                    <p className="text-gray-600 leading-relaxed">
+                        আজকের এই দিনে, সুযোগ আপনার হাতের মুঠোয়। শুধু প্রয়োজন সঠিক চাবিটি খুঁজে পাওয়া।
+                        নিচের লিংকে ক্লিক করে আপনার যাত্রা শুরু করুন।
+                    </p>
+                </article>
+
+                <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-start gap-3">
+                    <User className="text-blue-500 shrink-0 mt-1" size={20} />
+                    <div>
+                        <h4 className="font-bold text-gray-800 text-sm">Community Verified</h4>
+                        <p className="text-xs text-gray-600 mt-1">
+                            This content is verified by the community. Safe and secure browsing.
+                        </p>
                     </div>
                 </div>
 
-                {/* 2. Banner Ad Placement (To monetize the wait time) */}
-                <div className="relative">
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#050505] px-2 text-[9px] text-gray-600 font-bold uppercase tracking-widest z-10">
-                        Sponsored
-                    </div>
-                    <SmartAd type="banner" className="border border-white/5 bg-[#111] p-2 rounded-xl" />
-                </div>
+            </main>
+            
+            {/* Floating Action Button for Mobile */}
+            <div className="fixed bottom-6 left-0 right-0 px-6 z-40 flex justify-center">
+                 <button 
+                    onClick={handleClickAd}
+                    disabled={!canProceed}
+                    className={`w-full max-w-md py-4 rounded-xl font-black uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all transform ${
+                        canProceed 
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 hover:-translate-y-1' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                 >
+                    {canProceed ? <><Download size={20} /> Continue to Link</> : `Wait ${timer} seconds...`}
+                 </button>
             </div>
 
-            <div className="mt-auto py-8 text-center opacity-30">
-                <p className="text-[9px] text-gray-500 font-mono uppercase">Encrypted by Naxxivo Protocol v4.0</p>
-            </div>
-            
-            <style>{`
-                .glitch-text { text-shadow: 2px 0 #00ff00, -2px 0 #ff0000; }
-            `}</style>
         </div>
     );
 };

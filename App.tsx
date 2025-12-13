@@ -17,6 +17,7 @@ const Menu = lazy(() => import('./pages/Menu'));
 const Invest = lazy(() => import('./pages/Invest'));
 const Vip = lazy(() => import('./pages/Vip'));
 const UnlimitedEarn = lazy(() => import('./pages/UnlimitedEarn'));
+const PublicEarnPage = lazy(() => import('./pages/PublicEarnPage'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const Invite = lazy(() => import('./pages/Invite'));
 const Video = lazy(() => import('./pages/Video'));
@@ -179,6 +180,7 @@ const AppContent: React.FC = () => {
 
           {/* Special Routes without Layout */}
           <Route path="/:slug" element={<SiteViewer />} />
+          <Route path="/u-link/:uid" element={<PublicEarnPage />} />
 
           {/* Main Layout Wrap */}
           <Route element={<Layout session={session}><Outlet /></Layout>}>
