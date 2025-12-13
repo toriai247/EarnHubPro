@@ -155,6 +155,8 @@ const HeadTail: React.FC = () => {
       }
   };
 
+  const safeHistory = Array.isArray(history) ? history : [];
+
   return (
     <div className="pb-32 pt-4 px-4 max-w-lg mx-auto min-h-screen relative font-sans flex flex-col">
         
@@ -174,7 +176,7 @@ const HeadTail: React.FC = () => {
         {/* History Bar */}
         <div className="flex justify-center gap-2 mb-4 h-8 z-10">
             <AnimatePresence>
-                {history.map((res, idx) => (
+                {safeHistory.map((res, idx) => (
                     <motion.div 
                         key={`${idx}-${res}`}
                         initial={{ scale: 0, x: -10 }}
