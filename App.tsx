@@ -15,6 +15,8 @@ import RiskNotice from './components/RiskNotice';
 const Home = lazy(() => import('./pages/Home'));
 const Menu = lazy(() => import('./pages/Menu'));
 const Invest = lazy(() => import('./pages/Invest'));
+const Vip = lazy(() => import('./pages/Vip'));
+const UnlimitedEarn = lazy(() => import('./pages/UnlimitedEarn'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const Invite = lazy(() => import('./pages/Invite'));
 const Video = lazy(() => import('./pages/Video'));
@@ -204,9 +206,11 @@ const AppContent: React.FC = () => {
 
             {/* User Protected Routes */}
             <Route path="/invest" element={<RequireAuth session={session}><FeatureGuard feature="invest"><Invest /></FeatureGuard></RequireAuth>} />
+            <Route path="/vip-plans" element={<RequireAuth session={session}><FeatureGuard feature="invest"><Vip /></FeatureGuard></RequireAuth>} />
             <Route path="/tasks" element={<RequireAuth session={session}><FeatureGuard feature="tasks"><Tasks /></FeatureGuard></RequireAuth>} />
             <Route path="/advertise" element={<RequireAuth session={session}><Advertise /></RequireAuth>} /> 
             <Route path="/invite" element={<RequireAuth session={session}><FeatureGuard feature="invite"><Invite /></FeatureGuard></RequireAuth>} />
+            <Route path="/unlimited-earn" element={<RequireAuth session={session}><UnlimitedEarn /></RequireAuth>} />
             
             {/* Video Routes */}
             <Route path="/video" element={<RequireAuth session={session}><FeatureGuard feature="video"><Video /></FeatureGuard></RequireAuth>} />
