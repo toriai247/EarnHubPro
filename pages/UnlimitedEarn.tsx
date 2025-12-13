@@ -1,11 +1,10 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { supabase } from '../integrations/supabase/client';
 import { 
     Link as LinkIcon, Copy, TrendingUp, Users, Globe, Monitor, 
     MousePointer, Eye, Loader2, ArrowRight, Zap, AlertCircle, Activity,
-    Map as MapIcon, Smartphone, RefreshCw
+    Map as MapIcon, Smartphone, RefreshCw, BookOpen, Flame, Dice5, Check
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -25,6 +24,16 @@ const UnlimitedEarn: React.FC = () => {
     const [recentLogs, setRecentLogs] = useState<any[]>([]);
     const [userUid, setUserUid] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
+    
+    // Category State
+    const [selectedCategory, setSelectedCategory] = useState<string>('normal');
+
+    const CATEGORIES = [
+        { id: 'normal', label: 'Normal / Tech', icon: Globe, color: 'text-blue-400', border: 'border-blue-500' },
+        { id: 'islamic', label: 'Islamic Content', icon: BookOpen, color: 'text-green-400', border: 'border-green-500' },
+        { id: 'betting', label: 'Betting Tips', icon: Dice5, color: 'text-yellow-400', border: 'border-yellow-500' },
+        { id: 'adult', label: '18+ / News', icon: Flame, color: 'text-red-500', border: 'border-red-500' },
+    ];
 
     useEffect(() => {
         fetchData();
@@ -40,13 +49,12 @@ const UnlimitedEarn: React.FC = () => {
         if (profile) setUserUid(profile.user_uid);
 
         // Fetch Analytics (Using the new table if available, else standard)
-        // Note: Ensure table exists via Admin Tool
         try {
             const { data: logs, error } = await supabase
                 .from('unlimited_earn_logs')
                 .select('*')
                 .eq('referrer_id', session.user.id)
-                .order('created_at', { ascending: false }); // Newest first
+                .order('created_at', { ascending: false }); 
 
             if (logs) {
                 let v = 0, c = 0, e = 0;
@@ -89,11 +97,12 @@ const UnlimitedEarn: React.FC = () => {
         setLoading(false);
     };
 
-    const promoLink = userUid ? `${window.location.origin}/#/u-link/${userUid}` : 'Loading...';
+    // Construct Link based on Category
+    const promoLink = userUid ? `${window.location.origin}/#/u-link/${userUid}?cat=${selectedCategory}` : 'Loading...';
 
     const copyLink = () => {
         navigator.clipboard.writeText(promoLink);
-        toast.success("Secure Link Copied!");
+        toast.success(`Copied ${selectedCategory.toUpperCase()} Link!`);
     };
 
     if (loading) return <div className="p-10"><Loader2 className="animate-spin mx-auto text-cyan-500" /></div>;
@@ -107,7 +116,7 @@ const UnlimitedEarn: React.FC = () => {
                         <Zap className="text-cyan-400" size={32} /> Unlimited Earn
                     </h2>
                     <p className="text-gray-400 text-sm mt-1 max-w-lg">
-                        Promote your unique link. Earn from every visitor (View) and every action (Click).
+                        Select a category, copy your link, and share. The landing page content will adapt automatically.
                     </p>
                 </div>
                 <button onClick={fetchData} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white transition">
@@ -115,16 +124,37 @@ const UnlimitedEarn: React.FC = () => {
                 </button>
             </div>
 
+            {/* CATEGORY SELECTOR */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {CATEGORIES.map(cat => (
+                    <button
+                        key={cat.id}
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${
+                            selectedCategory === cat.id 
+                            ? `bg-white/10 ${cat.border} ${cat.color} shadow-lg`
+                            : 'bg-[#111] border-white/5 text-gray-500 hover:bg-white/5'
+                        }`}
+                    >
+                        <cat.icon size={24} />
+                        <span className="text-xs font-bold uppercase">{cat.label}</span>
+                        {selectedCategory === cat.id && <div className="w-1.5 h-1.5 rounded-full bg-current"></div>}
+                    </button>
+                ))}
+            </div>
+
             {/* LINK GENERATOR */}
             <GlassCard className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border-cyan-500/30 p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none"><LinkIcon size={120} /></div>
                 
-                <h3 className="text-sm font-bold text-cyan-300 uppercase tracking-widest mb-3">Your Secure Link</h3>
+                <h3 className="text-sm font-bold text-cyan-300 uppercase tracking-widest mb-3">
+                    Your {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} Link
+                </h3>
                 
                 <div className="flex flex-col sm:flex-row gap-3">
                     <div className="flex-1 bg-black/40 border border-cyan-500/30 rounded-xl px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-black/50 transition" onClick={copyLink}>
-                        <code className="text-white font-mono text-sm truncate">{promoLink}</code>
-                        <Copy size={16} className="text-cyan-500 group-hover:text-white transition" />
+                        <code className="text-white font-mono text-xs sm:text-sm truncate mr-2">{promoLink}</code>
+                        <Copy size={16} className="text-cyan-500 group-hover:text-white transition shrink-0" />
                     </div>
                     <button onClick={copyLink} className="bg-cyan-500 text-black font-bold px-6 py-3 rounded-xl hover:bg-cyan-400 transition shadow-lg shadow-cyan-500/20 whitespace-nowrap">
                         Copy Link

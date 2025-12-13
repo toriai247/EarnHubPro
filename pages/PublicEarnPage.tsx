@@ -1,21 +1,28 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
-import { Loader2, ArrowRight, BookOpen, Clock, User, Download } from 'lucide-react';
+import { Loader2, ArrowRight, BookOpen, Clock, User, Download, Dice5, Globe, Heart, Star, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SmartAd from '../components/SmartAd';
 
 const PublicEarnPage: React.FC = () => {
     const { uid } = useParams<{ uid: string }>();
+    const location = useLocation();
     const [loading, setLoading] = useState(true);
     const [referrerName, setReferrerName] = useState<string>('Anonymous');
     const [timer, setTimer] = useState(15); 
     const [canProceed, setCanProceed] = useState(false);
+    const [category, setCategory] = useState('normal');
     
     // Tracking Ref
     const hasTrackedView = useRef(false);
 
     useEffect(() => {
+        // Parse Category from URL ?cat=...
+        const searchParams = new URLSearchParams(location.search);
+        const cat = searchParams.get('cat');
+        if (cat) setCategory(cat);
+
         if (!uid) return;
         
         const fetchInfo = async () => {
@@ -47,7 +54,7 @@ const PublicEarnPage: React.FC = () => {
         return () => {
             clearInterval(timeInt);
         };
-    }, [uid]);
+    }, [uid, location]);
 
     const recordAction = async (type: 'view' | 'click') => {
         try {
@@ -70,16 +77,68 @@ const PublicEarnPage: React.FC = () => {
         window.open('https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710', '_blank');
     };
 
+    // --- CONTENT GENERATOR BASED ON CATEGORY ---
+    const getContent = () => {
+        switch(category) {
+            case 'islamic':
+                return {
+                    title: 'The Light of Knowledge',
+                    subtitle: 'Peace through Understanding',
+                    icon: <Moon size={28} className="text-green-500" />,
+                    text1: "Seeking knowledge is a duty upon every Muslim. In a world full of noise, finding moments of spiritual reflection is essential for the soul.",
+                    text2: "Patience (Sabr) and Gratitude (Shukr) are the two wings of faith. By holding onto these, one can navigate any storm.",
+                    color: 'text-green-800',
+                    bgColor: 'bg-[#f0fdf4]',
+                    btnColor: 'bg-green-600 hover:bg-green-700'
+                };
+            case 'betting':
+                return {
+                    title: 'Pro Betting Insights',
+                    subtitle: 'Winning Strategies 2025',
+                    icon: <Dice5 size={28} className="text-yellow-500" />,
+                    text1: "Success in betting isn't just luck; it's about disciplined bankroll management and finding value. Smart players never chase losses.",
+                    text2: "Analyze the odds, understand the market, and stay ahead of the game. The key to long-term profit is consistency.",
+                    color: 'text-yellow-900',
+                    bgColor: 'bg-[#fffbeb]',
+                    btnColor: 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                };
+            case 'adult':
+                return {
+                    title: 'Entertainment & Gossips',
+                    subtitle: 'Trending Viral News (18+)',
+                    icon: <Heart size={28} className="text-red-500" />,
+                    text1: "Get the latest scoop on celebrity lifestyles, viral trends, and exclusive stories that are breaking the internet right now.",
+                    text2: "From red carpet shocks to behind-the-scenes drama, stay updated with the hottest entertainment news daily.",
+                    color: 'text-red-900',
+                    bgColor: 'bg-[#fef2f2]',
+                    btnColor: 'bg-red-600 hover:bg-red-700'
+                };
+            default: // Normal / Tech
+                return {
+                    title: 'The Hidden Treasure of Digital Age',
+                    subtitle: 'Unlock Your Potential',
+                    icon: <Globe size={28} className="text-blue-500" />,
+                    text1: "In a world driven by connectivity, opportunities hide in plain sight. Technology has bridged the gap between dreams and reality.",
+                    text2: "Imagine a system where your time is valued, and your efforts are rewarded instantly. This is the reality of the modern digital ecosystem.",
+                    color: 'text-gray-900',
+                    bgColor: 'bg-[#f8f9fa]',
+                    btnColor: 'bg-blue-600 hover:bg-blue-700'
+                };
+        }
+    };
+
+    const content = getContent();
+
     if (loading) return <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
 
     return (
-        <div className="min-h-screen bg-[#f8f9fa] text-gray-900 font-sans pb-24">
+        <div className={`min-h-screen ${content.bgColor} font-sans pb-24`}>
             
             {/* Header */}
             <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                         <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center font-bold border border-gray-200">
                              {referrerName[0].toUpperCase()}
                          </div>
                          <div className="text-xs">
@@ -90,7 +149,7 @@ const PublicEarnPage: React.FC = () => {
                     {canProceed ? (
                         <button 
                             onClick={handleClickAd}
-                            className="bg-green-600 text-white px-5 py-2 rounded-full text-xs font-bold animate-pulse hover:bg-green-700 transition flex items-center gap-2"
+                            className={`${content.btnColor} ${category === 'betting' ? 'text-black' : 'text-white'} px-5 py-2 rounded-full text-xs font-bold animate-pulse transition flex items-center gap-2`}
                         >
                             Get Link <ArrowRight size={14} />
                         </button>
@@ -105,24 +164,22 @@ const PublicEarnPage: React.FC = () => {
             <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
                 
                 {/* AD SLOT 1 */}
-                <div className="w-full bg-gray-200 rounded-lg overflow-hidden min-h-[100px] flex items-center justify-center border border-gray-300">
+                <div className="w-full bg-white rounded-lg overflow-hidden min-h-[100px] flex items-center justify-center border border-gray-200 shadow-sm">
                      <SmartAd type="banner" className="m-0 border-0" />
                 </div>
 
                 <article className="prose prose-slate max-w-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h1 className="text-2xl font-black mb-4 text-gray-900 flex items-center gap-2">
-                        <BookOpen className="text-blue-600" size={28}/> 
-                        The Hidden Treasure of Digital Age
+                    <h1 className={`text-2xl font-black mb-1 ${content.color} flex items-center gap-2`}>
+                        {content.icon}
+                        {content.title}
                     </h1>
+                    <p className="text-sm font-bold text-gray-400 mb-4 uppercase tracking-wider">{content.subtitle}</p>
+                    
                     <p className="text-gray-600 leading-relaxed mb-4">
-                        In a world driven by connectivity, opportunities hide in plain sight. 
-                        Just like finding a rare gem in a vast desert, discovering the right platform can change everything.
-                        Technology has bridged the gap between dreams and reality, allowing anyone with determination to build something great.
+                        {content.text1}
                     </p>
                     <p className="text-gray-600 leading-relaxed">
-                        Imagine a system where your time is valued, and your efforts are rewarded instantly. 
-                        This is not just a story; it is the reality of the modern digital ecosystem. 
-                        Keep reading to unlock the gateway to this new world.
+                        {content.text2}
                     </p>
                 </article>
 
@@ -131,20 +188,8 @@ const PublicEarnPage: React.FC = () => {
                      <SmartAd className="shadow-none border-gray-200 bg-white" />
                 </div>
 
-                <article className="prose prose-slate max-w-none bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h2 className="text-xl font-bold mb-4 text-gray-800">অজানার পথে যাত্রা (The Journey to the Unknown)</h2>
-                    <p className="text-gray-600 leading-relaxed mb-4">
-                        প্রযুক্তির এই বিশাল সাগরে আমরা সবাই নাবিক। প্রতিটি ক্লিক, প্রতিটি পদক্ষেপ আমাদের নতুন দিগন্তের দিকে নিয়ে যায়।
-                        সাফল্য কোনো গন্তব্য নয়, এটি একটি যাত্রা। ধৈর্য এবং নিষ্ঠার সাথে এগিয়ে গেলে, আপনিও খুঁজে পাবেন আপনার কাঙ্ক্ষিত রত্ন।
-                    </p>
-                    <p className="text-gray-600 leading-relaxed">
-                        আজকের এই দিনে, সুযোগ আপনার হাতের মুঠোয়। শুধু প্রয়োজন সঠিক চাবিটি খুঁজে পাওয়া।
-                        নিচের লিংকে ক্লিক করে আপনার যাত্রা শুরু করুন।
-                    </p>
-                </article>
-
-                <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-start gap-3">
-                    <User className="text-blue-500 shrink-0 mt-1" size={20} />
+                <div className="bg-white border border-gray-200 p-4 rounded-xl flex items-start gap-3 shadow-sm">
+                    <User className="text-gray-400 shrink-0 mt-1" size={20} />
                     <div>
                         <h4 className="font-bold text-gray-800 text-sm">Community Verified</h4>
                         <p className="text-xs text-gray-600 mt-1">
@@ -162,7 +207,7 @@ const PublicEarnPage: React.FC = () => {
                     disabled={!canProceed}
                     className={`w-full max-w-md py-4 rounded-xl font-black uppercase tracking-wider shadow-xl flex items-center justify-center gap-2 transition-all transform ${
                         canProceed 
-                        ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 hover:-translate-y-1' 
+                        ? `${content.btnColor} ${category === 'betting' ? 'text-black' : 'text-white'} hover:scale-105 hover:-translate-y-1` 
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
                  >
