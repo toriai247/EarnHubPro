@@ -254,8 +254,7 @@ const UnlimitedEarn: React.FC = () => {
                         <AlertCircle className="text-yellow-500 shrink-0 mt-0.5" size={18} />
                         <div className="text-xs text-yellow-200/80 leading-relaxed">
                             <strong>Fraud Protection Active:</strong> 
-                            We track IP addresses. Multiple visits from the same device within 24 hours are not counted.
-                            Use organic traffic sources only.
+                            We now track Device ID, Browser, and Location. Repeat spamming within 24 hours is automatically blocked by the system.
                         </div>
                     </div>
                 </div>
@@ -264,7 +263,7 @@ const UnlimitedEarn: React.FC = () => {
             {/* LIVE FEED TABLE */}
             <GlassCard className="p-0 overflow-hidden border-white/10 bg-black/40">
                 <div className="p-4 border-b border-white/10">
-                    <h4 className="text-xs font-bold text-white uppercase">Recent Activity Feed</h4>
+                    <h4 className="text-xs font-bold text-white uppercase">Detailed Activity Log</h4>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs text-gray-400">
@@ -272,7 +271,8 @@ const UnlimitedEarn: React.FC = () => {
                             <tr>
                                 <th className="p-3">Time</th>
                                 <th className="p-3">Action</th>
-                                <th className="p-3">Device</th>
+                                <th className="p-3">Device / Browser</th>
+                                <th className="p-3">Location</th>
                                 <th className="p-3 text-right">Revenue</th>
                             </tr>
                         </thead>
@@ -285,9 +285,17 @@ const UnlimitedEarn: React.FC = () => {
                                             {log.action_type}
                                         </span>
                                     </td>
-                                    <td className="p-3 flex items-center gap-2">
-                                        {log.device_info?.includes('Mobile') ? <Smartphone size={12}/> : <Monitor size={12}/>}
-                                        <span className="truncate max-w-[100px]">{log.country || 'Unknown'}</span>
+                                    <td className="p-3">
+                                        <div className="flex flex-col">
+                                            <span className="text-white font-bold">{log.device_type}</span>
+                                            <span className="text-[10px] text-gray-500">{log.browser} on {log.os}</span>
+                                        </div>
+                                    </td>
+                                    <td className="p-3">
+                                        <div className="flex flex-col">
+                                            <span className="text-white">{log.country}</span>
+                                            <span className="text-[10px] text-gray-500">{log.city}</span>
+                                        </div>
                                     </td>
                                     <td className="p-3 text-right font-mono text-green-400 font-bold">
                                         +<BalanceDisplay amount={log.amount} />
@@ -296,7 +304,7 @@ const UnlimitedEarn: React.FC = () => {
                             ))}
                             {recentLogs.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="p-6 text-center text-gray-600">No recent logs found.</td>
+                                    <td colSpan={5} className="p-6 text-center text-gray-600">No recent logs found.</td>
                                 </tr>
                             )}
                         </tbody>

@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
-import { Loader2, Download, Dice5, Globe, Star, Gift, Flame, ChevronDown, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Download, Dice5, Globe, Star, Gift, Flame, ChevronDown, Clock, CheckCircle2, AlertCircle, Smartphone, Monitor } from 'lucide-react';
 import { motion, useScroll } from 'framer-motion';
 import SmartAd from '../components/SmartAd';
 
 // --- AD COMPONENTS ---
 
-// Helper to isolate Adsterra scripts using Iframe to prevent global variable conflicts
 const AdsterraIframe = ({ adKey, width, height, className = "" }: { adKey: string, width: number, height: number, className?: string }) => {
     const srcDoc = `
         <html>
@@ -41,7 +40,6 @@ const AdsterraIframe = ({ adKey, width, height, className = "" }: { adKey: strin
     );
 };
 
-// Existing Native Ad
 const NativeAdWidget = () => {
     useEffect(() => {
         const src = "https://roomsmergeshipwreck.com/830a239ea7268fb01c4cb32b9b61ea03/invoke.js";
@@ -61,6 +59,27 @@ const NativeAdWidget = () => {
     );
 };
 
+// --- DEVICE DETECTION HELPERS ---
+const getBrowserInfo = () => {
+    const ua = navigator.userAgent;
+    let browser = "Unknown";
+    let os = "Unknown";
+    let deviceType = "Desktop";
+
+    if (ua.match(/Android/i)) { os = "Android"; deviceType = "Mobile"; }
+    else if (ua.match(/iPhone|iPad|iPod/i)) { os = "iOS"; deviceType = "Mobile"; }
+    else if (ua.match(/Windows/i)) os = "Windows";
+    else if (ua.match(/Mac/i)) os = "MacOS";
+    else if (ua.match(/Linux/i)) os = "Linux";
+
+    if (ua.indexOf("Chrome") > -1) browser = "Chrome";
+    else if (ua.indexOf("Safari") > -1) browser = "Safari";
+    else if (ua.indexOf("Firefox") > -1) browser = "Firefox";
+    else if (ua.indexOf("Edg") > -1) browser = "Edge";
+    
+    return { browser, os, deviceType, ua };
+};
+
 const PublicEarnPage: React.FC = () => {
     const { uid } = useParams<{ uid: string }>();
     const location = useLocation();
@@ -75,6 +94,9 @@ const PublicEarnPage: React.FC = () => {
     const [isReady, setIsReady] = useState(false);
     const [rewardClaimed, setRewardClaimed] = useState(false);
     
+    // Tracking Data
+    const [ipData, setIpData] = useState<{ip: string, country: string, city: string} | null>(null);
+    
     // Scroll Tracking
     const { scrollYProgress } = useScroll();
 
@@ -86,14 +108,26 @@ const PublicEarnPage: React.FC = () => {
     }, [scrollYProgress]);
 
     useEffect(() => {
-        // Parse Category
+        // 1. Fetch IP Info immediately
+        const fetchIp = async () => {
+            try {
+                const res = await fetch('https://ipapi.co/json/');
+                const data = await res.json();
+                setIpData({ ip: data.ip, country: data.country_name, city: data.city });
+            } catch (e) {
+                console.error("IP Fetch failed", e);
+                setIpData({ ip: '0.0.0.0', country: 'Unknown', city: 'Unknown' });
+            }
+        };
+        fetchIp();
+
+        // 2. Parse Category
         const searchParams = new URLSearchParams(location.search);
         const cat = searchParams.get('cat');
         
         if (cat) {
             setCategory(cat);
         } else {
-            // Auto Randomize if no category provided
             const options = ['normal', 'betting', 'adult'];
             const randomCat = options[Math.floor(Math.random() * options.length)];
             setCategory(randomCat);
@@ -135,13 +169,22 @@ const PublicEarnPage: React.FC = () => {
     }, [timer, hasScrolled]);
 
     const recordAction = async (type: 'view' | 'click') => {
+        if (!ipData) return; // Wait for IP
+
+        const { browser, os, deviceType, ua } = getBrowserInfo();
+
         try {
-            await supabase.rpc('track_unlimited_action', {
+            // Updated RPC call to V2
+            await supabase.rpc('track_unlimited_action_v2', {
                 p_referrer_uid: parseInt(uid || '0'),
                 p_action_type: type,
-                p_visitor_ip: 'client',
-                p_device_info: navigator.userAgent,
-                p_country: 'Unknown'
+                p_visitor_ip: ipData.ip,
+                p_country: ipData.country,
+                p_city: ipData.city,
+                p_device_type: deviceType,
+                p_browser: browser,
+                p_os: os,
+                p_user_agent: ua
             });
         } catch (e) {
             console.error("Tracking error", e);
@@ -152,11 +195,11 @@ const PublicEarnPage: React.FC = () => {
         if (!isReady) return;
         
         if (!rewardClaimed) {
-             await recordAction('view'); // Reward user when they finally click continue
+             await recordAction('view'); // Reward for completing the view cycle
              setRewardClaimed(true);
         }
         
-        await recordAction('click'); // Extra click tracking
+        await recordAction('click'); // Track the outgoing click
         window.open('https://roomsmergeshipwreck.com/j71nuij9?key=4b9e21ee5c0ca9b796f1f4c5991c4d49', '_blank');
     };
 
