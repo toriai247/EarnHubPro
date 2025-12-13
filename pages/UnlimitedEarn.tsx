@@ -30,7 +30,6 @@ const UnlimitedEarn: React.FC = () => {
 
     const CATEGORIES = [
         { id: 'normal', label: 'Money / Tech', icon: Globe, color: 'text-blue-400', border: 'border-blue-500' },
-        { id: 'islamic', label: 'Islamic', icon: BookOpen, color: 'text-green-400', border: 'border-green-500' },
         { id: 'betting', label: 'Betting / Games', icon: Dice5, color: 'text-yellow-400', border: 'border-yellow-500' },
         { id: 'adult', label: 'Viral / News', icon: Flame, color: 'text-red-500', border: 'border-red-500' },
     ];
