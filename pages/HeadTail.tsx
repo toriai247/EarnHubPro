@@ -24,8 +24,8 @@ const HeadTail: React.FC = () => {
   // 3D Rotation State
   const [rotation, setRotation] = useState(0);
   
-  // Corrected type definition
-  const [history, setHistory] = useState<('head' | 'tail')[]>([]);
+  // Explicitly typed as an Array of unions to prevent TS2339/TS2345 errors
+  const [history, setHistory] = useState<Array<'head' | 'tail'>>([]);
   const [soundOn, setSoundOn] = useState(true);
 
   // Audio Refs
@@ -92,7 +92,8 @@ const HeadTail: React.FC = () => {
       try {
           // Logic Result
           const resultIsHead = Math.random() < 0.5;
-          const result = resultIsHead ? 'head' : 'tail';
+          // Explicitly type result to match state definition
+          const result: 'head' | 'tail' = resultIsHead ? 'head' : 'tail';
           const isWin = choice === result;
           const payout = isWin ? amount * MULTIPLIER : 0;
 
@@ -119,8 +120,8 @@ const HeadTail: React.FC = () => {
           setTimeout(async () => {
               setIsFlipping(false);
               setHistory(prev => {
-                  const arr = Array.isArray(prev) ? prev : [];
-                  return [result, ...arr].slice(0, 10);
+                  const safePrev = Array.isArray(prev) ? prev : [];
+                  return [result, ...safePrev].slice(0, 10);
               });
 
               if (isWin) {
@@ -163,7 +164,7 @@ const HeadTail: React.FC = () => {
       }
   };
 
-  // Safe History for Mapping
+  // Runtime safety check before rendering map
   const safeHistory = Array.isArray(history) ? history : [];
 
   return (
