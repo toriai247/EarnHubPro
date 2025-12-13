@@ -89,7 +89,15 @@ const PublicEarnPage: React.FC = () => {
         // Parse Category
         const searchParams = new URLSearchParams(location.search);
         const cat = searchParams.get('cat');
-        if (cat) setCategory(cat);
+        
+        if (cat) {
+            setCategory(cat);
+        } else {
+            // Auto Randomize if no category provided
+            const options = ['normal', 'betting', 'adult'];
+            const randomCat = options[Math.floor(Math.random() * options.length)];
+            setCategory(randomCat);
+        }
 
         if (!uid) return;
         

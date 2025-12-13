@@ -24,15 +24,6 @@ const UnlimitedEarn: React.FC = () => {
     const [recentLogs, setRecentLogs] = useState<any[]>([]);
     const [userUid, setUserUid] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
-    
-    // Category State
-    const [selectedCategory, setSelectedCategory] = useState<string>('normal');
-
-    const CATEGORIES = [
-        { id: 'normal', label: 'Money / Tech', icon: Globe, color: 'text-blue-400', border: 'border-blue-500' },
-        { id: 'betting', label: 'Betting / Games', icon: Dice5, color: 'text-yellow-400', border: 'border-yellow-500' },
-        { id: 'adult', label: 'Viral / News', icon: Flame, color: 'text-red-500', border: 'border-red-500' },
-    ];
 
     useEffect(() => {
         fetchData();
@@ -96,12 +87,12 @@ const UnlimitedEarn: React.FC = () => {
         setLoading(false);
     };
 
-    // Construct Link based on Category
-    const promoLink = userUid ? `${window.location.origin}/#/u-link/${userUid}?cat=${selectedCategory}` : 'Loading...';
+    // Construct Universal Link (No category param)
+    const promoLink = userUid ? `${window.location.origin}/#/u-link/${userUid}` : 'Loading...';
 
     const copyLink = () => {
         navigator.clipboard.writeText(promoLink);
-        toast.success(`Copied ${selectedCategory.toUpperCase()} Link!`);
+        toast.success(`Copied Smart Link!`);
     };
 
     const shareLink = async () => {
@@ -131,7 +122,7 @@ const UnlimitedEarn: React.FC = () => {
                         <Zap className="text-cyan-400" size={32} /> Affiliate Link
                     </h2>
                     <p className="text-gray-400 text-sm mt-1 max-w-lg">
-                        Share your unique link. When users click "Continue" on the landing page, you get paid.
+                        Share your unique link. It automatically adapts content for maximum conversion.
                     </p>
                 </div>
                 <button onClick={fetchData} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white transition">
@@ -139,34 +130,12 @@ const UnlimitedEarn: React.FC = () => {
                 </button>
             </div>
 
-            {/* CATEGORY SELECTOR */}
-            <div>
-                <p className="text-xs font-bold text-gray-500 uppercase mb-2 pl-1">Select Landing Page Theme</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {CATEGORIES.map(cat => (
-                        <button
-                            key={cat.id}
-                            onClick={() => setSelectedCategory(cat.id)}
-                            className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${
-                                selectedCategory === cat.id 
-                                ? `bg-white/10 ${cat.border} ${cat.color} shadow-lg`
-                                : 'bg-[#111] border-white/5 text-gray-500 hover:bg-white/5'
-                            }`}
-                        >
-                            <cat.icon size={24} />
-                            <span className="text-xs font-bold uppercase">{cat.label}</span>
-                            {selectedCategory === cat.id && <div className="w-1.5 h-1.5 rounded-full bg-current"></div>}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
             {/* LINK GENERATOR */}
             <GlassCard className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border-cyan-500/30 p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none"><LinkIcon size={120} /></div>
                 
                 <h3 className="text-sm font-bold text-cyan-300 uppercase tracking-widest mb-3">
-                    Your {selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} Link
+                    Your Smart Link
                 </h3>
                 
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -192,7 +161,7 @@ const UnlimitedEarn: React.FC = () => {
                         0.05 BDT / Click
                     </span>
                     <span className="text-[10px] bg-yellow-500/10 text-yellow-300 px-2 py-1 rounded border border-yellow-500/20 flex items-center gap-1">
-                        <Activity size={10} /> High Conversion Layout
+                        <Activity size={10} /> Auto-Rotating Content
                     </span>
                 </div>
             </GlassCard>
