@@ -30,6 +30,17 @@ export interface WebsiteReview {
     profile?: UserProfile; // Joined
 }
 
+export interface UnlimitedEarnLog {
+    id: string;
+    referrer_id: string;
+    action_type: 'view' | 'click';
+    visitor_ip: string;
+    device_info: string;
+    country: string;
+    amount: number;
+    created_at: string;
+}
+
 // NEW INVESTMENT TYPES
 export type AssetType = 'commodity' | 'currency' | 'business';
 
@@ -140,7 +151,7 @@ export interface MarketSubmission {
 export interface Transaction {
   id: string;
   user_id: string;
-  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer' | 'sponsorship' | 'asset_buy' | 'asset_sell' | 'fee';
+  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer' | 'sponsorship' | 'asset_buy' | 'asset_sell' | 'fee' | 'roi_claim';
   amount: number;
   status: 'success' | 'pending' | 'failed';
   description?: string;
@@ -292,6 +303,34 @@ export interface SystemConfig {
 export interface HelpRequest { id: string; user_id?: string; email: string; message: string; status: 'pending' | 'resolved'; admin_response?: string; resolved_at?: string; created_at: string; }
 export interface KycRequest { id: string; user_id: string; full_name: string; id_type: string; id_number: string; front_image_url: string; back_image_url: string; status: 'pending' | 'approved' | 'rejected'; admin_note?: string; created_at: string; profile?: UserProfile; }
 export interface ReferralTier { id: string; level: number; commission_percent: number; type: 'deposit' | 'earning'; is_active: boolean; created_at?: string; }
-// Legacy / Placeholder
-export interface InvestmentPlan { id: string; name: string; daily_return: number; duration: number; min_invest: number; total_roi: number; badge_tag?: string; description?: string; is_active?: boolean; }
+
+// --- INVESTMENT PACKAGES (Updated) ---
+export interface InvestmentPlan { 
+    id: string; 
+    name: string; 
+    daily_return: number; // Used as Fixed Daily Income in Packages
+    duration: number; // Days
+    min_invest: number; // Cost
+    total_roi: number; // Total Income (Cost + Profit)
+    badge_tag?: string; 
+    description?: string; 
+    is_active?: boolean; 
+}
+
+export interface UserInvestment {
+    id: string;
+    user_id: string;
+    plan_id: string;
+    plan_name: string;
+    amount: number;
+    daily_return: number;
+    total_profit_percent: number;
+    start_date: string;
+    end_date: string;
+    status: 'active' | 'completed';
+    total_earned: number;
+    last_claim_at: string;
+    next_claim_at: string;
+}
+
 export interface Task { id: string; title: string; description?: string; reward: number; sponsor_rate?: number; icon: string; url?: string; difficulty: 'Easy' | 'Medium' | 'Hard'; frequency: 'once' | 'daily'; type: 'social' | 'video' | 'app' | 'website'; status?: 'available' | 'completed' | 'cooldown'; is_active?: boolean; created_at?: string; }

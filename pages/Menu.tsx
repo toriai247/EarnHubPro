@@ -27,12 +27,13 @@ const MENU_ITEMS: MenuItem[] = [
     { name: 'Profile', path: '/profile', icon: User, color: 'text-blue-400', roles: ['user'] },
     
     // --- EARNING ---
-    { name: 'Invest', path: '/invest', icon: TrendingUp, color: 'text-green-400', roles: ['user'] },
-    { name: 'Tasks', path: '/tasks', icon: CheckCircle2, color: 'text-yellow-400', roles: ['user'] },
+    { name: 'Invest (Old)', path: '/invest', icon: TrendingUp, color: 'text-green-400', roles: ['user'] },
+    { name: 'VIP Plans', path: '/vip-plans', icon: Crown, color: 'text-yellow-400', roles: ['user'] },
+    { name: 'Tasks', path: '/tasks', icon: CheckCircle2, color: 'text-orange-400', roles: ['user'] },
     { name: 'Games', path: '/games', icon: Gamepad2, color: 'text-purple-400', roles: ['user'] },
     { name: 'Video', path: '/video', icon: PlayCircle, color: 'text-red-400', roles: ['user'] },
     { name: 'Invite', path: '/invite', icon: Users, color: 'text-pink-400', roles: ['user'] },
-    { name: 'Advertise', path: '/advertise', icon: Megaphone, color: 'text-orange-400', roles: ['user'] },
+    { name: 'Advertise', path: '/advertise', icon: Megaphone, color: 'text-cyan-400', roles: ['user'] },
 
     // --- GAMES ---
     { name: 'Plinko', path: '/games/plinko', icon: GitGraph, color: 'text-purple-400', roles: ['user'] },

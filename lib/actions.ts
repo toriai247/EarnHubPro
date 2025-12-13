@@ -1,6 +1,6 @@
 
 import { supabase } from '../integrations/supabase/client';
-import { Task, Asset } from '../types';
+import { Task, Asset, InvestmentPlan } from '../types';
 import { CURRENCY_CONFIG } from '../constants';
 
 // Helper to create a random referral code
@@ -180,6 +180,67 @@ export const requestDelivery = async (userId: string, holdingId: string, address
     }).eq('id', holdingId);
 
     await createNotification(userId, 'Delivery Requested', `Request for ${holding.quantity} of ${holding.assets.name} received.`, 'info');
+};
+
+// --- VIP PACKAGE ACTIONS ---
+
+export const buyPackage = async (userId: string, plan: InvestmentPlan) => {
+    if (!isValidUUID(userId)) throw new Error("Invalid User");
+
+    // 1. Deduct cost from Deposit Balance
+    await updateWallet(userId, plan.min_invest, 'decrement', 'deposit_balance');
+    await createTransaction(userId, 'invest', plan.min_invest, `Purchased ${plan.name} Package`);
+    
+    // 2. Add to Investment Balance for Net Worth calculation
+    await updateWallet(userId, plan.min_invest, 'increment', 'investment_balance');
+
+    // 3. Create Investment Record
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + plan.duration);
+
+    const { error } = await supabase.from('investments').insert({
+        user_id: userId,
+        plan_id: plan.id,
+        plan_name: plan.name,
+        amount: plan.min_invest,
+        daily_return: plan.daily_return, // Storing Amount directly
+        total_profit_percent: 0, // Not used for this mode
+        start_date: new Date().toISOString(),
+        end_date: endDate.toISOString(),
+        status: 'active',
+        total_earned: 0,
+        last_claim_at: null,
+        next_claim_at: new Date().toISOString() // Can claim immediately or set to +24h
+    });
+
+    if (error) throw error;
+    await syncWalletTotals(userId);
+};
+
+export const claimInvestmentReward = async (userId: string, investmentId: string, dailyAmount: number) => {
+     if (!isValidUUID(userId)) throw new Error("Invalid User");
+
+     // 1. Credit Earning Balance
+     await updateWallet(userId, dailyAmount, 'increment', 'earning_balance');
+     
+     // 2. Log Transaction
+     await createTransaction(userId, 'roi_claim', dailyAmount, `Daily Claim: ${dailyAmount}`);
+
+     // 3. Update Investment Record (Next Claim +24h)
+     const now = new Date();
+     const nextClaim = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+     // Update total earned
+     const { data: inv } = await supabase.from('investments').select('total_earned').eq('id', investmentId).single();
+     const newTotal = (inv?.total_earned || 0) + dailyAmount;
+
+     await supabase.from('investments').update({
+         last_claim_at: now.toISOString(),
+         next_claim_at: nextClaim.toISOString(),
+         total_earned: newTotal
+     }).eq('id', investmentId);
+     
+     await syncWalletTotals(userId);
 };
 
 // --- DAILY BONUS & LEGACY ---

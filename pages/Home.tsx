@@ -1,9 +1,10 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowDownLeft, ArrowUpRight, ArrowRightLeft, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play, 
   Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText, Grid, Eye, EyeOff, History, Wallet, Megaphone,
-  ChevronRight, Quote, Gift, Layers, Activity
+  ChevronRight, Quote, Gift, Layers, Activity, Crown
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -349,6 +350,12 @@ const Home: React.FC = () => {
               <Zap size={12} className="text-yellow-500" /> Start Earning
           </h3>
           <div className="grid grid-cols-2 gap-3 mb-3">
+              <Link to="/vip-plans" className="p-4 bg-[#111] border border-white/5 rounded-2xl hover:border-amber-500/30 transition group relative overflow-hidden">
+                   <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition"><Crown size={40}/></div>
+                   <Crown size={24} className="text-amber-500 mb-2" />
+                   <h4 className="font-bold text-white text-sm">VIP Plans</h4>
+                   <p className="text-[10px] text-gray-500 mt-0.5">Fixed Returns</p>
+              </Link>
               <Link to="/tasks" className="p-4 bg-[#111] border border-white/5 rounded-2xl hover:border-yellow-500/30 transition group relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition"><Briefcase size={40}/></div>
                   <Briefcase size={24} className="text-yellow-500 mb-2" />

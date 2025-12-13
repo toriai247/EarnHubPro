@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Volume2, VolumeX, RefreshCw, Apple, Skull, Trophy, Play, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, RefreshCw, Apple, Skull, Trophy, Play, AlertCircle, HelpCircle, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
@@ -50,9 +50,9 @@ const AppleFortune: React.FC = () => {
         fetchBalance();
         resetVisualGrid();
         // Set volumes
-        biteSfx.current.volume = 0.7;
-        winSfx.current.volume = 0.9;
-        loseSfx.current.volume = 0.8;
+        biteSfx.current.volume = 0.6;
+        winSfx.current.volume = 0.8;
+        loseSfx.current.volume = 0.7;
     }, []);
 
     const fetchBalance = async () => {
@@ -182,10 +182,6 @@ const AppleFortune: React.FC = () => {
             playSound('good');
             newGrid[rowIdx][colIdx] = 'good';
             
-            // Reveal other good/bad in this row only? No, usually others stay hidden until loss.
-            // But let's verify if we want to show the 'bad' ones in this row to verify fairness?
-            // Usually Apple of Fortune keeps them hidden until game over. We keep it standard.
-            
             setGridHistory(newGrid);
 
             if (currentStep === ROWS - 1) {
@@ -246,33 +242,40 @@ const AppleFortune: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-center mb-6 relative z-10">
                <div className="flex items-center gap-3">
-                   <Link to="/games" className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 transition text-white border border-white/5">
+                   <Link to="/games" className="p-2 bg-white/5 rounded-xl hover:bg-white/10 transition text-white border border-white/5 backdrop-blur-md">
                        <ArrowLeft size={20} />
                    </Link>
-                   <h1 className="text-xl font-black text-white uppercase tracking-wider">Apple Fortune</h1>
+                   <h1 className="text-xl font-black text-white uppercase tracking-wider flex items-center gap-2">
+                       Apple Fortune
+                   </h1>
                </div>
                <div className="flex gap-2">
-                   <button onClick={() => setSoundOn(!soundOn)} className="p-2 text-gray-500 hover:text-white transition bg-white/5 rounded-lg border border-white/5">
+                   <button onClick={() => setSoundOn(!soundOn)} className="p-2 text-gray-400 hover:text-white transition bg-white/5 rounded-xl border border-white/5 backdrop-blur-md">
                        {soundOn ? <Volume2 size={20}/> : <VolumeX size={20}/>}
                    </button>
                </div>
             </div>
 
-            {/* Game Container (Wood Theme) */}
-            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-[#3f2e18] bg-[#1a1109]">
+            {/* Game Board Container */}
+            <div className="relative rounded-[32px] overflow-hidden shadow-2xl border border-white/10 bg-[#0f0f0f]">
                 
-                {/* Background Decoration */}
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-20"></div>
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-[#2e1d0e]/80 to-[#120b06]/90 z-0"></div>
-                
-                {/* Vines/Leaves Decoration (CSS shapes) */}
-                <div className="absolute top-0 left-0 w-32 h-32 bg-green-900/20 rounded-br-full blur-2xl z-0"></div>
-                <div className="absolute bottom-0 right-0 w-40 h-40 bg-green-900/10 rounded-tl-full blur-3xl z-0"></div>
+                {/* Background FX */}
+                <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/10 to-black pointer-events-none"></div>
+                <div className="absolute top-0 left-0 w-full h-1/2 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
 
-                <div className="relative z-10 p-4 sm:p-6 flex gap-4">
+                <div className="relative z-10 p-5 flex gap-4">
                     
-                    {/* THE GRID */}
-                    <div className="flex-1 flex flex-col-reverse gap-1.5">
+                    {/* LEFT: Multiplier Ladder (Only Visible on larger screens or compact) */}
+                    <div className="hidden sm:flex flex-col-reverse justify-between py-1 pr-2 border-r border-white/5 w-16">
+                        {MULTIPLIERS.map((m, i) => (
+                            <div key={i} className={`text-[10px] font-mono font-bold text-right transition-colors ${i === currentStep && gameState === 'playing' ? 'text-white scale-110' : i < currentStep ? 'text-green-500' : 'text-gray-700'}`}>
+                                x{m.toFixed(2)}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* MAIN GRID */}
+                    <div className="flex-1 flex flex-col-reverse gap-2">
                         {Array.from({ length: ROWS }).map((_, rIdx) => {
                             const isRowActive = gameState === 'playing' && rIdx === currentStep;
                             const isRowPast = rIdx < currentStep;
@@ -280,22 +283,26 @@ const AppleFortune: React.FC = () => {
                             const badCount = getBadAppleCount(rIdx);
 
                             return (
-                                <div key={rIdx} className={`relative flex gap-1.5 h-10 sm:h-12 items-center justify-center p-1 rounded-lg transition-all duration-300 ${isRowActive ? 'bg-white/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] border border-white/20' : 'bg-black/20 border border-white/5'}`}>
+                                <div key={rIdx} className={`relative flex gap-2 h-10 sm:h-12 items-center justify-center p-1 rounded-xl transition-all duration-300 ${
+                                    isRowActive 
+                                    ? 'bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
+                                    : 'bg-white/5 border border-white/5 opacity-80'
+                                }`}>
                                     
-                                    {/* Multiplier Indicator */}
-                                    <div className={`absolute -left-12 sm:-left-16 top-1/2 -translate-y-1/2 text-[10px] sm:text-xs font-bold font-mono transition-colors ${isRowActive ? 'text-white scale-110' : isRowPast ? 'text-green-500' : 'text-gray-600'}`}>
+                                    {/* Mobile Multiplier Tag (Left) */}
+                                    <div className={`absolute -left-3 top-1/2 -translate-y-1/2 text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm border border-white/10 sm:hidden transition-colors ${isRowActive ? 'text-white border-blue-500/50' : isRowPast ? 'text-green-400' : 'text-gray-600'}`}>
                                         x{rowMultiplier.toFixed(2)}
                                     </div>
-                                    
-                                    {/* Danger Level Indicator (Right Side) */}
+
+                                    {/* Danger Warning (Right) - Only active row */}
                                     {isRowActive && (
-                                        <div className="absolute -right-16 top-1/2 -translate-y-1/2 text-[9px] font-bold text-red-400 flex items-center gap-1 animate-pulse">
-                                            <Skull size={10} /> {badCount} Bad
+                                        <div className="absolute -right-3 top-1/2 -translate-y-1/2 text-[8px] font-bold text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded border border-red-500/30 backdrop-blur-md flex items-center gap-1 animate-pulse">
+                                            <Skull size={8} /> {badCount}
                                         </div>
                                     )}
 
+                                    {/* Cells */}
                                     {Array.from({ length: COLS }).map((_, cIdx) => {
-                                        // Safe access with optional chaining fallback
                                         const cellStatus = gridHistory[rIdx] ? gridHistory[rIdx][cIdx] : 'hidden';
                                         
                                         return (
@@ -303,16 +310,16 @@ const AppleFortune: React.FC = () => {
                                                 key={cIdx}
                                                 disabled={!isRowActive}
                                                 onClick={() => handleCellClick(rIdx, cIdx)}
-                                                className={`flex-1 h-full rounded-md flex items-center justify-center relative overflow-hidden transition-all active:scale-95 ${
+                                                className={`flex-1 h-full rounded-lg flex items-center justify-center relative overflow-hidden transition-all active:scale-95 ${
                                                     isRowActive 
-                                                    ? 'bg-gradient-to-b from-[#5c4024] to-[#3d2a17] hover:brightness-110 cursor-pointer shadow-inner border-t border-[#7a5c3d]' 
-                                                    : 'bg-[#261a10] opacity-80'
+                                                    ? 'bg-white/10 hover:bg-white/20 cursor-pointer shadow-inner' 
+                                                    : 'bg-black/20 cursor-default'
                                                 }`}
                                             >
-                                                {/* Hidden State (Card Back) */}
+                                                {/* Hidden State */}
                                                 {cellStatus === 'hidden' && (
-                                                    <div className="w-full h-full flex items-center justify-center opacity-30">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-[#8c6b4a]"></div>
+                                                    <div className={`w-full h-full flex items-center justify-center opacity-20 ${isRowActive ? 'animate-pulse' : ''}`}>
+                                                        <HelpCircle size={14} />
                                                     </div>
                                                 )}
 
@@ -320,23 +327,26 @@ const AppleFortune: React.FC = () => {
                                                 <AnimatePresence>
                                                     {cellStatus !== 'hidden' && (
                                                         <motion.div
-                                                            initial={{ scale: 0, rotate: 180 }}
-                                                            animate={{ scale: 1, rotate: 0 }}
+                                                            initial={{ scale: 0.5, rotateY: 180, opacity: 0 }}
+                                                            animate={{ scale: 1, rotateY: 0, opacity: 1 }}
                                                             className="relative z-10"
                                                         >
                                                             {(cellStatus === 'good' || cellStatus === 'revealed_good') && (
-                                                                <div className={`drop-shadow-lg filter ${cellStatus === 'revealed_good' ? 'opacity-50 grayscale-[50%]' : ''}`}>
-                                                                    <Apple size={24} className="text-red-500 fill-red-500" />
-                                                                    {/* Shine */}
-                                                                    <div className="absolute top-0 right-0 w-2 h-2 bg-white rounded-full opacity-40 blur-[1px]"></div>
+                                                                <div className={`drop-shadow-[0_0_10px_rgba(239,68,68,0.5)] filter ${cellStatus === 'revealed_good' ? 'opacity-40 grayscale' : ''}`}>
+                                                                    <Apple size={22} className="text-red-500 fill-red-500" strokeWidth={2.5} />
+                                                                    {cellStatus === 'good' && <div className="absolute inset-0 bg-red-500 blur-lg opacity-30 animate-pulse"></div>}
                                                                 </div>
                                                             )}
                                                             {(cellStatus === 'bad' || cellStatus === 'revealed_bad') && (
-                                                                <div className="drop-shadow-lg filter relative">
-                                                                    <Apple size={24} className="text-purple-900/50 fill-black" />
-                                                                    <Skull size={16} className="text-gray-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                                                <div className="relative">
+                                                                    <div className="absolute inset-0 bg-black/50 rounded-full blur-md"></div>
+                                                                    <Apple size={22} className="text-purple-900/80 fill-black relative z-10 opacity-50" />
+                                                                    <Skull size={14} className="text-gray-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20" />
                                                                     {cellStatus === 'bad' && (
-                                                                        <div className="absolute inset-0 bg-red-500/40 blur-md rounded-full -z-10 animate-ping"></div>
+                                                                        <motion.div 
+                                                                            initial={{ scale: 0 }} animate={{ scale: 1.5, opacity: 0 }} 
+                                                                            className="absolute inset-0 bg-red-500 rounded-full z-0"
+                                                                        />
                                                                     )}
                                                                 </div>
                                                             )}
@@ -351,50 +361,56 @@ const AppleFortune: React.FC = () => {
                         })}
                     </div>
                 </div>
+                
+                {/* Base */}
+                <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 to-purple-600 opacity-50"></div>
             </div>
 
             {/* Controls */}
-            <GlassCard className="mt-6 p-5 border-white/10 bg-[#151515] relative z-10">
+            <GlassCard className="mt-6 p-5 border-white/10 bg-[#0f0f0f] relative z-10 rounded-[24px]">
                 
-                <div className="flex justify-between items-center mb-4">
-                    <p className="text-xs text-gray-400 font-bold uppercase">Balance: <span className="text-white"><BalanceDisplay amount={balance}/></span></p>
-                    <p className="text-xs text-gray-400 font-bold uppercase">Game Wallet: <span className="text-white"><BalanceDisplay amount={gameBalance}/></span></p>
+                <div className="flex justify-between items-center mb-4 text-xs font-bold text-gray-500 uppercase tracking-wide">
+                    <span>Balance: <span className="text-white"><BalanceDisplay amount={balance}/></span></span>
+                    <span>Win: <span className="text-white"><BalanceDisplay amount={gameBalance}/></span></span>
                 </div>
 
                 {gameState === 'playing' ? (
-                    <div className="flex gap-4">
-                        <div className="flex-1 bg-black/40 rounded-xl p-3 border border-white/10 flex items-center justify-center flex-col">
-                            <p className="text-[10px] text-gray-500 uppercase font-bold">Current Profit</p>
-                            <p className="text-green-400 font-mono font-bold text-xl">
+                    <div className="flex gap-4 items-stretch">
+                        <div className="flex-1 bg-black/40 rounded-2xl p-3 border border-white/5 flex items-center justify-center flex-col">
+                            <p className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-1">Current Profit</p>
+                            <p className="text-green-400 font-mono font-black text-2xl tracking-tighter">
                                 {currentStep > 0 ? (parseFloat(betAmount) * MULTIPLIERS[currentStep-1]).toFixed(2) : '0.00'}
                             </p>
                         </div>
                         <button 
                             onClick={() => cashOut(false)}
                             disabled={currentStep === 0}
-                            className={`flex-1 py-3 rounded-xl font-black uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 ${
+                            className={`flex-1 py-3 rounded-2xl font-black uppercase tracking-wider shadow-lg transition-all flex flex-col items-center justify-center gap-1 ${
                                 currentStep > 0 
-                                ? 'bg-green-500 text-black hover:bg-green-400 shadow-green-500/20' 
+                                ? 'bg-green-500 text-black hover:bg-green-400 shadow-green-500/20 hover:scale-[1.02]' 
                                 : 'bg-gray-800 text-gray-500 cursor-not-allowed border border-white/5'
                             }`}
                         >
-                            <Trophy size={18} /> Take Win
+                            <div className="flex items-center gap-2 text-sm">
+                                <Trophy size={16} /> TAKE WIN
+                            </div>
+                            {currentStep > 0 && <span className="text-[10px] opacity-80 font-mono">x{MULTIPLIERS[currentStep-1]}</span>}
                         </button>
                     </div>
                 ) : (
                     <>
                         {/* Bet Amount */}
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="flex-1 relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{symbol}</span>
+                            <div className="flex-1 relative group">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold group-focus-within:text-green-500 transition-colors">{symbol}</span>
                                 <input 
                                     type="number" 
                                     value={betAmount} 
                                     onChange={e => setBetAmount(e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-8 pr-4 text-white font-mono font-bold text-xl focus:border-green-500 outline-none transition-all placeholder:text-gray-700"
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-8 pr-4 text-white font-mono font-bold text-xl focus:border-green-500 outline-none transition-all placeholder:text-gray-700"
                                 />
                             </div>
-                            <button onClick={() => setBetAmount((balance).toFixed(0))} className="px-5 py-4 bg-white/5 rounded-xl text-xs font-bold hover:bg-white/10 text-green-500 border border-white/5">MAX</button>
+                            <button onClick={() => setBetAmount((balance).toFixed(0))} className="px-5 py-4 bg-white/5 rounded-2xl text-xs font-bold hover:bg-white/10 text-green-500 border border-white/5 transition hover:scale-105 active:scale-95">MAX</button>
                         </div>
 
                         {/* Amounts Grid */}
@@ -403,7 +419,7 @@ const AppleFortune: React.FC = () => {
                                 <button 
                                     key={amt} 
                                     onClick={() => setBetAmount(amt.toString())}
-                                    className="py-2.5 bg-white/5 rounded-lg text-xs font-bold text-gray-400 hover:text-white hover:bg-white/10 transition border border-white/5 active:scale-95"
+                                    className="py-3 bg-white/5 rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:bg-white/10 transition border border-white/5 active:scale-95"
                                 >
                                     {amt}
                                 </button>
@@ -412,18 +428,18 @@ const AppleFortune: React.FC = () => {
 
                         {/* Info Note */}
                         {gameState === 'lost' && (
-                            <div className="mb-4 p-3 bg-red-900/20 border border-red-500/20 rounded-xl flex items-center gap-2 text-xs text-red-200">
-                                <AlertCircle size={14} className="text-red-500"/>
-                                <span>Board Revealed. Try again?</span>
+                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-center gap-2 text-xs text-red-400 font-medium">
+                                <AlertCircle size={14} />
+                                <span>Game Over. Try again?</span>
                             </div>
                         )}
 
                         {/* Play Button */}
                         <button 
                             onClick={startGame} 
-                            className="w-full py-4 bg-gradient-to-r from-green-600 to-green-500 text-black font-black text-lg uppercase tracking-wider rounded-xl hover:scale-[1.02] active:scale-[0.98] transition shadow-lg shadow-green-900/30 flex items-center justify-center gap-2"
+                            className="w-full py-4 bg-white text-black font-black text-lg uppercase tracking-wider rounded-2xl hover:bg-gray-200 transition shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-3"
                         >
-                            <Play size={20} fill="black" /> Place Bet
+                            START GAME <ChevronRight size={20} strokeWidth={3} />
                         </button>
                     </>
                 )}

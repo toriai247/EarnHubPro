@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, User, Bell, 
-  Wallet, Briefcase, BarChart3, PlusCircle, Globe, Shield, Inbox
+  Wallet, Briefcase, BarChart3, PlusCircle, Globe, Shield, Inbox, Zap
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import BalanceDisplay from './BalanceDisplay';
@@ -57,6 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const userNavItems = [
     { path: '/', icon: Home, label: 'Home', enabled: true },
     { path: '/wallet', icon: Wallet, label: 'Wallet', enabled: true, protected: true },
+    { path: '/unlimited-earn', icon: Zap, label: 'Promote', enabled: true, protected: true }, // Added new item
     { path: '/tasks', icon: Globe, label: 'Earn', enabled: isFeatureEnabled('is_tasks_enabled'), protected: true },
     { path: '/profile', icon: User, label: 'Profile', enabled: true, protected: true },
   ].filter(i => i.enabled);
