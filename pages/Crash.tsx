@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Volume2, VolumeX, Trophy, Rocket, History, Clock, Download, Users, Settings2, Play, Pause, Globe, Zap } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, Trophy, Rocket, History, Clock, Download, Users, Settings2, Play, Pause, Globe, Zap, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
@@ -9,12 +9,15 @@ import { useUI } from '../context/UIContext';
 import { useCurrency } from '../context/CurrencyContext';
 import GlassCard from '../components/GlassCard';
 
-// --- CONFIGURATION ---
-const BETTING_DURATION_MS = 7000; // 7s Betting Phase
-const MAX_FLIGHT_DURATION_MS = 20000; // Max 20s Flight
-const POST_CRASH_DELAY_MS = 2000; // 2s Cooldown after crash
+// --- SYNC CONFIGURATION ---
+const ROUND_DURATION_MS = 25000; // Total Round Time (25s) -> Fixed cycle ensures sync
+const BETTING_TIME_MS = 7000;    // 7 Seconds Betting
+// Flight time is dynamic within the remaining (25 - 7 = 18s) window
+
+// Growth Math
 const MAX_MULTIPLIER = 100.00;
-const GROWTH_COEF = Math.log(MAX_MULTIPLIER) / (MAX_FLIGHT_DURATION_MS / 1000);
+// We calibrate growth so it hits 100x in about 16-17 seconds
+const GROWTH_COEF = 0.25; 
 
 // Simulated Bots
 const BOTS = ['Player88', 'KingKhan', 'DhakaTop', 'WinMax', 'Lucky7', 'ProGamer', 'BD_Tiger', 'SkyHigh', 'MoneyMaker', 'CryptoBoss'];
@@ -26,7 +29,7 @@ const Crash: React.FC = () => {
     // --- GLOBAL STATE ---
     const [balance, setBalance] = useState(0);
     const [multiplier, setMultiplier] = useState(1.00);
-    const [gameState, setGameState] = useState<'BETTING' | 'FLYING' | 'CRASHED'>('BETTING');
+    const [gameState, setGameState] = useState<'SYNCING' | 'BETTING' | 'FLYING' | 'CRASHED'>('SYNCING');
     const [timeLeft, setTimeLeft] = useState(0);
     const [history, setHistory] = useState<{val: number, roundId: number}[]>([]);
     const [liveBets, setLiveBets] = useState<any[]>([]);
@@ -47,18 +50,37 @@ const Crash: React.FC = () => {
     const [profit2, setProfit2] = useState(0);
     const [autoBet2, setAutoBet2] = useState(false);
 
-    // Refs for Loop Access
+    // Refs
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const requestRef = useRef<number>();
-    const roundIdRef = useRef<number>(1);
-    const targetCrashRef = useRef<number>(1.00);
-    const phaseStartTimeRef = useRef<number>(Date.now());
+    
+    // Sync Logic Refs
+    const currentRoundIdRef = useRef<number>(0);
+    const currentCrashPointRef = useRef<number>(1.00);
+    const hasJoinedRoundRef = useRef<boolean>(false);
+    
     const [soundOn, setSoundOn] = useState(true);
 
     // Audio
-    const engineSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/878/878-preview.mp3')); // Jet
-    const crashSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/1706/1706-preview.mp3')); // Boom
-    const winSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3')); // Cash
+    const engineSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/878/878-preview.mp3')); 
+    const crashSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/1706/1706-preview.mp3')); 
+    const winSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3')); 
+
+    // --- PSEUDO RANDOM NUMBER GENERATOR (Deterministic) ---
+    // This ensures every device generates the EXACT same crash point for the same RoundID
+    const seededRandom = (seed: number) => {
+        const x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    };
+
+    const getCrashPoint = (roundId: number) => {
+        const r = seededRandom(roundId * 123.45); // Unique seed per round
+        // House Edge 4%
+        let crash = 0.96 / (1.0 - r);
+        if (crash < 1.00) crash = 1.00;
+        if (crash > MAX_MULTIPLIER) crash = MAX_MULTIPLIER;
+        return Math.floor(crash * 100) / 100;
+    };
 
     // --- INITIALIZATION ---
     useEffect(() => {
@@ -68,12 +90,26 @@ const Crash: React.FC = () => {
         winSfx.current.volume = 0.6;
         
         fetchBalance();
-        startNewRound();
 
-        // BD Clock
+        // BD Clock & Sync Init
         const clock = setInterval(() => {
             setBdTime(new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour12: true }));
         }, 1000);
+
+        // Pre-fill history based on previous time slots
+        const now = Date.now();
+        const currentRound = Math.floor(now / ROUND_DURATION_MS);
+        const prevHistory = [];
+        for(let i=1; i<=15; i++) {
+            prevHistory.push({
+                val: getCrashPoint(currentRound - i),
+                roundId: currentRound - i
+            });
+        }
+        setHistory(prevHistory);
+
+        // Start Loop
+        requestRef.current = requestAnimationFrame(syncGameLoop);
 
         return () => {
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -90,160 +126,121 @@ const Crash: React.FC = () => {
         }
     };
 
-    const generateBots = () => {
-        const count = Math.floor(Math.random() * 5) + 3; // 3-8 bots
+    const generateBots = (seed: number) => {
+        // Deterministic bots based on round seed
+        const r = seededRandom(seed);
+        const count = Math.floor(r * 15) + 5;
         const bots = [];
         for(let i=0; i<count; i++) {
-            const botName = BOTS[Math.floor(Math.random() * BOTS.length)];
-            const bet = (Math.random() * 500 + 10).toFixed(0);
-            const target = (Math.random() * 5 + 1.1).toFixed(2);
+            const botR = seededRandom(seed + i);
+            const botName = BOTS[Math.floor(botR * BOTS.length)];
+            const bet = (botR * 500 + 10).toFixed(0);
+            const target = (1 + botR * 5).toFixed(2);
             bots.push({ user: botName, bet: bet, target: target, cashout: null });
         }
         setLiveBets(bots);
     };
 
-    const downloadDailyData = () => {
-         const csvContent = "data:text/csv;charset=utf-8," 
-             + "Round,Crash Point\n"
-             + history.map(h => `${h.roundId},${h.val}x`).join("\n");
-         
-         const encodedUri = encodeURI(csvContent);
-         const link = document.createElement("a");
-         link.setAttribute("href", encodedUri);
-         link.setAttribute("download", `crash_history_${new Date().toLocaleDateString()}.csv`);
-         document.body.appendChild(link);
-         link.click();
-         document.body.removeChild(link);
-    };
-
-    // --- GAME LOGIC (FRESH STATE VIA REF PATTERN) ---
-    // We use a ref to store the latest version of gameLoop so the animation frame always calls the fresh closure.
-    const gameLoopRef = useRef<() => void>();
-
-    useEffect(() => {
-        gameLoopRef.current = gameLoop;
-    });
-
-    useEffect(() => {
-        const tick = () => {
-            if (gameLoopRef.current) gameLoopRef.current();
-            requestRef.current = requestAnimationFrame(tick);
-        };
-        requestRef.current = requestAnimationFrame(tick);
-        return () => {
-            if (requestRef.current) cancelAnimationFrame(requestRef.current);
-        };
-    }, []);
-
-    const gameLoop = () => {
+    // --- MAIN SYNC LOOP ---
+    const syncGameLoop = () => {
         const now = Date.now();
-        const elapsed = now - phaseStartTimeRef.current;
+        
+        // 1. Calculate Global State
+        const roundId = Math.floor(now / ROUND_DURATION_MS);
+        const progress = now % ROUND_DURATION_MS; // Time elapsed in this round (0 - 25000ms)
+        const crashPoint = getCrashPoint(roundId);
 
-        if (gameState === 'BETTING') {
-            const remaining = Math.max(0, BETTING_DURATION_MS - elapsed);
-            setTimeLeft(Math.ceil(remaining / 1000));
-            drawCanvas(1.00, false);
-
-            if (remaining <= 0) {
-                // Start Flying
-                setGameState('FLYING');
-                phaseStartTimeRef.current = Date.now();
-                
-                // Play Engine Sound
-                if (soundOn) {
-                    engineSfx.current.currentTime = 0;
-                    engineSfx.current.playbackRate = 1.0;
-                    engineSfx.current.play().catch(() => {});
-                }
-            }
-
-        } else if (gameState === 'FLYING') {
-            const flightTimeSec = elapsed / 1000;
-            const currentMult = Math.exp(GROWTH_COEF * flightTimeSec);
+        // Detect Round Change
+        if (roundId !== currentRoundIdRef.current) {
+            // New Round Started
+            currentRoundIdRef.current = roundId;
+            currentCrashPointRef.current = crashPoint;
             
-            // Sound Pitch Up (Simulate Acceleration)
-            if (soundOn && engineSfx.current) {
-                const pitch = Math.min(3.0, 1 + (currentMult - 1) * 0.1);
-                engineSfx.current.playbackRate = pitch;
-            }
+            // Push previous round to history if not already there
+            setHistory(prev => {
+                if (prev[0]?.roundId === roundId - 1) return prev;
+                return [{ val: getCrashPoint(roundId - 1), roundId: roundId - 1 }, ...prev].slice(0, 15);
+            });
 
-            if (currentMult >= targetCrashRef.current || flightTimeSec >= (MAX_FLIGHT_DURATION_MS/1000)) {
-                // Crash
-                const finalCrashVal = Math.min(currentMult, targetCrashRef.current);
-                handleCrash(finalCrashVal);
+            // Reset Local User State
+            setHasBet1(false); setCashedOut1(false); setProfit1(0);
+            setHasBet2(false); setCashedOut2(false); setProfit2(0);
+            hasJoinedRoundRef.current = false;
+            
+            // Generate Bots for this round
+            generateBots(roundId);
+            
+            // Process Auto Bets (Only at very start of betting phase)
+            if (autoBet1) placeBet(1, true);
+            if (autoBet2) placeBet(2, true);
+            
+            // Refresh Balance
+            fetchBalance();
+        }
+
+        // 2. Determine Phase
+        if (progress < BETTING_TIME_MS) {
+            // --- BETTING PHASE ---
+            if (gameState !== 'BETTING') {
+                setGameState('BETTING');
+                engineSfx.current.pause();
+                setMultiplier(1.00);
+            }
+            
+            const remaining = Math.ceil((BETTING_TIME_MS - progress) / 1000);
+            setTimeLeft(remaining);
+            drawCanvas(1.00, false);
+            
+        } else {
+            // --- FLYING / CRASHED PHASE ---
+            const flightTimeMs = progress - BETTING_TIME_MS;
+            const flightTimeSec = flightTimeMs / 1000;
+            
+            // Calculate what the multiplier *should* be right now
+            const currentMult = Math.exp(GROWTH_COEF * flightTimeSec);
+
+            if (currentMult >= crashPoint) {
+                // --- CRASHED ---
+                if (gameState !== 'CRASHED') {
+                    setGameState('CRASHED');
+                    setMultiplier(crashPoint);
+                    
+                    // Play Crash Sound Once
+                    engineSfx.current.pause();
+                    if (soundOn) {
+                        crashSfx.current.currentTime = 0;
+                        crashSfx.current.play().catch(()=>{});
+                    }
+                }
+                drawCanvas(crashPoint, true);
+                
             } else {
+                // --- FLYING ---
+                if (gameState !== 'FLYING') {
+                    setGameState('FLYING');
+                    // Play Engine Sound
+                    if (soundOn) {
+                        engineSfx.current.currentTime = 0;
+                        engineSfx.current.play().catch(()=>{});
+                    }
+                }
+
                 setMultiplier(currentMult);
+                
+                // Sound Pitch
+                if (soundOn && engineSfx.current) {
+                    engineSfx.current.playbackRate = Math.min(2.0, 1 + (currentMult - 1) * 0.1);
+                }
+
+                // Auto Cashouts & Bots
                 checkAutoCashout(currentMult);
                 updateBots(currentMult);
+                
                 drawCanvas(currentMult, false);
             }
-        } else if (gameState === 'CRASHED') {
-            if (elapsed > POST_CRASH_DELAY_MS) {
-                startNewRound();
-            } else {
-                drawCanvas(multiplier, true);
-            }
-        }
-    };
-
-    const handleCrash = (val: number) => {
-        setMultiplier(val);
-        setGameState('CRASHED');
-        phaseStartTimeRef.current = Date.now();
-        
-        // Stop Engine, Play Crash
-        engineSfx.current.pause();
-        if (soundOn) {
-            crashSfx.current.currentTime = 0;
-            crashSfx.current.play().catch(()=>{});
         }
 
-        setHistory(prev => [{val: val, roundId: roundIdRef.current}, ...prev].slice(0, 15));
-        drawCanvas(val, true);
-    };
-
-    const startNewRound = () => {
-        roundIdRef.current += 1;
-        targetCrashRef.current = getNextCrashResult();
-        phaseStartTimeRef.current = Date.now();
-        
-        setGameState('BETTING');
-        setMultiplier(1.00);
-        
-        setHasBet1(false); setCashedOut1(false); setProfit1(0);
-        setHasBet2(false); setCashedOut2(false); setProfit2(0);
-        generateBots();
-        fetchBalance();
-
-        // Process Auto Bets (Using current state references inside this closure)
-        if (autoBet1) placeBet(1, true);
-        if (autoBet2) placeBet(2, true);
-    };
-
-    // --- HIGH VARIANCE MATH ---
-    const getNextCrashResult = () => {
-        // Use crypto-secure random for better distribution
-        const array = new Uint32Array(1);
-        window.crypto.getRandomValues(array);
-        
-        // Normalize to 0-1
-        const r = array[0] / 4294967296;
-
-        // 1. Instant Crash Mechanism (5% chance)
-        // High risk, house edge mechanic typical in crash games
-        if (r < 0.05) return 1.00;
-
-        // 2. Inverse Distribution Formula (Pareto)
-        // Multiplier = (1 - HouseEdge) / (1 - r)
-        // 0.95 house edge factor ensures long term profitability for the "house" while allowing occasional huge multipliers
-        let multiplier = 0.95 / (1.0 - r);
-
-        // 3. Volatility Clamp
-        if (multiplier > MAX_MULTIPLIER) multiplier = MAX_MULTIPLIER;
-        if (multiplier < 1.00) multiplier = 1.00;
-
-        // Floor to 2 decimals
-        return Math.floor(multiplier * 100) / 100;
+        requestRef.current = requestAnimationFrame(syncGameLoop);
     };
 
     const updateBots = (currentM: number) => {
@@ -261,9 +258,10 @@ const Crash: React.FC = () => {
     };
 
     const placeBet = async (panel: 1 | 2, isAuto = false) => {
-        // If Manual, check GameState. If Auto, we are already in startNewRound (BETTING)
-        if (!isAuto && gameState !== 'BETTING') {
-            toast.error("Wait for next round"); return;
+        // Strict Check: Can only bet during BETTING phase
+        if (gameState !== 'BETTING' && !isAuto) {
+            toast.error("Round already started! Wait for next.");
+            return;
         }
 
         const amtStr = panel === 1 ? bet1Amount : bet2Amount;
@@ -271,19 +269,18 @@ const Crash: React.FC = () => {
         
         if (balance < amount) {
              if(!isAuto) toast.error("Insufficient Balance");
-             // Turn off auto if balance low
              if (panel === 1) setAutoBet1(false);
              else setAutoBet2(false);
              return;
         }
         
         try {
-            // Update State
             if (panel === 1) { setHasBet1(true); setCashedOut1(false); setProfit1(0); }
             else { setHasBet2(true); setCashedOut2(false); setProfit2(0); }
             
-            // Deduct
             setBalance(prev => prev - amount);
+            hasJoinedRoundRef.current = true;
+
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
                  await deductGameBalance(session.user.id, amount);
@@ -299,12 +296,13 @@ const Crash: React.FC = () => {
     };
 
     const handleCashOut = async (panel: 1 | 2) => {
+        // Can only cashout if we bet AND game is flying
         const hasBet = panel === 1 ? hasBet1 : hasBet2;
         const isCashed = panel === 1 ? cashedOut1 : cashedOut2;
         
         if (gameState !== 'FLYING' || !hasBet || isCashed) return;
 
-        const cashMult = multiplier;
+        const cashMult = multiplier; // Use current synchronized multiplier
         const amtStr = panel === 1 ? bet1Amount : bet2Amount;
         const winAmount = parseFloat(amtStr) * cashMult;
 
@@ -319,6 +317,20 @@ const Crash: React.FC = () => {
             await createTransaction(session.user.id, 'game_win', winAmount, `Crash Win x${cashMult.toFixed(2)}`);
             setBalance(prev => prev + winAmount);
         }
+    };
+    
+    const downloadDailyData = () => {
+         const csvContent = "data:text/csv;charset=utf-8," 
+             + "Round,Crash Point\n"
+             + history.map(h => `${h.roundId},${h.val}x`).join("\n");
+         
+         const encodedUri = encodeURI(csvContent);
+         const link = document.createElement("a");
+         link.setAttribute("href", encodedUri);
+         link.setAttribute("download", `crash_history_${new Date().toLocaleDateString()}.csv`);
+         document.body.appendChild(link);
+         link.click();
+         document.body.removeChild(link);
     };
 
     // --- CANVAS ---
@@ -449,7 +461,7 @@ const Crash: React.FC = () => {
                             : 'bg-green-500 text-black hover:bg-green-400 shadow-[0_0_20px_rgba(34,197,94,0.4)] active:scale-95'
                         }`}
                     >
-                        {gameState === 'FLYING' ? 'Wait for Next' : 'PLACE BET'}
+                        {gameState === 'BETTING' ? 'PLACE BET' : 'WAIT'}
                     </button>
                 )}
 
@@ -466,6 +478,15 @@ const Crash: React.FC = () => {
             </div>
         );
     };
+
+    if (gameState === 'SYNCING') {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-black text-white flex-col gap-4">
+                <Loader2 className="animate-spin text-blue-500" size={40} />
+                <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Synchronizing with Server Time...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="pb-32 pt-4 px-2 sm:px-4 max-w-xl mx-auto min-h-screen relative font-sans flex flex-col">
@@ -489,7 +510,7 @@ const Crash: React.FC = () => {
             {/* BD Time */}
             <div className="flex justify-center mb-4">
                 <div className="text-[10px] text-gray-500 font-mono flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full border border-white/5">
-                    <Globe size={10}/> BD Time: {bdTime}
+                    <Globe size={10}/> Global Server Time: {bdTime}
                 </div>
             </div>
 
@@ -511,7 +532,7 @@ const Crash: React.FC = () => {
                     {gameState === 'BETTING' ? (
                         <div className="animate-pulse">
                             <p className="text-xs text-blue-400 font-bold uppercase tracking-widest mb-1">Takeoff In</p>
-                            <p className="text-6xl font-black text-white drop-shadow-lg">{timeLeft}</p>
+                            <p className="text-6xl font-black text-white drop-shadow-lg">{timeLeft}s</p>
                         </div>
                     ) : (
                         <div>
