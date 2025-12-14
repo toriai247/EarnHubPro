@@ -3,11 +3,11 @@ import { InvestmentPlan, Task, Transaction, Game, VideoShort, Activity } from '.
 
 // Currency Configuration - BASE CURRENCY IS BDT (Rate = 1)
 export const CURRENCY_CONFIG = {
-    BDT: { code: 'BDT', name: 'Bangladeshi Taka', symbol: '৳', rate: 1, flag: '🇧🇩', signup_bonus: 0.00 }, // BASE
-    USD: { code: 'USD', name: 'US Dollar', symbol: '$', rate: 0.008333, flag: '🇺🇸', signup_bonus: 0.00 }, // ~120 BDT
-    EUR: { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.007692, flag: '🇪🇺', signup_bonus: 0.00 }, // ~130 BDT
-    INR: { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 0.7142, flag: '🇮🇳', signup_bonus: 0.00 }, // ~1.4 BDT
-    GBP: { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.006666, flag: '🇬🇧', signup_bonus: 0.00 }, // ~150 BDT
+    BDT: { code: 'BDT', name: 'Bangladeshi Taka', symbol: '৳', rate: 1, flag: '🇧🇩', signup_bonus: 50.00 }, // BASE
+    USD: { code: 'USD', name: 'US Dollar', symbol: '$', rate: 0.008333, flag: '🇺🇸', signup_bonus: 0.50 }, // ~120 BDT
+    EUR: { code: 'EUR', name: 'Euro', symbol: '€', rate: 0.007692, flag: '🇪🇺', signup_bonus: 0.45 }, // ~130 BDT
+    INR: { code: 'INR', name: 'Indian Rupee', symbol: '₹', rate: 0.7142, flag: '🇮🇳', signup_bonus: 40.00 }, // ~1.4 BDT
+    GBP: { code: 'GBP', name: 'British Pound', symbol: '£', rate: 0.006666, flag: '🇬🇧', signup_bonus: 0.40 }, // ~150 BDT
 };
 
 export const PLANS: InvestmentPlan[] = [

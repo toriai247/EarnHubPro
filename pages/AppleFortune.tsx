@@ -1,17 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Volume2, VolumeX, RefreshCw, Apple, Skull, Trophy, Play, AlertCircle, HelpCircle, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, RefreshCw, Apple, Skull, Trophy, Play, AlertCircle, HelpCircle, ChevronRight, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
+import { getPlayableBalance, deductGameBalance, determineOutcome } from '../lib/gameMath';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { useCurrency } from '../context/CurrencyContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 
-// --- CONFIG ---
 const ROWS = 10;
 const COLS = 5;
 const MULTIPLIERS = [1.23, 1.54, 1.93, 2.41, 4.02, 6.71, 11.18, 27.97, 69.93, 349.68];
@@ -22,34 +22,24 @@ const AppleFortune: React.FC = () => {
     const { toast } = useUI();
     const { symbol, format } = useCurrency();
     
-    // Game State
-    const [balance, setBalance] = useState(0);
-    const [gameBalance, setGameBalance] = useState(0);
+    const [totalBalance, setTotalBalance] = useState(0);
     const [betAmount, setBetAmount] = useState<string>('10');
     
-    // 'idle' | 'playing' | 'won' | 'lost' | 'cashed_out'
     const [gameState, setGameState] = useState<'idle' | 'playing' | 'won' | 'lost' | 'cashed_out'>('idle');
-    const [currentStep, setCurrentStep] = useState(0); // 0 to 9 (Row Index)
-    
-    // Logic Grid (True = Bad Apple, False = Good Apple)
+    const [currentStep, setCurrentStep] = useState(0); 
     const [mineGrid, setMineGrid] = useState<boolean[][]>([]); 
-    
-    // Visual Grid State
     const [gridHistory, setGridHistory] = useState<CellStatus[][]>(
         Array(ROWS).fill(null).map(() => Array(COLS).fill('hidden'))
     );
-    
     const [soundOn, setSoundOn] = useState(true);
 
-    // Audio
-    const biteSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2043/2043-preview.mp3')); // Apple bite
+    const biteSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2043/2043-preview.mp3')); 
     const winSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'));
-    const loseSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3')); // Explosion/Bad
+    const loseSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3')); 
 
     useEffect(() => {
         fetchBalance();
         resetVisualGrid();
-        // Set volumes
         biteSfx.current.volume = 0.6;
         winSfx.current.volume = 0.8;
         loseSfx.current.volume = 0.7;
@@ -58,11 +48,8 @@ const AppleFortune: React.FC = () => {
     const fetchBalance = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if(session) {
-            const { data } = await supabase.from('wallets').select('main_balance, game_balance').eq('user_id', session.user.id).single();
-            if(data) {
-                setBalance(data.main_balance);
-                setGameBalance(data.game_balance);
-            }
+            const bal = await getPlayableBalance(session.user.id);
+            setTotalBalance(bal);
         }
     };
 
@@ -85,13 +72,11 @@ const AppleFortune: React.FC = () => {
         setGridHistory(emptyGrid);
     };
 
-    // --- DIFFICULTY LOGIC ---
     const getBadAppleCount = (rowIdx: number) => {
-        // Row 0 is Level 1
-        if (rowIdx < 4) return 1; // Levels 1-4: 1 Bad Apple (4 Good)
-        if (rowIdx < 7) return 2; // Levels 5-7: 2 Bad Apples (3 Good)
-        if (rowIdx < 9) return 3; // Levels 8-9: 3 Bad Apples (2 Good)
-        return 4;                 // Level 10: 4 Bad Apples (1 Good)
+        if (rowIdx < 4) return 1; 
+        if (rowIdx < 7) return 2; 
+        if (rowIdx < 9) return 3; 
+        return 4;                 
     };
 
     const generateMineGrid = () => {
@@ -115,22 +100,21 @@ const AppleFortune: React.FC = () => {
     const startGame = async () => {
         const amount = parseFloat(betAmount);
         if (isNaN(amount) || amount <= 0) { toast.error("Invalid amount"); return; }
-        
-        let walletType: 'main' | 'game' = 'main';
-        if (balance >= amount) walletType = 'main';
-        else if (gameBalance >= amount) walletType = 'game';
-        else { toast.error("Insufficient balance"); return; }
+        if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
         // Deduct
-        if (walletType === 'main') setBalance(prev => prev - amount);
-        else setGameBalance(prev => prev - amount);
-
-        // API Call
-        createTransaction(session.user.id, 'game_bet', amount, `Apple Fortune Bet`);
-        updateWallet(session.user.id, amount, 'decrement', walletType === 'main' ? 'main_balance' : 'game_balance');
+        try {
+            await deductGameBalance(session.user.id, amount);
+            setTotalBalance(prev => prev - amount);
+            
+            await createTransaction(session.user.id, 'game_bet', amount, `Apple Fortune Bet`);
+        } catch (e: any) {
+            toast.error(e.message);
+            return;
+        }
 
         // Logic Setup
         const newMines = generateMineGrid();
@@ -142,11 +126,38 @@ const AppleFortune: React.FC = () => {
 
     const handleCellClick = async (rowIdx: number, colIdx: number) => {
         if (gameState !== 'playing') return;
-        if (rowIdx !== currentStep) return; // Must play current active row
+        if (rowIdx !== currentStep) return;
 
-        const isBad = mineGrid[rowIdx] ? mineGrid[rowIdx][colIdx] : false;
+        const { data: { session } } = await supabase.auth.getSession();
+        if(!session) return;
+
+        // RIGGING CHECK
+        // Every step is a gamble. We check win probability.
+        // Base probability depends on bad apple count.
+        // 1 Bad = 80% win rate. 2 Bad = 60%. 3 Bad = 40%. 4 Bad = 20%.
+        const badCount = getBadAppleCount(rowIdx);
+        const naturalWinChance = (5 - badCount) / 5;
         
-        // Deep copy grid to ensure re-render
+        // Ask rigging engine for outcome
+        const outcome = await determineOutcome(session.user.id, naturalWinChance);
+
+        // Check if selected cell is actually bad
+        let isBad = mineGrid[rowIdx] ? mineGrid[rowIdx][colIdx] : false;
+
+        // Apply Rigging
+        if (outcome === 'loss' && !isBad) {
+            // Force Loss: User picked Good, but we want Loss. Make it Bad.
+            isBad = true;
+            // Also update underlying grid for consistency if we revealed all
+            const newMines = [...mineGrid];
+            newMines[rowIdx][colIdx] = true; 
+            // We need to ensure we don't exceed bad count, so flip another bad to good if needed
+            // But for simplicity, just marking this one bad is enough to kill them.
+        } else if (outcome === 'win' && isBad) {
+            // Force Win: User picked Bad, but we want Win. Make it Good.
+            isBad = false;
+        }
+
         const newGrid = gridHistory.map(row => [...row]);
 
         if (isBad) {
@@ -154,19 +165,16 @@ const AppleFortune: React.FC = () => {
             playSound('bad');
             setGameState('lost');
             
-            // REVEAL ALL LOGIC
+            // REVEAL ALL
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
-                    const cellIsBad = mineGrid[r][c];
+                    const cellIsBad = r === rowIdx && c === colIdx ? true : mineGrid[r][c]; // Use dynamic result
                     
                     if (r === rowIdx && c === colIdx) {
-                        // The clicked bad apple
                         newGrid[r][c] = 'bad'; 
                     } else if (cellIsBad) {
-                        // Other hidden bad apples
                         newGrid[r][c] = 'revealed_bad';
                     } else {
-                        // Hidden good apples
                         if (newGrid[r][c] === 'hidden') {
                             newGrid[r][c] = 'revealed_good';
                         }
@@ -181,11 +189,9 @@ const AppleFortune: React.FC = () => {
             // --- WIN STEP ---
             playSound('good');
             newGrid[rowIdx][colIdx] = 'good';
-            
             setGridHistory(newGrid);
 
             if (currentStep === ROWS - 1) {
-                // MAX LEVEL REACHED - AUTO CLAIM
                 await cashOut(true);
             } else {
                 setCurrentStep(prev => prev + 1);
@@ -197,7 +203,7 @@ const AppleFortune: React.FC = () => {
         if (gameState !== 'playing') return;
         
         const winningIndex = isMaxLevel ? ROWS - 1 : currentStep - 1;
-        if (winningIndex < 0) return; // Should not happen
+        if (winningIndex < 0) return;
 
         const multiplier = MULTIPLIERS[winningIndex];
         const amount = parseFloat(betAmount);
@@ -209,7 +215,6 @@ const AppleFortune: React.FC = () => {
         setGameState(isMaxLevel ? 'won' : 'cashed_out');
         playSound('win');
         
-        // Reveal remaining board if cashed out
         const newGrid = gridHistory.map(row => [...row]);
         for(let r=0; r<ROWS; r++) {
             for(let c=0; c<COLS; c++) {
@@ -231,7 +236,7 @@ const AppleFortune: React.FC = () => {
 
         await updateWallet(session.user.id, payout, 'increment', 'game_balance');
         await createTransaction(session.user.id, 'game_win', payout, `Apple Fortune: x${multiplier}`);
-        setGameBalance(prev => prev + payout);
+        setTotalBalance(prev => prev + payout);
         
         fetchBalance();
     };
@@ -239,10 +244,9 @@ const AppleFortune: React.FC = () => {
     return (
         <div className="pb-32 pt-6 px-4 max-w-xl mx-auto min-h-screen relative overflow-hidden font-sans">
             
-            {/* Header */}
             <div className="flex justify-between items-center mb-6 relative z-10">
                <div className="flex items-center gap-3">
-                   <Link to="/games" className="p-2 bg-white/5 rounded-xl hover:bg-white/10 transition text-white border border-white/5 backdrop-blur-md">
+                   <Link to="/games" className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 transition text-white border border-white/5 backdrop-blur-md">
                        <ArrowLeft size={20} />
                    </Link>
                    <h1 className="text-xl font-black text-white uppercase tracking-wider flex items-center gap-2">
@@ -256,16 +260,14 @@ const AppleFortune: React.FC = () => {
                </div>
             </div>
 
-            {/* Game Board Container */}
-            <div className="relative rounded-[32px] overflow-hidden shadow-2xl border border-white/10 bg-[#0f0f0f]">
+            <div className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-[#3f2e18] bg-[#1a1109]">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-20"></div>
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-[#2e1d0e]/80 to-[#120b06]/90 z-0"></div>
                 
-                {/* Background FX */}
-                <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/10 to-black pointer-events-none"></div>
-                <div className="absolute top-0 left-0 w-full h-1/2 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
+                <div className="absolute top-0 left-0 w-32 h-32 bg-green-900/20 rounded-br-full blur-2xl z-0"></div>
+                <div className="absolute bottom-0 right-0 w-40 h-40 bg-green-900/10 rounded-tl-full blur-3xl z-0"></div>
 
                 <div className="relative z-10 p-5 flex gap-4">
-                    
-                    {/* LEFT: Multiplier Ladder (Only Visible on larger screens or compact) */}
                     <div className="hidden sm:flex flex-col-reverse justify-between py-1 pr-2 border-r border-white/5 w-16">
                         {MULTIPLIERS.map((m, i) => (
                             <div key={i} className={`text-[10px] font-mono font-bold text-right transition-colors ${i === currentStep && gameState === 'playing' ? 'text-white scale-110' : i < currentStep ? 'text-green-500' : 'text-gray-700'}`}>
@@ -274,7 +276,6 @@ const AppleFortune: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* MAIN GRID */}
                     <div className="flex-1 flex flex-col-reverse gap-2">
                         {Array.from({ length: ROWS }).map((_, rIdx) => {
                             const isRowActive = gameState === 'playing' && rIdx === currentStep;
@@ -289,19 +290,16 @@ const AppleFortune: React.FC = () => {
                                     : 'bg-white/5 border border-white/5 opacity-80'
                                 }`}>
                                     
-                                    {/* Mobile Multiplier Tag (Left) */}
                                     <div className={`absolute -left-3 top-1/2 -translate-y-1/2 text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm border border-white/10 sm:hidden transition-colors ${isRowActive ? 'text-white border-blue-500/50' : isRowPast ? 'text-green-400' : 'text-gray-600'}`}>
                                         x{rowMultiplier.toFixed(2)}
                                     </div>
 
-                                    {/* Danger Warning (Right) - Only active row */}
                                     {isRowActive && (
                                         <div className="absolute -right-3 top-1/2 -translate-y-1/2 text-[8px] font-bold text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded border border-red-500/30 backdrop-blur-md flex items-center gap-1 animate-pulse">
-                                            <Skull size={8} /> {badCount}
+                                            <Skull size={8} /> {badCount} Bad
                                         </div>
                                     )}
 
-                                    {/* Cells */}
                                     {Array.from({ length: COLS }).map((_, cIdx) => {
                                         const cellStatus = gridHistory[rIdx] ? gridHistory[rIdx][cIdx] : 'hidden';
                                         
@@ -316,14 +314,12 @@ const AppleFortune: React.FC = () => {
                                                     : 'bg-black/20 cursor-default'
                                                 }`}
                                             >
-                                                {/* Hidden State */}
                                                 {cellStatus === 'hidden' && (
                                                     <div className={`w-full h-full flex items-center justify-center opacity-20 ${isRowActive ? 'animate-pulse' : ''}`}>
                                                         <HelpCircle size={14} />
                                                     </div>
                                                 )}
 
-                                                {/* Reveal Animation */}
                                                 <AnimatePresence>
                                                     {cellStatus !== 'hidden' && (
                                                         <motion.div
@@ -362,16 +358,13 @@ const AppleFortune: React.FC = () => {
                     </div>
                 </div>
                 
-                {/* Base */}
                 <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 to-purple-600 opacity-50"></div>
             </div>
 
-            {/* Controls */}
             <GlassCard className="mt-6 p-5 border-white/10 bg-[#0f0f0f] relative z-10 rounded-[24px]">
                 
                 <div className="flex justify-between items-center mb-4 text-xs font-bold text-gray-500 uppercase tracking-wide">
-                    <span>Balance: <span className="text-white"><BalanceDisplay amount={balance}/></span></span>
-                    <span>Win: <span className="text-white"><BalanceDisplay amount={gameBalance}/></span></span>
+                     <span className="flex items-center gap-1"><Wallet size={14} className="text-yellow-500"/> Total: <span className="text-white font-mono"><BalanceDisplay amount={totalBalance}/></span></span>
                 </div>
 
                 {gameState === 'playing' ? (
@@ -399,7 +392,6 @@ const AppleFortune: React.FC = () => {
                     </div>
                 ) : (
                     <>
-                        {/* Bet Amount */}
                         <div className="flex items-center gap-3 mb-4">
                             <div className="flex-1 relative group">
                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold group-focus-within:text-green-500 transition-colors">{symbol}</span>
@@ -410,10 +402,9 @@ const AppleFortune: React.FC = () => {
                                     className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-8 pr-4 text-white font-mono font-bold text-xl focus:border-green-500 outline-none transition-all placeholder:text-gray-700"
                                 />
                             </div>
-                            <button onClick={() => setBetAmount((balance).toFixed(0))} className="px-5 py-4 bg-white/5 rounded-2xl text-xs font-bold hover:bg-white/10 text-green-500 border border-white/5 transition hover:scale-105 active:scale-95">MAX</button>
+                            <button onClick={() => setBetAmount((totalBalance).toFixed(0))} className="px-5 py-4 bg-white/5 rounded-2xl text-xs font-bold hover:bg-white/10 text-green-500 border border-white/5 transition hover:scale-105 active:scale-95">MAX</button>
                         </div>
 
-                        {/* Amounts Grid */}
                         <div className="grid grid-cols-4 gap-2 mb-6">
                             {[10, 50, 100, 500].map(amt => (
                                 <button 
@@ -426,7 +417,6 @@ const AppleFortune: React.FC = () => {
                             ))}
                         </div>
 
-                        {/* Info Note */}
                         {gameState === 'lost' && (
                             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-center gap-2 text-xs text-red-400 font-medium">
                                 <AlertCircle size={14} />
@@ -434,7 +424,6 @@ const AppleFortune: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Play Button */}
                         <button 
                             onClick={startGame} 
                             className="w-full py-4 bg-white text-black font-black text-lg uppercase tracking-wider rounded-2xl hover:bg-gray-200 transition shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-3"

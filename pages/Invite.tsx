@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { Users, Copy, Trophy, Crown, Share2, UserPlus, Calendar, Activity, Link as LinkIcon, TrendingUp, Search, Wallet, Percent, User, MessageCircle, Megaphone, Check, Facebook, Twitter, Instagram, Send, Globe, Phone, Briefcase } from 'lucide-react';
@@ -240,8 +241,9 @@ const Invite: React.FC = () => {
                 <h1 className="text-2xl font-display font-bold text-white flex items-center gap-2">
                     <Users className="text-pink-500"/> Referral System
                 </h1>
-                <p className="text-xs text-gray-400 flex items-center gap-1">
-                    Earn <span className="text-green-400 font-bold bg-green-900/20 px-1 rounded">5% Commission</span> on every deposit.
+                <p className="text-xs text-gray-400 flex items-center gap-2 mt-1">
+                    Earn <span className="text-green-400 font-bold bg-green-900/20 px-1.5 py-0.5 rounded border border-green-500/30">100 TK</span> per invite + 
+                    <span className="text-blue-400 font-bold bg-blue-900/20 px-1.5 py-0.5 rounded border border-blue-500/30">5% Commission</span>
                 </p>
             </div>
             <div className="flex bg-[#111] p-1 rounded-xl border border-[#222]">
@@ -265,7 +267,7 @@ const Invite: React.FC = () => {
                 <div className="relative z-10">
                     <h2 className="text-2xl font-bold text-white mb-2">Grow Your Network</h2>
                     <p className="text-gray-400 text-sm mb-6 max-w-sm mx-auto">
-                        Invite friends and earn <span className="text-green-400 font-bold">5%</span> of their deposits instantly. Build a passive income stream today.
+                        Invite friends and earn <span className="text-green-400 font-bold">100 TK</span> instantly when they join. Plus 5% lifetime commission on their deposits.
                     </p>
                     
                     <div className="bg-[#1a1a1a] p-4 rounded-xl mb-6 flex flex-col sm:flex-row items-center justify-between border border-[#333] gap-4">

@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Volume2, VolumeX, RefreshCw, Zap, Trophy, Play, Settings2, BarChart2 } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, RefreshCw, Trophy, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
+import { getPlayableBalance, deductGameBalance, determineOutcome } from '../lib/gameMath';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { useCurrency } from '../context/CurrencyContext';
@@ -16,18 +18,15 @@ const Dice: React.FC = () => {
   const { toast } = useUI();
   const { symbol, format } = useCurrency();
   
-  // Game State
-  const [balance, setBalance] = useState(0);
-  const [gameBalance, setGameBalance] = useState(0);
+  const [totalBalance, setTotalBalance] = useState(0);
   const [betAmount, setBetAmount] = useState<string>('10');
-  const [selectedBet, setSelectedBet] = useState<BetType>('high'); // Default to Over 7
+  const [selectedBet, setSelectedBet] = useState<BetType>('high');
   
   const [isRolling, setIsRolling] = useState(false);
   const [diceResult, setDiceResult] = useState([1, 1]); 
   const [history, setHistory] = useState<number[]>([]);
   const [soundOn, setSoundOn] = useState(true);
 
-  // Audio
   const rollSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'));
   const winSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'));
 
@@ -40,11 +39,8 @@ const Dice: React.FC = () => {
   const fetchBalance = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if(session) {
-          const { data } = await supabase.from('wallets').select('main_balance, game_balance').eq('user_id', session.user.id).single();
-          if(data) {
-              setBalance(data.main_balance);
-              setGameBalance(data.game_balance);
-          }
+          const bal = await getPlayableBalance(session.user.id);
+          setTotalBalance(bal);
       }
   };
 
@@ -54,18 +50,14 @@ const Dice: React.FC = () => {
       if (action === 'min') next = 10;
       if (action === 'half') next = Math.max(10, current / 2);
       if (action === 'double') next = current * 2;
-      if (action === 'max') next = balance;
+      if (action === 'max') next = totalBalance;
       setBetAmount(next.toFixed(2));
   };
 
   const playGame = async () => {
       const amount = parseFloat(betAmount);
       if (isNaN(amount) || amount <= 0) { toast.error("Invalid amount"); return; }
-      
-      let walletType: 'main' | 'game' = 'main';
-      if (balance >= amount) walletType = 'main';
-      else if (gameBalance >= amount) walletType = 'game';
-      else { toast.error("Insufficient balance"); return; }
+      if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -76,36 +68,61 @@ const Dice: React.FC = () => {
           rollSfx.current.play().catch(()=>{});
       }
 
-      if (walletType === 'main') setBalance(prev => prev - amount);
-      else setGameBalance(prev => prev - amount);
+      // 1. Deduct using All Wallets logic
+      try {
+          await deductGameBalance(session.user.id, amount);
+          setTotalBalance(prev => prev - amount); // Optimistic
+          
+          await createTransaction(session.user.id, 'game_bet', amount, `Dice Bet: ${selectedBet.toUpperCase()}`);
+      } catch (e: any) {
+          toast.error(e.message);
+          setIsRolling(false);
+          return;
+      }
 
-      const d1 = Math.floor(Math.random() * 6) + 1;
-      const d2 = Math.floor(Math.random() * 6) + 1;
-      const total = d1 + d2;
+      // 2. Rigged Outcome
+      // Standard chances: High/Low ~41%, Seven ~16%
+      let baseChance = 0.45;
+      if (selectedBet === 'seven') baseChance = 0.16;
 
-      // Animation delay (1s)
+      const outcome = await determineOutcome(session.user.id, baseChance);
+
+      // 3. Generate Dice
+      let d1 = 1, d2 = 1;
+      let total = 2;
+      let attempts = 0;
+      
+      while(attempts < 50) {
+          d1 = Math.floor(Math.random() * 6) + 1;
+          d2 = Math.floor(Math.random() * 6) + 1;
+          total = d1 + d2;
+          
+          let isWin = false;
+          if (selectedBet === 'low' && total < 7) isWin = true;
+          else if (selectedBet === 'seven' && total === 7) isWin = true;
+          else if (selectedBet === 'high' && total > 7) isWin = true;
+
+          if (outcome === 'win' && isWin) break;
+          if (outcome === 'loss' && !isWin) break;
+          attempts++;
+      }
+
+      // Animation delay
       setTimeout(() => {
           setDiceResult([d1, d2]);
           setIsRolling(false);
-          
-          processResult(amount, d1, d2, total, walletType, session.user.id);
+          processResult(amount, total, outcome === 'win', session.user.id);
       }, 1000); 
   };
 
-  const processResult = async (bet: number, d1: number, d2: number, total: number, walletType: string, userId: string) => {
-      let win = false;
+  const processResult = async (bet: number, total: number, win: boolean, userId: string) => {
       let multiplier = 0;
-
-      if (selectedBet === 'low' && total < 7) { win = true; multiplier = 2.3; }
-      else if (selectedBet === 'seven' && total === 7) { win = true; multiplier = 5.8; }
-      else if (selectedBet === 'high' && total > 7) { win = true; multiplier = 2.3; }
+      if (selectedBet === 'low') multiplier = 2.3;
+      else if (selectedBet === 'seven') multiplier = 5.8;
+      else multiplier = 2.3;
 
       const payout = win ? bet * multiplier : 0;
-
       setHistory(prev => [total, ...prev.slice(0, 10)]);
-
-      await createTransaction(userId, 'game_bet', bet, `Dice: ${selectedBet.toUpperCase()}`);
-      await updateWallet(userId, bet, 'decrement', walletType === 'main' ? 'main_balance' : 'game_balance');
 
       if (win) {
           if (soundOn) winSfx.current.play().catch(()=>{});
@@ -117,16 +134,26 @@ const Dice: React.FC = () => {
           });
           toast.success(`You Won ${format(payout)}!`);
           
-          await updateWallet(userId, payout, 'increment', 'game_balance');
+          await updateWallet(userId, payout, 'increment', 'game_balance'); 
           await createTransaction(userId, 'game_win', payout, `Dice Win: ${total}`);
-          setGameBalance(prev => prev + payout);
+          setTotalBalance(prev => prev + payout);
       }
+
+      // Log history
+      await supabase.from('game_history').insert({
+          user_id: userId,
+          game_id: 'dice',
+          game_name: 'Lucky Dice',
+          bet: bet,
+          payout: payout,
+          profit: payout - bet,
+          details: `Bet: ${selectedBet} | Result: ${total}`
+      });
+
       fetchBalance();
   };
 
-  // Helper to get rotation based on value (Standard Dice Mapping)
   const getTransform = (val: number) => {
-      // Rotate such that 'val' faces front
       switch(val) {
           case 1: return { x: 0, y: 0 };
           case 6: return { x: 180, y: 0 };
@@ -141,21 +168,19 @@ const Dice: React.FC = () => {
   return (
     <div className="pb-32 pt-4 px-4 max-w-lg mx-auto min-h-screen relative font-sans flex flex-col">
         
-        {/* Header */}
         <div className="flex justify-between items-center mb-4 z-10">
             <Link to="/games" className="p-2 bg-white/5 rounded-xl border border-white/10 text-white hover:bg-white/10">
                 <ArrowLeft size={20}/>
             </Link>
-            <div className="flex items-center gap-2 bg-black/30 px-3 py-1 rounded-full border border-white/10">
-                <Trophy size={14} className="text-yellow-500" />
-                <span className="text-xs font-bold text-white"><BalanceDisplay amount={balance}/></span>
+            <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                <Wallet size={16} className="text-yellow-500" />
+                <span className="text-lg font-black text-yellow-400 tracking-wide"><BalanceDisplay amount={totalBalance}/></span>
             </div>
             <button onClick={() => setSoundOn(!soundOn)} className="p-2 bg-white/5 rounded-xl text-gray-400">
                 {soundOn ? <Volume2 size={20}/> : <VolumeX size={20}/>}
             </button>
         </div>
 
-        {/* History Bar */}
         <div className="flex justify-center gap-2 mb-4 h-8 z-10">
             <AnimatePresence>
                 {history.map((res, idx) => (
@@ -175,7 +200,6 @@ const Dice: React.FC = () => {
             </AnimatePresence>
         </div>
 
-        {/* Game Stage */}
         <div className="flex-1 flex flex-col items-center justify-center relative z-10 min-h-[300px]">
              <div className="flex justify-center gap-8 perspective-1000">
                  {[0, 1].map(i => {
@@ -196,7 +220,6 @@ const Dice: React.FC = () => {
                             }}
                             transition={{ duration: 1, ease: "circOut" }}
                          >
-                             {/* Faces */}
                              {[1,2,3,4,5,6].map(face => (
                                  <DiceFace key={face} value={face} />
                              ))}
@@ -213,10 +236,7 @@ const Dice: React.FC = () => {
             </div>
         </div>
 
-        {/* Controls */}
         <GlassCard className="p-4 bg-[#151515] border-t border-white/10 rounded-t-3xl rounded-b-none -mx-4 pb-10">
-            
-            {/* Bet Selection */}
             <div className="flex bg-black/40 p-1.5 rounded-xl mb-4 border border-white/5 relative h-12">
                 <motion.div 
                     className={`absolute top-1.5 bottom-1.5 w-[calc(33.33%-4px)] rounded-lg shadow-lg ${
@@ -250,7 +270,6 @@ const Dice: React.FC = () => {
                 </button>
             </div>
 
-            {/* Input Row */}
             <div className="flex items-center gap-3 mb-4">
                 <div className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 flex-1 flex flex-col justify-center">
                      <p className="text-[9px] text-gray-500 font-bold uppercase">Bet Amount</p>
@@ -274,7 +293,6 @@ const Dice: React.FC = () => {
                 </button>
             </div>
 
-            {/* Quick Amounts */}
             <div className="grid grid-cols-4 gap-2">
                 {['min', 'half', 'double', 'max'].map((action) => (
                     <button 
@@ -298,9 +316,7 @@ const Dice: React.FC = () => {
   );
 };
 
-// Helper for Dice Face Rendering
 const DiceFace: React.FC<{ value: number }> = ({ value }) => {
-    // Positioning based on cube logic
     let transform = '';
     switch(value) {
         case 1: transform = 'translateZ(48px)'; break;
@@ -310,8 +326,6 @@ const DiceFace: React.FC<{ value: number }> = ({ value }) => {
         case 3: transform = 'rotateX(90deg) translateZ(48px)'; break;
         case 4: transform = 'rotateX(-90deg) translateZ(48px)'; break;
     }
-
-    // Dot positions grid
     const getDots = (v: number) => {
         const dots = [];
         if ([1, 3, 5].includes(v)) dots.push(<div key="c" className="w-3 h-3 bg-black rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-inner" />);

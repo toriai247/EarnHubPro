@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { Search, User, Flag, Star, LogIn, Info, Shield, HelpCircle, Trophy } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Search, Flag, Star, LogIn, Info, Shield, HelpCircle, Trophy } from 'lucide-react';
 import Logo from './Logo';
 
 interface FooterProps {
@@ -9,16 +9,23 @@ interface FooterProps {
 }
 
 const Footer: React.FC<FooterProps> = ({ onOpenReview }) => {
+  const location = useLocation();
+  const isHome = location.pathname === '/';
+
   return (
     <footer className="w-full mt-12 border-t border-white/5 bg-black/20 backdrop-blur-sm pb-24 sm:pb-12 pt-12">
       <div className="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
         
-        {/* Brand Column */}
+        {/* Brand Column - Only fully detailed on Home */}
         <div className="col-span-2 md:col-span-1 space-y-4">
             <Logo size="sm" />
-            <p className="text-xs text-gray-500 leading-relaxed">
-                The next-generation earning ecosystem. Fast, secure, and transparent opportunities for everyone.
-            </p>
+            {isHome ? (
+                <p className="text-xs text-gray-500 leading-relaxed">
+                    The next-generation earning ecosystem. Fast, secure, and transparent opportunities for everyone.
+                </p>
+            ) : (
+                <p className="text-xs text-gray-500">Premium Earning Platform</p>
+            )}
             <div className="flex gap-2">
                 <span className="text-[10px] bg-white/5 px-2 py-1 rounded text-gray-500 border border-white/5">v4.5.2 Stable</span>
             </div>
@@ -71,12 +78,14 @@ const Footer: React.FC<FooterProps> = ({ onOpenReview }) => {
 
       </div>
 
-      {/* PARTNER / REFERRAL BANNER */}
-      <div className="flex justify-center py-8 border-t border-white/5 mt-8 bg-black/40">
-          <a href="https://beta.publishers.adsterra.com/referral/R8fkj7ZJZA" target="_blank" rel="nofollow" className="hover:opacity-80 transition opacity-60">
-              <img alt="banner" src="https://landings-cdn.adsterratech.com/referralBanners/gif/468x60_adsterra_reff.gif" className="rounded-lg border border-white/10" />
-          </a>
-      </div>
+      {/* PARTNER / REFERRAL BANNER - Only on Home */}
+      {isHome && (
+          <div className="flex justify-center py-8 border-t border-white/5 mt-8 bg-black/40">
+              <a href="https://beta.publishers.adsterra.com/referral/R8fkj7ZJZA" target="_blank" rel="nofollow" className="hover:opacity-80 transition opacity-60">
+                  <img alt="banner" src="https://landings-cdn.adsterratech.com/referralBanners/gif/468x60_adsterra_reff.gif" className="rounded-lg border border-white/10" />
+              </a>
+          </div>
+      )}
       
       <div className="max-w-5xl mx-auto px-6 pt-6 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-[10px] text-gray-600 uppercase font-bold tracking-wider">

@@ -1,18 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Volume2, VolumeX, Info, Pyramid, Eye, Gem, Sun, Anchor, Scroll, History, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, Info, Pyramid, Eye, Gem, Sun, Anchor, RefreshCw, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
+import { getPlayableBalance, deductGameBalance, determineOutcome } from '../lib/gameMath';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { useCurrency } from '../context/CurrencyContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 
-// --- CONFIG ---
-// Symbols: Ankh (Anchor), Eye of Ra (Eye), Pyramid, Scarab (Gem-like), Phoenix (Sun-like)
 const SYMBOLS = [
     { id: 'ankh', icon: Anchor, color: 'text-yellow-400', multiplier: 100, label: 'Ankh' },
     { id: 'eye', icon: Eye, color: 'text-blue-400', multiplier: 50, label: 'Eye of Ra' },
@@ -29,25 +28,19 @@ const ReelsOfGods: React.FC = () => {
     const { toast } = useUI();
     const { format } = useCurrency();
     
-    // Game State
-    const [balance, setBalance] = useState(0);
-    const [gameBalance, setGameBalance] = useState(0);
+    const [totalBalance, setTotalBalance] = useState(0);
     const [betAmount, setBetAmount] = useState<string>('3');
     const [isSpinning, setIsSpinning] = useState(false);
     
-    // Reel State (Indices of SYMBOLS)
     const [reels, setReels] = useState<number[]>([0, 1, 2]); 
     const [winData, setWinData] = useState<{win: boolean, amount: number, multiplier: number} | null>(null);
-    
     const [soundOn, setSoundOn] = useState(true);
 
-    // Audio
-    const spinSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3')); // Mechanical spin
-    const winSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3')); // Coins/Win
+    const spinSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3')); 
+    const winSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3')); 
     
     useEffect(() => {
         fetchBalance();
-        // Randomize initial reels
         setReels([
             Math.floor(Math.random() * SYMBOLS.length),
             Math.floor(Math.random() * SYMBOLS.length),
@@ -58,11 +51,8 @@ const ReelsOfGods: React.FC = () => {
     const fetchBalance = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if(session) {
-            const { data } = await supabase.from('wallets').select('main_balance, game_balance').eq('user_id', session.user.id).single();
-            if(data) {
-                setBalance(data.main_balance);
-                setGameBalance(data.game_balance);
-            }
+            const bal = await getPlayableBalance(session.user.id);
+            setTotalBalance(bal);
         }
     };
 
@@ -70,11 +60,11 @@ const ReelsOfGods: React.FC = () => {
         if (!soundOn) return;
         if (type === 'spin') {
             spinSfx.current.currentTime = 0;
-            spinSfx.current.volume = 0.8; // Increased from 0.5
+            spinSfx.current.volume = 0.8;
             spinSfx.current.play().catch(()=>{});
         } else {
             winSfx.current.currentTime = 0;
-            winSfx.current.volume = 0.9; // Explicit high
+            winSfx.current.volume = 0.9;
             winSfx.current.play().catch(()=>{});
         }
     };
@@ -87,10 +77,7 @@ const ReelsOfGods: React.FC = () => {
             return; 
         }
         
-        let walletType: 'main' | 'game' = 'main';
-        if (balance >= amount) walletType = 'main';
-        else if (gameBalance >= amount) walletType = 'game';
-        else { toast.error("Insufficient balance"); return; }
+        if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
@@ -100,12 +87,16 @@ const ReelsOfGods: React.FC = () => {
         playSound('spin');
 
         // Deduct
-        if (walletType === 'main') setBalance(prev => prev - amount);
-        else setGameBalance(prev => prev - amount);
-
-        // API Call (Background)
-        createTransaction(session.user.id, 'game_bet', amount, `Reels of Gods Bet`);
-        updateWallet(session.user.id, amount, 'decrement', walletType === 'main' ? 'main_balance' : 'game_balance');
+        try {
+            await deductGameBalance(session.user.id, amount);
+            setTotalBalance(prev => prev - amount);
+            
+            await createTransaction(session.user.id, 'game_bet', amount, `Reels of Gods Bet`);
+        } catch (e: any) {
+            toast.error(e.message);
+            setIsSpinning(false);
+            return;
+        }
 
         // Animation Delay (2 seconds)
         setTimeout(() => {
@@ -114,10 +105,30 @@ const ReelsOfGods: React.FC = () => {
     };
 
     const finalizeSpin = async (bet: number, userId: string) => {
-        // Generate Result
-        const r1 = Math.floor(Math.random() * SYMBOLS.length);
-        const r2 = Math.floor(Math.random() * SYMBOLS.length);
-        const r3 = Math.floor(Math.random() * SYMBOLS.length);
+        // RIGGING
+        const outcome = await determineOutcome(userId, 0.35); // 35% win chance default
+
+        let r1, r2, r3;
+
+        if (outcome === 'loss') {
+            // Ensure no 3-match. Maybe 2-match max.
+            r1 = Math.floor(Math.random() * SYMBOLS.length);
+            r2 = Math.floor(Math.random() * SYMBOLS.length);
+            r3 = Math.floor(Math.random() * SYMBOLS.length);
+            // If accidentally 3 match, change one
+            if (r1 === r2 && r2 === r3) r3 = (r3 + 1) % SYMBOLS.length;
+        } else {
+            // Win - force 3 match or 2 match high value
+            const symbolIdx = Math.floor(Math.random() * SYMBOLS.length);
+            r1 = symbolIdx;
+            r2 = symbolIdx;
+            // 80% chance of 3 match if win state
+            if (Math.random() < 0.8) {
+                r3 = symbolIdx;
+            } else {
+                r3 = (symbolIdx + 1) % SYMBOLS.length; // 2 match
+            }
+        }
         
         setReels([r1, r2, r3]);
         setIsSpinning(false);
@@ -131,7 +142,7 @@ const ReelsOfGods: React.FC = () => {
         } 
         // 2 Match (Any Pair) - Consolation
         else if (r1 === r2 || r2 === r3 || r1 === r3) {
-            multiplier = 1.5; // Small win for 2 matches
+            multiplier = 1.5; 
         }
 
         const payout = bet * multiplier;
@@ -153,7 +164,7 @@ const ReelsOfGods: React.FC = () => {
             
             await updateWallet(userId, payout, 'increment', 'game_balance');
             await createTransaction(userId, 'game_win', payout, `Reels Win x${multiplier}`);
-            setGameBalance(prev => prev + payout);
+            setTotalBalance(prev => prev + payout);
         } else {
             setWinData({ win: false, amount: 0, multiplier: 0 });
         }
@@ -164,13 +175,10 @@ const ReelsOfGods: React.FC = () => {
     return (
         <div className="pb-32 pt-6 px-4 max-w-xl mx-auto min-h-screen relative overflow-hidden font-sans">
             
-            {/* Background Sky */}
             <div className="absolute inset-0 bg-gradient-to-b from-[#1e3a8a] via-[#60a5fa] to-[#fde047] -z-20"></div>
-            {/* Desert Floor */}
             <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-[#d97706] -z-10" style={{ clipPath: 'polygon(0 40%, 100% 0, 100% 100%, 0% 100%)' }}></div>
             <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-[#ea580c] -z-10 opacity-80" style={{ clipPath: 'polygon(0 60%, 100% 20%, 100% 100%, 0% 100%)' }}></div>
 
-            {/* Header */}
             <div className="flex justify-between items-center mb-6 relative z-10">
                <div className="flex items-center gap-3">
                    <Link to="/games" className="p-3 bg-black/30 backdrop-blur-md rounded-2xl hover:bg-black/50 transition text-white border border-white/20">
@@ -184,35 +192,27 @@ const ReelsOfGods: React.FC = () => {
                </div>
             </div>
 
-            {/* GAME FRAME - STONE TEMPLE LOOK */}
             <div className="relative z-10">
                 
-                {/* Title */}
                 <div className="text-center mb-[-10px] relative z-20">
                     <h1 className="text-4xl font-black text-[#fcd34d] drop-shadow-[0_4px_0_#78350f] uppercase tracking-tighter" style={{ textShadow: '2px 2px 0 #000' }}>
                         REELS <span className="text-white text-2xl align-middle">OF</span> GODS
                     </h1>
                 </div>
 
-                {/* Machine Body */}
                 <div className="bg-[#e7cba8] p-4 pt-8 rounded-t-2xl border-x-8 border-t-8 border-[#78350f] shadow-2xl relative">
                     
-                    {/* Texture Overlay */}
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/sandpaper.png')] opacity-40 pointer-events-none"></div>
                     
-                    {/* Message Display */}
                     <div className="bg-[#d4b483] border-2 border-[#a16207] p-2 mb-4 text-center rounded relative shadow-inner">
                         <p className="text-[#451a03] font-bold text-xs uppercase tracking-widest">
                             {isSpinning ? 'Praying to the Gods...' : winData ? (winData.win ? `BIG WIN: ${format(winData.amount)}` : 'Try one more time!') : 'Place your bet'}
                         </p>
                     </div>
 
-                    {/* REELS CONTAINER */}
                     <div className="bg-[#292524] p-3 rounded-lg border-4 border-[#ca8a04] shadow-[inset_0_0_20px_#000] relative overflow-hidden flex gap-2">
-                        {/* Shine Effect */}
                         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/50 pointer-events-none z-20"></div>
                         
-                        {/* 3 Reels */}
                         {[0, 1, 2].map((i) => {
                             const symbol = SYMBOLS[reels[i]];
                             const Icon = symbol.icon;
@@ -248,18 +248,15 @@ const ReelsOfGods: React.FC = () => {
                             );
                         })}
 
-                        {/* Payline */}
                         <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500/50 z-30 pointer-events-none"></div>
                     </div>
 
-                    {/* Multiplier Info */}
                     <div className="flex justify-between items-center px-2 mt-2 text-[9px] font-bold text-[#78350f] opacity-80 uppercase">
                         <span>Ankh x100</span>
                         <span>Eye x50</span>
                         <span>Pyr x20</span>
                     </div>
 
-                    {/* INPUT AREA */}
                     <div className="mt-4 bg-[#d4b483] p-3 rounded-xl border border-[#a16207]">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-[#451a03] font-bold text-xs uppercase">Bet Amount (EUR)</span>
@@ -277,7 +274,6 @@ const ReelsOfGods: React.FC = () => {
                         />
                     </div>
 
-                    {/* BET BUTTONS GRID */}
                     <div className="grid grid-cols-3 gap-2 mt-3">
                         {BET_OPTIONS.map(amt => (
                             <button
@@ -295,11 +291,10 @@ const ReelsOfGods: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* BIG PLAY BUTTON */}
                     <div className="mt-4 flex items-center justify-between gap-4">
                         <div className="flex-1 flex flex-col items-center">
-                            <span className="text-[10px] font-bold text-[#78350f] uppercase">Balance</span>
-                            <span className="text-lg font-black text-[#451a03]"><BalanceDisplay amount={balance} /></span>
+                            <span className="text-[10px] font-bold text-[#78350f] uppercase">Total Funds</span>
+                            <span className="text-lg font-black text-[#451a03]"><BalanceDisplay amount={totalBalance} /></span>
                         </div>
                         
                         <button 
@@ -313,13 +308,12 @@ const ReelsOfGods: React.FC = () => {
                             </div>
                         </button>
                         
-                        <div className="flex-1 flex flex-col items-center">
-                            <span className="text-[10px] font-bold text-[#78350f] uppercase">Win</span>
-                            <span className="text-lg font-black text-[#451a03]"><BalanceDisplay amount={gameBalance} /></span>
+                        <div className="flex-1 flex flex-col items-center opacity-50">
+                            <span className="text-[10px] font-bold text-[#78350f] uppercase">Max</span>
+                            <span className="text-lg font-black text-[#451a03]">x100</span>
                         </div>
                     </div>
                     
-                    {/* Decorative Egyptian Pillars (CSS) */}
                     <div className="absolute top-0 bottom-0 -left-3 w-4 bg-[#a16207] border-r border-[#78350f] flex flex-col justify-around py-2">
                          {[1,2,3,4,5].map(i => <div key={i} className="w-full h-1 bg-[#78350f] opacity-30"></div>)}
                     </div>
@@ -328,18 +322,16 @@ const ReelsOfGods: React.FC = () => {
                     </div>
 
                 </div>
-                {/* Base of machine */}
                 <div className="h-4 bg-[#78350f] rounded-b-xl mx-2 shadow-xl"></div>
             </div>
 
-            {/* Rules */}
             <div className="mt-8 bg-black/40 backdrop-blur-md p-4 rounded-xl border border-white/10 text-xs text-gray-300 relative z-10">
                 <h3 className="font-bold text-white mb-2 flex items-center gap-2"><Info size={14}/> How to Play</h3>
                 <ul className="list-disc pl-4 space-y-1">
                     <li>Place a bet (Min 1, Max 30 EUR).</li>
                     <li>Match 3 symbols for the big multiplier win.</li>
                     <li>Match any 2 symbols for a 1.5x consolation prize.</li>
-                    <li>Winnings are credited to your Game Wallet instantly.</li>
+                    <li>Funds are deducted from all available wallets.</li>
                 </ul>
             </div>
         </div>

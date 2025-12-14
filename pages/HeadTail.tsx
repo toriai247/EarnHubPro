@@ -1,9 +1,12 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Volume2, VolumeX, History, Coins, Zap, RotateCcw, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, Coins, Zap, RefreshCw, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
-import { updateWallet, createTransaction } from '../lib/actions';
+import { createTransaction } from '../lib/actions';
+import { getPlayableBalance, deductGameBalance, determineOutcome } from '../lib/gameMath';
+import { updateWallet } from '../lib/actions';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { useCurrency } from '../context/CurrencyContext';
@@ -14,21 +17,14 @@ const HeadTail: React.FC = () => {
   const { toast } = useUI();
   const { symbol, format } = useCurrency();
   
-  // Game State
-  const [balance, setBalance] = useState(0);
-  const [gameBalance, setGameBalance] = useState(0);
+  const [totalBalance, setTotalBalance] = useState(0);
   const [betAmount, setBetAmount] = useState<string>('10');
   const [choice, setChoice] = useState<'head' | 'tail'>('head');
   const [isFlipping, setIsFlipping] = useState(false);
-  
-  // 3D Rotation State
   const [rotation, setRotation] = useState(0);
-  
-  // Explicitly typed as an Array of unions to prevent TS2339/TS2345 errors
-  const [history, setHistory] = useState<Array<'head' | 'tail'>>([]);
+  const [history, setHistory] = useState<('head' | 'tail')[]>([]);
   const [soundOn, setSoundOn] = useState(true);
 
-  // Audio Refs
   const flipSound = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'));
   const winSound = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'));
   
@@ -39,16 +35,13 @@ const HeadTail: React.FC = () => {
   }, []);
 
   const MULTIPLIER = 1.90;
-  const FLIP_DURATION = 2000; // 2 seconds (Faster)
+  const FLIP_DURATION = 2000;
 
   const fetchBalance = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if(session) {
-          const { data } = await supabase.from('wallets').select('main_balance, game_balance').eq('user_id', session.user.id).single();
-          if(data) {
-              setBalance(data.main_balance);
-              setGameBalance(data.game_balance);
-          }
+          const bal = await getPlayableBalance(session.user.id);
+          setTotalBalance(bal);
       }
   };
 
@@ -62,18 +55,14 @@ const HeadTail: React.FC = () => {
       if (action === 'min') next = 10;
       if (action === 'half') next = Math.max(10, current / 2);
       if (action === 'double') next = current * 2;
-      if (action === 'max') next = balance;
+      if (action === 'max') next = totalBalance;
       setBetAmount(next.toFixed(2));
   };
 
   const handleFlip = async () => {
       const amount = parseFloat(betAmount);
       if (isNaN(amount) || amount <= 0) { toast.error("Invalid amount"); return; }
-      
-      let walletType: 'main' | 'game' = 'main';
-      if (balance >= amount) walletType = 'main';
-      else if (gameBalance >= amount) walletType = 'game';
-      else { toast.error("Insufficient balance"); return; }
+      if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -83,50 +72,50 @@ const HeadTail: React.FC = () => {
           flipSound.current.currentTime = 0;
           flipSound.current.play().catch(() => {});
       }
-      vibrate([50]); // Quick buzz on start
+      vibrate([50]);
 
       // Deduct
-      if (walletType === 'main') setBalance(prev => prev - amount);
-      else setGameBalance(prev => prev - amount);
+      try {
+          await deductGameBalance(session.user.id, amount);
+          setTotalBalance(prev => prev - amount);
+          
+          await createTransaction(session.user.id, 'game_bet', amount, `Coin Bet: ${choice.toUpperCase()}`);
+      } catch (e: any) {
+          toast.error(e.message);
+          setIsFlipping(false);
+          return;
+      }
 
       try {
-          // Logic Result
-          const resultIsHead = Math.random() < 0.5;
-          // Explicitly type result to match state definition
-          const result: 'head' | 'tail' = resultIsHead ? 'head' : 'tail';
+          // Rigging Logic
+          const outcome = await determineOutcome(session.user.id, 0.50);
+
+          let result: 'head' | 'tail';
+          if (outcome === 'win') {
+              result = choice; 
+          } else {
+              result = choice === 'head' ? 'tail' : 'head'; 
+          }
+
           const isWin = choice === result;
           const payout = isWin ? amount * MULTIPLIER : 0;
 
-          // Animation Math
-          // We add exactly 5 full spins (1800 deg) + adjustment to land correctly
-          // Head = 0deg mod 360, Tail = 180deg mod 360
-          // We keep adding to 'rotation' so it always spins forward
+          // Animation
           const currentRotation = rotation;
-          const spins = 1800; // 5 full spins
-          const targetAngle = resultIsHead ? 0 : 180;
-          
-          // Calculate remainder of current rotation
+          const spins = 1800; 
+          const targetAngle = result === 'head' ? 0 : 180;
           const remainder = currentRotation % 360;
-          const adjustment = targetAngle - remainder + 360; // Ensure positive
-
+          const adjustment = targetAngle - remainder + 360; 
           const newRotation = currentRotation + spins + adjustment;
           setRotation(newRotation);
 
-          // DB Updates in background
-          createTransaction(session.user.id, 'game_bet', amount, `Coin Flip: ${choice.toUpperCase()}`);
-          updateWallet(session.user.id, amount, 'decrement', walletType === 'main' ? 'main_balance' : 'game_balance');
-
-          // Wait for animation
           setTimeout(async () => {
               setIsFlipping(false);
-              setHistory(prev => {
-                  const safePrev = Array.isArray(prev) ? prev : [];
-                  return [result, ...safePrev].slice(0, 10);
-              });
+              setHistory(prev => [result, ...prev].slice(0, 10));
 
               if (isWin) {
                   if (soundOn) winSound.current.play().catch(() => {});
-                  vibrate([100, 50, 100]); // Win vibration pattern
+                  vibrate([100, 50, 100]); 
                   
                   toast.success(`You Won ${format(payout)}!`);
                   confetti({
@@ -138,12 +127,11 @@ const HeadTail: React.FC = () => {
                   
                   await updateWallet(session.user.id, payout, 'increment', 'game_balance');
                   await createTransaction(session.user.id, 'game_win', payout, `Coin Win`);
-                  setGameBalance(prev => prev + payout);
+                  setTotalBalance(prev => prev + payout);
               } else {
-                  vibrate([200]); // Loss vibration
+                  vibrate([200]);
               }
 
-              // Log History
               await supabase.from('game_history').insert({
                   user_id: session.user.id,
                   game_id: 'headtail',
@@ -164,13 +152,9 @@ const HeadTail: React.FC = () => {
       }
   };
 
-  // Runtime safety check before rendering map
-  const safeHistory = Array.isArray(history) ? history : [];
-
   return (
     <div className="pb-32 pt-4 px-4 max-w-lg mx-auto min-h-screen relative font-sans flex flex-col">
         
-        {/* Top Bar */}
         <div className="flex justify-between items-center mb-4 z-10">
            <div className="flex items-center gap-3">
                <Link to="/games" className="p-2 bg-white/5 rounded-xl hover:bg-white/10 transition text-white border border-white/10">
@@ -178,6 +162,10 @@ const HeadTail: React.FC = () => {
                </Link>
                <h1 className="text-lg font-black text-white uppercase tracking-wider">Coin Flip</h1>
            </div>
+           <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                <Wallet size={16} className="text-yellow-500" />
+                <span className="text-lg font-black text-yellow-400 tracking-wide"><BalanceDisplay amount={totalBalance}/></span>
+            </div>
            <button onClick={() => setSoundOn(!soundOn)} className="p-2 text-gray-400 hover:text-white transition bg-white/5 rounded-xl border border-white/10">
                {soundOn ? <Volume2 size={20}/> : <VolumeX size={20}/>}
            </button>
@@ -186,7 +174,7 @@ const HeadTail: React.FC = () => {
         {/* History Bar */}
         <div className="flex justify-center gap-2 mb-4 h-8 z-10">
             <AnimatePresence>
-                {safeHistory.map((res, idx) => (
+                {history.map((res, idx) => (
                     <motion.div 
                         key={`${idx}-${res}`}
                         initial={{ scale: 0, x: -10 }}
@@ -199,12 +187,11 @@ const HeadTail: React.FC = () => {
             </AnimatePresence>
         </div>
 
-        {/* Game Stage */}
         <div className="flex-1 flex flex-col items-center justify-center relative z-10 min-h-[300px]">
             <div className="relative perspective-1000">
                 <motion.div
                     animate={isFlipping ? { 
-                        y: [0, -200, 0], // Jump
+                        y: [0, -200, 0], 
                         scale: [1, 1.3, 1],
                     } : { y: 0, scale: 1 }}
                     transition={{ duration: FLIP_DURATION / 1000, ease: "easeInOut" }}
@@ -214,23 +201,19 @@ const HeadTail: React.FC = () => {
                         transition: isFlipping ? `transform ${FLIP_DURATION}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none'
                     }}
                 >
-                    {/* Front (Head) */}
                     <div className="absolute inset-0 backface-hidden rounded-full bg-gradient-to-br from-yellow-400 via-yellow-600 to-yellow-800 border-4 border-yellow-300 shadow-xl flex items-center justify-center">
                         <div className="absolute inset-2 border-2 border-yellow-200/50 rounded-full border-dashed opacity-50"></div>
                         <Coins size={80} className="text-yellow-100 drop-shadow-md" strokeWidth={1.5} />
                     </div>
 
-                    {/* Back (Tail) */}
                     <div className="absolute inset-0 backface-hidden rounded-full bg-gradient-to-br from-slate-400 via-slate-600 to-slate-800 border-4 border-slate-300 shadow-xl flex items-center justify-center" style={{ transform: 'rotateY(180deg)' }}>
                          <div className="absolute inset-2 border-2 border-slate-200/50 rounded-full border-dashed opacity-50"></div>
                         <Zap size={80} className="text-slate-100 drop-shadow-md" strokeWidth={1.5} />
                     </div>
 
-                    {/* Thickness effect (simulated) */}
                     <div className="absolute inset-0 rounded-full border-[8px] border-[#854d0e] -z-10 translate-z-[-5px]"></div>
                 </motion.div>
                 
-                {/* Shadow */}
                 <motion.div 
                     animate={isFlipping ? { scale: [1, 0.5, 1], opacity: [0.5, 0.2, 0.5] } : { scale: 1, opacity: 0.5 }}
                     transition={{ duration: FLIP_DURATION / 1000 }}
@@ -246,10 +229,7 @@ const HeadTail: React.FC = () => {
             </div>
         </div>
 
-        {/* Controls */}
         <GlassCard className="p-4 bg-[#151515] border-t border-white/10 rounded-t-3xl rounded-b-none -mx-4 pb-10">
-            
-            {/* Bet Selector */}
             <div className="flex bg-black/40 p-1.5 rounded-xl mb-4 border border-white/5 relative h-12">
                 <motion.div 
                     className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-lg shadow-lg ${choice === 'head' ? 'left-1.5 bg-yellow-500' : 'left-[calc(50%+4px)] bg-slate-500'}`}
@@ -272,7 +252,6 @@ const HeadTail: React.FC = () => {
                 </button>
             </div>
 
-            {/* Input Row */}
             <div className="flex items-center gap-3 mb-4">
                 <div className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 flex-1 flex flex-col justify-center">
                      <p className="text-[9px] text-gray-500 font-bold uppercase">Bet Amount</p>
@@ -296,7 +275,6 @@ const HeadTail: React.FC = () => {
                 </button>
             </div>
 
-            {/* Quick Amounts */}
             <div className="grid grid-cols-4 gap-2">
                 {['min', 'half', 'double', 'max'].map((action) => (
                     <button 

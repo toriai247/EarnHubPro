@@ -16,6 +16,15 @@ import Footer from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '../types';
 
+const NOTIFICATION_OFFERS = [
+    { title: "🎁 500 TK Bonus Waiting!", body: "Login now to claim your daily reward before it expires." },
+    { title: "🔥 Hot Deal Alert", body: "Get 5% extra on your next deposit. Limited time only!" },
+    { title: "🚀 Crash is Trending", body: "User just won 5000 TK in Crash. Try your luck?" },
+    { title: "💎 VIP Status", body: "Upgrade to Gold Tier and earn double on tasks today." },
+    { title: "👋 We Miss You", body: "Come back and check out the new Plinko game!" },
+    { title: "⚡ Instant Payouts", body: "Withdrawals are processing in under 5 minutes right now." }
+];
+
 const GlobalAlertBanner = ({ message }: { message: string }) => {
     if (!message) return null;
     return (
@@ -44,6 +53,42 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   // NOTE: We allow the nav to show on video pages now per user request
   const isVideoPage = location.pathname.startsWith('/video/watch'); 
   const isGuest = !session;
+
+  // --- AUTO NOTIFICATION LOGIC ---
+  useEffect(() => {
+      // Request permission immediately
+      if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission();
+      }
+
+      // Schedule random "Lure" notifications
+      const scheduleNotification = () => {
+          if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+              const offer = NOTIFICATION_OFFERS[Math.floor(Math.random() * NOTIFICATION_OFFERS.length)];
+              
+              if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+                  navigator.serviceWorker.ready.then(reg => {
+                      reg.showNotification(offer.title, {
+                          body: offer.body,
+                          icon: '/images/logo.png',
+                          badge: '/images/logo.png',
+                          // @ts-ignore
+                          vibrate: [200, 100, 200]
+                      });
+                  });
+              } else {
+                  new Notification(offer.title, {
+                      body: offer.body,
+                      icon: '/images/logo.png'
+                  });
+              }
+          }
+      };
+
+      // Trigger every 5-15 minutes (Simulated for engagement)
+      const interval = setInterval(scheduleNotification, 1000 * 60 * 5); // 5 minutes
+      return () => clearInterval(interval);
+  }, []);
 
   // --- NAVIGATION CONFIGURATION ---
   const dealerNavItems = [

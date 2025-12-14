@@ -2,9 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  ArrowDownLeft, ArrowUpRight, ArrowRightLeft, ShieldCheck, Zap, Globe, Lock, TrendingUp, Users, ArrowRight, Star, Server, Smartphone, Play, 
-  Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, RefreshCw, Send, Search, LayoutGrid, HelpCircle, FileText, Grid, Eye, EyeOff, History, Wallet, Megaphone,
-  ChevronRight, Quote, Gift, Layers, Activity, Crown
+  ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Zap, Globe, TrendingUp, Users, ArrowRight, Star, 
+  Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, Play, History, Wallet, 
+  ChevronRight, Quote, Gift, Layers, Activity, Crown, Flame, Sparkles, Grid, Eye, EyeOff, Send, RefreshCw, HelpCircle
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -209,55 +209,6 @@ const Home: React.FC = () => {
                  </div>
              </div>
 
-             {/* 4. REVIEWS & TRUST */}
-             <div className="px-4 pb-8 max-w-lg mx-auto">
-                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 px-1 flex items-center gap-2">
-                     <Star size={14} className="text-yellow-500"/> User Reviews
-                 </h3>
-                 
-                 <div className="space-y-3">
-                     <GlassCard className="p-4 bg-[#111] relative overflow-hidden">
-                         <div className="absolute top-0 right-0 p-3 opacity-5"><Quote size={40} /></div>
-                         <div className="flex items-center gap-2 mb-2">
-                             <div className="flex text-yellow-400 gap-0.5">
-                                 {[1,2,3,4,5].map(i => <Star key={i} size={12} fill="currentColor"/>)}
-                             </div>
-                             <span className="text-xs font-bold text-white bg-white/10 px-2 py-0.5 rounded-full">Excellent</span>
-                         </div>
-                         <p className="text-xs text-gray-300 italic leading-relaxed mb-3">
-                             "I've been using Naxxivo for 3 months. The withdrawals are super fast via Bkash. The support team actually replies!"
-                         </p>
-                         <div className="flex items-center gap-3 border-t border-white/5 pt-3">
-                             <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-xs text-white">T</div>
-                             <div>
-                                 <p className="text-xs font-bold text-white">Tanvir Ahmed</p>
-                                 <p className="text-[9px] text-gray-500">Verified User • Bangladesh</p>
-                             </div>
-                         </div>
-                     </GlassCard>
-
-                     <GlassCard className="p-4 bg-[#111] relative overflow-hidden">
-                         <div className="absolute top-0 right-0 p-3 opacity-5"><Quote size={40} /></div>
-                         <div className="flex items-center gap-2 mb-2">
-                             <div className="flex text-yellow-400 gap-0.5">
-                                 {[1,2,3,4,5].map(i => <Star key={i} size={12} fill="currentColor"/>)}
-                             </div>
-                             <span className="text-xs font-bold text-white bg-white/10 px-2 py-0.5 rounded-full">Trusted</span>
-                         </div>
-                         <p className="text-xs text-gray-300 italic leading-relaxed mb-3">
-                             "The daily tasks are easy and payout is consistent. Best earning platform I've found so far."
-                         </p>
-                         <div className="mt-3 flex items-center gap-3 border-t border-white/5 pt-3">
-                             <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center font-bold text-xs text-white">S</div>
-                             <div>
-                                 <p className="text-xs font-bold text-white">Sarah K.</p>
-                                 <p className="text-[9px] text-gray-500">Verified User • Global</p>
-                             </div>
-                         </div>
-                     </GlassCard>
-                 </div>
-             </div>
-
              {/* AD PLACEMENT: MULTIPLEX */}
              <div className="px-4 max-w-lg mx-auto mb-8">
                  <SmartAd slot="8977187296" />
@@ -344,18 +295,59 @@ const Home: React.FC = () => {
           </div>
       </MotionDiv>
 
+      {/* 2.5 HOT DEALS SLIDER */}
+      <MotionDiv variants={item}>
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Flame size={12} className="text-red-500" /> Hot Deals
+          </h3>
+          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 snap-x snap-mandatory">
+              <Link to="/vip-plans" className="snap-center min-w-[260px] bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 p-4 rounded-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition"><Crown size={60} /></div>
+                  <div className="relative z-10">
+                      <span className="text-[9px] bg-amber-500 text-black px-2 py-0.5 rounded font-bold uppercase mb-2 inline-block">Best Value</span>
+                      <h4 className="font-bold text-white text-lg">Golden Growth</h4>
+                      <p className="text-xs text-amber-200/80 mt-1">3.2% Daily Profit • 15 Days</p>
+                  </div>
+              </Link>
+
+              <Link to="/deposit" className="snap-center min-w-[260px] bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20 p-4 rounded-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition"><Gift size={60} /></div>
+                  <div className="relative z-10">
+                      <span className="text-[9px] bg-blue-500 text-white px-2 py-0.5 rounded font-bold uppercase mb-2 inline-block">Bonus</span>
+                      <h4 className="font-bold text-white text-lg">5% Deposit Bonus</h4>
+                      <p className="text-xs text-blue-200/80 mt-1">Get extra cash instantly.</p>
+                  </div>
+              </Link>
+          </div>
+      </MotionDiv>
+
+      {/* 2.6 REFERRAL SPOTLIGHT */}
+      <MotionDiv variants={item}>
+          <div className="bg-gradient-to-r from-pink-900/20 to-purple-900/20 border border-pink-500/30 rounded-2xl p-5 flex items-center justify-between relative overflow-hidden group">
+              <div className="absolute inset-0 bg-pink-500/5 group-hover:bg-pink-500/10 transition"></div>
+              <div className="relative z-10">
+                  <h4 className="font-black text-white text-lg flex items-center gap-2">
+                      Refer & Earn <Sparkles size={16} className="text-yellow-400 fill-yellow-400" />
+                  </h4>
+                  <p className="text-xs text-pink-200 mt-1">Get 100 TK + 5% Commission per friend!</p>
+                  <Link to="/invite" className="inline-block mt-3 bg-pink-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-pink-500 transition">
+                      Invite Friends
+                  </Link>
+              </div>
+              <div className="relative z-10">
+                  <div className="w-16 h-16 bg-pink-500/20 rounded-full flex items-center justify-center border border-pink-500/40 shadow-[0_0_20px_rgba(236,72,153,0.3)]">
+                      <Users size={32} className="text-pink-400" />
+                  </div>
+              </div>
+          </div>
+      </MotionDiv>
+
       {/* 3. START EARNING */}
       <MotionDiv variants={item}>
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
               <Zap size={12} className="text-yellow-500" /> Start Earning
           </h3>
           <div className="grid grid-cols-2 gap-3 mb-3">
-              <Link to="/vip-plans" className="p-4 bg-[#111] border border-white/5 rounded-2xl hover:border-amber-500/30 transition group relative overflow-hidden">
-                   <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition"><Crown size={40}/></div>
-                   <Crown size={24} className="text-amber-500 mb-2" />
-                   <h4 className="font-bold text-white text-sm">VIP Plans</h4>
-                   <p className="text-[10px] text-gray-500 mt-0.5">Fixed Returns</p>
-              </Link>
               <Link to="/tasks" className="p-4 bg-[#111] border border-white/5 rounded-2xl hover:border-yellow-500/30 transition group relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition"><Briefcase size={40}/></div>
                   <Briefcase size={24} className="text-yellow-500 mb-2" />
@@ -381,11 +373,33 @@ const Home: React.FC = () => {
           </Link>
       </MotionDiv>
 
-      {/* 4. PLAY ZONE */}
+      {/* 4. PLAY ZONE & SUGGESTION */}
       <MotionDiv variants={item}>
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
               <Gamepad2 size={12} className="text-purple-500" /> Play Zone
           </h3>
+          
+          {/* Game Suggestion */}
+          <Link to="/games/crash" className="block mb-3 p-4 bg-[#1a1a1a] border border-blue-500/30 rounded-2xl relative overflow-hidden group">
+               <div className="absolute top-0 left-0 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-lg z-10">
+                   TRENDING
+               </div>
+               <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                       <div className="p-3 bg-blue-500/20 rounded-xl text-blue-400">
+                           <TrendingUp size={24} />
+                       </div>
+                       <div>
+                           <h4 className="font-bold text-white">Space Crash</h4>
+                           <p className="text-xs text-gray-400">Multipliers up to 100x!</p>
+                       </div>
+                   </div>
+                   <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition">
+                       <Play size={14} fill="currentColor" />
+                   </div>
+               </div>
+          </Link>
+
           <div className="grid grid-cols-2 gap-3">
               <Link to="/games" className="p-4 bg-gradient-to-br from-purple-900/20 to-black border border-purple-500/20 rounded-2xl hover:scale-[1.02] transition">
                   <Gamepad2 size={24} className="text-purple-400 mb-2" />
