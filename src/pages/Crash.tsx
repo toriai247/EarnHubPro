@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Volume2, VolumeX, Trophy, Rocket, History, Clock, Users, Settings2, Play, Pause, Globe, Zap, Loader2, Wallet } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, Trophy, Rocket, History, Clock, Users, Settings2, Play, Pause, Globe, Zap, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
@@ -11,9 +10,13 @@ import GlassCard from '../components/GlassCard';
 
 // --- CONFIGURATION ---
 const BETTING_TIME_MS = 6000; // 6s Betting Phase
-const POST_CRASH_DELAY_MS = 2000; // 2s Cooldown
-const GROWTH_COEF = 0.2302585; 
+const POST_CRASH_DELAY_MS = 2000; // 2s Cooldown (1s requested, but 2s feels smoother for UI)
+const MAX_FLIGHT_DURATION_MS = 20000; // Max flight time to reach 100x
+
+// Growth Math
 const MAX_MULTIPLIER = 100.00;
+// k = ln(100) / 20 = 0.23025...
+const GROWTH_COEF = 0.2302585; 
 
 // Simulated Bots
 const BOTS = [
@@ -57,11 +60,13 @@ const Crash: React.FC = () => {
     // Sync Logic Refs
     const currentRoundIdRef = useRef<number>(0);
     const currentCrashPointRef = useRef<number>(1.00);
+    const phaseStartTimeRef = useRef<number>(0);
     
     const [soundOn, setSoundOn] = useState(true);
 
-    // Audio - NEW URL
-    const bgMusic = useRef(new Audio('https://lqypgzeuenwkeqiaywym.supabase.co/storage/v1/object/public/Music/Aviator%20-%20Music(MP3_160K).mp3')); 
+    // Audio
+    const engineSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/878/878-preview.mp3')); 
+    const crashSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/1706/1706-preview.mp3')); 
     const winSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3')); 
 
     // --- DETERMINISTIC MATH ---
@@ -73,7 +78,7 @@ const Crash: React.FC = () => {
     const getCrashPoint = (roundId: number) => {
         const r = seededRandom(roundId * 1337); 
         // 4% House Edge
-        if (r < 0.04) return 1.00; 
+        if (r < 0.04) return 1.00; // Instant crash mechanic
         
         let crash = 0.96 / (1.0 - r);
         if (crash < 1.00) crash = 1.00;
@@ -83,24 +88,30 @@ const Crash: React.FC = () => {
 
     const getFlightDuration = (crashPoint: number) => {
         if (crashPoint <= 1.00) return 0;
+        // Time = ln(Multiplier) / k
         const seconds = Math.log(crashPoint) / GROWTH_COEF;
         return seconds * 1000;
     };
 
     // --- SYNC ENGINE ---
+    // This calculates exactly which round we are in based on current time
+    // without needing a server, ensuring no wasted time between rounds.
     const calculateCurrentState = () => {
         const now = Date.now();
+        // Anchor to the nearest 10 minutes to prevent infinite loops
         const anchorTime = Math.floor(now / 600000) * 600000; 
         
         let simTime = anchorTime;
-        let simRoundId = Math.floor(anchorTime / 1000); 
+        let simRoundId = Math.floor(anchorTime / 1000); // Base ID
 
+        // Fast forward to now
         while (true) {
             const crash = getCrashPoint(simRoundId);
             const flightTime = getFlightDuration(crash);
             const totalRoundTime = BETTING_TIME_MS + flightTime + POST_CRASH_DELAY_MS;
 
             if (simTime + totalRoundTime > now) {
+                // Found the current active round
                 return {
                     roundId: simRoundId,
                     startTime: simTime,
@@ -117,16 +128,19 @@ const Crash: React.FC = () => {
 
     // --- INITIALIZATION ---
     useEffect(() => {
-        bgMusic.current.loop = true;
-        bgMusic.current.volume = 0.5;
+        engineSfx.current.loop = true;
+        engineSfx.current.volume = 0.4;
+        crashSfx.current.volume = 0.8;
         winSfx.current.volume = 0.6;
         
         fetchBalance();
 
+        // BD Clock
         const clock = setInterval(() => {
             setBdTime(new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour12: true }));
         }, 1000);
 
+        // Pre-fill history
         const state = calculateCurrentState();
         const prevHistory = [];
         for(let i=1; i<=20; i++) {
@@ -137,24 +151,15 @@ const Crash: React.FC = () => {
         }
         setHistory(prevHistory);
 
+        // Start Loop
         requestRef.current = requestAnimationFrame(syncGameLoop);
 
         return () => {
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
-            bgMusic.current.pause();
+            engineSfx.current.pause();
             clearInterval(clock);
         };
     }, []);
-
-    // Handle Music Playback based on state
-    useEffect(() => {
-        if (soundOn && gameState === 'FLYING') {
-            bgMusic.current.play().catch(()=>{});
-        } else {
-            bgMusic.current.pause();
-            bgMusic.current.currentTime = 0;
-        }
-    }, [gameState, soundOn]);
 
     const fetchBalance = async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -166,6 +171,7 @@ const Crash: React.FC = () => {
 
     const generateBots = (seed: number) => {
         const r = seededRandom(seed);
+        // Top 20 Bets
         const count = 20; 
         const bots = [];
         for(let i=0; i<count; i++) {
@@ -183,29 +189,37 @@ const Crash: React.FC = () => {
         const state = calculateCurrentState();
         const { roundId, elapsed, crashPoint } = state;
 
+        // Detect Round Change
         if (roundId !== currentRoundIdRef.current) {
+            // New Round Init
             currentRoundIdRef.current = roundId;
             currentCrashPointRef.current = crashPoint;
             
+            // Add previous to history
             setHistory(prev => {
                 if (prev[0]?.roundId === roundId - 1) return prev;
                 return [{ val: getCrashPoint(roundId - 1), roundId: roundId - 1 }, ...prev].slice(0, 20);
             });
 
+            // Reset
             setHasBet1(false); setCashedOut1(false); setProfit1(0);
             setHasBet2(false); setCashedOut2(false); setProfit2(0);
             
             generateBots(roundId);
             
+            // Auto Bet Trigger
             if (autoBet1) placeBet(1, true);
             if (autoBet2) placeBet(2, true);
             
             fetchBalance();
         }
 
+        // Determine Phase Logic
         if (elapsed < BETTING_TIME_MS) {
+            // BETTING PHASE
             if (gameState !== 'BETTING') {
                 setGameState('BETTING');
+                engineSfx.current.pause();
                 setMultiplier(1.00);
             }
             
@@ -214,23 +228,45 @@ const Crash: React.FC = () => {
             drawCanvas(1.00, false);
 
         } else {
+            // FLIGHT OR CRASH PHASE
             const flightElapsed = elapsed - BETTING_TIME_MS;
             const flightTimeSec = flightElapsed / 1000;
             
+            // Calculate Current Multiplier
             let currentMult = Math.exp(GROWTH_COEF * flightTimeSec);
+            
+            // Clamp if simulation overshot
             if (currentMult > crashPoint) currentMult = crashPoint;
 
             if (currentMult >= crashPoint) {
+                // CRASHED
                 if (gameState !== 'CRASHED') {
                     setGameState('CRASHED');
                     setMultiplier(crashPoint);
+                    engineSfx.current.pause();
+                    if (soundOn) {
+                        crashSfx.current.currentTime = 0;
+                        crashSfx.current.play().catch(()=>{});
+                    }
                 }
                 drawCanvas(crashPoint, true);
             } else {
+                // FLYING
                 if (gameState !== 'FLYING') {
                     setGameState('FLYING');
+                    if (soundOn) {
+                        engineSfx.current.currentTime = 0;
+                        engineSfx.current.play().catch(()=>{});
+                    }
                 }
+                
                 setMultiplier(currentMult);
+                
+                // Sound Pitch
+                if (soundOn && engineSfx.current) {
+                    engineSfx.current.playbackRate = Math.min(2.5, 1 + (currentMult - 1) * 0.1);
+                }
+
                 checkAutoCashout(currentMult);
                 updateBots(currentMult);
                 drawCanvas(currentMult, false);
@@ -313,7 +349,7 @@ const Crash: React.FC = () => {
         }
     };
 
-    // --- CANVAS DRAWING ---
+    // --- CANVAS ---
     const drawCanvas = (currentMult: number, isCrashed: boolean) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -324,105 +360,59 @@ const Crash: React.FC = () => {
 
         ctx.clearRect(0, 0, w, h);
 
-        // Draw Grid (Radar Style)
+        // Grid
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 1;
-        
-        // Vertical lines
-        for(let x=0; x<=w; x+=w/5) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, h);
-            ctx.stroke();
+        ctx.beginPath();
+        for(let i=1; i<5; i++) {
+             const y = h - (i * h/5);
+             ctx.moveTo(0, y);
+             ctx.lineTo(w, y);
+             ctx.fillStyle = 'rgba(255,255,255,0.2)';
+             ctx.fillText(`${(1 + i * 0.5).toFixed(1)}x`, 5, y - 2);
         }
-        // Horizontal lines
-        for(let y=0; y<=h; y+=h/5) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(w, y);
-            ctx.stroke();
-            if(y < h) {
-                ctx.fillStyle = 'rgba(255,255,255,0.1)';
-                ctx.font = '10px monospace';
-                ctx.fillText(`${((h-y)/50).toFixed(1)}x`, 5, y + 10);
-            }
-        }
+        ctx.stroke();
 
-        // Draw Curve
+        // Path
         const viewMax = Math.max(2, currentMult * 1.1);
         const normalizeY = (val: number) => h - ((val - 1) / (viewMax - 1)) * (h * 0.8) - 40;
         
-        const endX = w * 0.85; // Plane stays more to the right
+        const endX = w * 0.8;
         const endY = normalizeY(currentMult);
-        const startY = h - 20;
+        const startY = h - 40;
 
         ctx.beginPath();
         ctx.moveTo(0, startY);
-        // Better curve shape
-        ctx.bezierCurveTo(w * 0.2, startY, w * 0.4, endY, endX, endY);
+        ctx.quadraticCurveTo(w * 0.4, startY, endX, endY);
         
         ctx.lineWidth = 4;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = isCrashed ? '#ef4444' : '#ef4444'; // Always Red line
+        ctx.strokeStyle = isCrashed ? '#ef4444' : '#3b82f6';
         ctx.stroke();
 
-        // Fill Area
+        // Gradient Fill
         ctx.lineTo(endX, h);
         ctx.lineTo(0, h);
         const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, 'rgba(239, 68, 68, 0.4)');
-        grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        grad.addColorStop(0, isCrashed ? 'rgba(239,68,68,0.3)' : 'rgba(59,130,246,0.3)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = grad;
         ctx.fill();
 
-        // Draw Plane
+        // Rocket
         if (!isCrashed) {
             ctx.save();
             ctx.translate(endX, endY);
-            // Tilt plane slightly up
-            ctx.rotate(-15 * Math.PI / 180);
-            
-            // Draw sleek red plane shape
-            ctx.fillStyle = '#ef4444'; // Red
-            ctx.shadowColor = '#ef4444';
-            ctx.shadowBlur = 15;
-            
-            ctx.beginPath();
-            // Nose
-            ctx.moveTo(15, 0);
-            // Tail
-            ctx.lineTo(-10, 8);
-            ctx.lineTo(-10, -8);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Cockpit/Details
-            ctx.fillStyle = 'white';
-            ctx.beginPath();
-            ctx.arc(5, -2, 2, 0, Math.PI*2);
-            ctx.fill();
-            
-            // Trail particles effect (simple)
+            ctx.rotate(-45 * Math.PI / 180);
+            ctx.font = '30px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🚀', 0, 0);
             ctx.restore();
         } else {
-             // Explosion Effect
-             ctx.save();
-             ctx.translate(endX, endY);
-             
-             // Explosion circles
-             ctx.beginPath();
-             ctx.arc(0, 0, 20, 0, Math.PI * 2);
-             ctx.fillStyle = 'rgba(255, 165, 0, 0.8)';
-             ctx.fill();
-             
-             ctx.beginPath();
-             ctx.arc(0, 0, 10, 0, Math.PI * 2);
-             ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-             ctx.fill();
-
-             ctx.restore();
-             
-             // Shake effect handling happens via CSS on parent usually, but drawing visual cue helps
+             ctx.fillStyle = '#ef4444';
+             ctx.font = 'bold 24px sans-serif';
+             ctx.textAlign = 'center';
+             ctx.fillText("CRASHED", w/2, h/2);
         }
     };
 
@@ -439,10 +429,10 @@ const Crash: React.FC = () => {
         const setAutoBet = id === 1 ? setAutoBet1 : setAutoBet2;
 
         return (
-            <div className="bg-[#1e1e1e] rounded-xl p-3 border border-white/5 flex flex-col gap-3 relative overflow-hidden shadow-lg">
+            <div className="bg-[#1a1a1a] rounded-2xl p-4 border border-white/10 flex flex-col gap-3 relative overflow-hidden shadow-lg">
                 {/* Result Overlay */}
                 {cashedOut && (
-                    <div className="absolute inset-0 bg-green-900/90 z-20 flex flex-col items-center justify-center backdrop-blur-sm border-2 border-green-500 rounded-xl">
+                    <div className="absolute inset-0 bg-green-900/90 z-20 flex flex-col items-center justify-center backdrop-blur-sm border-2 border-green-500 rounded-2xl">
                         <p className="text-xs font-bold text-green-200 uppercase tracking-widest">You Won</p>
                         <p className="text-2xl font-black text-white drop-shadow-md">{format(profit)}</p>
                         <p className="text-[10px] text-green-300 mt-1 font-mono">x{multiplier.toFixed(2)}</p>
@@ -450,30 +440,20 @@ const Crash: React.FC = () => {
                 )}
                 
                 {/* Controls */}
-                <div className="flex gap-2 items-end">
+                <div className="flex gap-2">
                     <div className="flex-1">
+                        <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Bet (BDT)</label>
                         <div className="relative">
-                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">BDT</div>
-                             <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} disabled={hasBet} className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-2 py-3 text-white font-mono font-bold text-base focus:border-red-500 outline-none transition-colors"/>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 mt-1">
-                             <button onClick={()=>setAmount((parseFloat(amount)/2).toFixed(0))} className="text-[9px] bg-white/5 hover:bg-white/10 py-1 rounded text-gray-400 font-bold uppercase">1/2</button>
-                             <button onClick={()=>setAmount((parseFloat(amount)*2).toFixed(0))} className="text-[9px] bg-white/5 hover:bg-white/10 py-1 rounded text-gray-400 font-bold uppercase">2x</button>
-                             <button onClick={()=>setAmount(balance.toFixed(0))} className="text-[9px] bg-white/5 hover:bg-white/10 py-1 rounded text-gray-400 font-bold uppercase col-span-2">MAX</button>
+                             <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} disabled={hasBet} className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:border-yellow-500 outline-none transition-colors"/>
+                             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
+                                 <button onClick={()=>setAmount((parseFloat(amount)/2).toFixed(0))} className="text-[9px] bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded text-gray-400 transition">½</button>
+                                 <button onClick={()=>setAmount((parseFloat(amount)*2).toFixed(0))} className="text-[9px] bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded text-gray-400 transition">2x</button>
+                             </div>
                         </div>
                     </div>
-                    <div className="w-24">
-                        <div className="relative">
-                             <div className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">Auto</div>
-                             <input type="number" placeholder="100x" value={autoCash} onChange={e=>setAutoCash(e.target.value)} disabled={hasBet} className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-2 py-3 text-white font-mono font-bold text-base focus:border-red-500 outline-none transition-colors"/>
-                        </div>
-                        <div className="mt-1 flex items-center justify-between px-1">
-                            <span className="text-[9px] text-gray-500 font-bold uppercase">Auto Bet</span>
-                             <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" checked={autoBet} onChange={e => setAutoBet(e.target.checked)} className="sr-only peer" />
-                                <div className="w-7 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-green-500"></div>
-                            </label>
-                        </div>
+                    <div className="w-1/3">
+                        <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Auto X</label>
+                        <input type="number" placeholder="2.00" value={autoCash} onChange={e=>setAutoCash(e.target.value)} disabled={hasBet} className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:border-yellow-500 outline-none transition-colors"/>
                     </div>
                 </div>
 
@@ -482,27 +462,35 @@ const Crash: React.FC = () => {
                     <button 
                         onClick={() => handleCashOut(id)}
                         disabled={gameState !== 'FLYING'}
-                        className="w-full py-4 bg-orange-500 hover:bg-orange-400 text-black font-black text-xl uppercase rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] active:scale-95 transition flex flex-col items-center justify-center leading-none"
+                        className="w-full py-4 bg-orange-500 hover:bg-orange-400 text-black font-black text-lg uppercase rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] active:scale-95 transition flex flex-col items-center justify-center leading-none"
                     >
                         <span>CASHOUT</span>
-                        <span className="text-xs font-mono mt-1 font-bold">{(parseFloat(amount) * multiplier).toFixed(0)} BDT</span>
+                        <span className="text-xs font-mono mt-1">{(parseFloat(amount) * multiplier).toFixed(0)}</span>
                     </button>
                 ) : (
                     <button 
                         onClick={() => placeBet(id)}
                         disabled={gameState !== 'BETTING'}
-                        className={`w-full py-4 rounded-xl font-black text-xl uppercase tracking-wider transition flex flex-col items-center justify-center leading-none ${
+                        className={`w-full py-4 rounded-xl font-black text-lg uppercase tracking-wider transition flex items-center justify-center gap-2 ${
                             gameState === 'FLYING' || gameState === 'CRASHED' 
-                            ? 'bg-red-900/20 text-red-500 border border-red-500/20 cursor-not-allowed' 
+                            ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-white/5' 
                             : 'bg-green-500 text-black hover:bg-green-400 shadow-[0_0_20px_rgba(34,197,94,0.4)] active:scale-95'
                         }`}
                     >
-                        {gameState === 'FLYING' ? 'WAIT' : 'BET'}
-                        <span className="text-[10px] font-bold mt-1 opacity-70">
-                             {gameState === 'FLYING' ? 'Next Round' : 'Place Bet'}
-                        </span>
+                        {gameState === 'FLYING' ? 'Wait for Next' : 'PLACE BET'}
                     </button>
                 )}
+
+                {/* Footer Toggles */}
+                <div className="flex items-center justify-between mt-1 px-1">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1">
+                        <Zap size={10} className={autoBet ? "text-yellow-400" : "text-gray-600"} /> Auto Bet
+                    </span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" checked={autoBet} onChange={e => setAutoBet(e.target.checked)} className="sr-only peer" />
+                        <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                    </label>
+                </div>
             </div>
         );
     };
@@ -510,80 +498,80 @@ const Crash: React.FC = () => {
     if (gameState === 'SYNCING') {
         return (
             <div className="flex items-center justify-center min-h-screen bg-black text-white flex-col gap-4">
-                <Loader2 className="animate-spin text-red-500" size={40} />
-                <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Establishing Connection...</p>
+                <Loader2 className="animate-spin text-blue-500" size={40} />
+                <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Synchronizing with Server Time...</p>
             </div>
         );
     }
 
     return (
-        <div className="pb-32 pt-4 px-2 sm:px-4 max-w-xl mx-auto min-h-screen relative font-sans flex flex-col bg-[#050505]">
+        <div className="pb-32 pt-4 px-2 sm:px-4 max-w-xl mx-auto min-h-screen relative font-sans flex flex-col">
             
             {/* Header */}
-            <div className="flex justify-between items-center mb-4 z-10">
+            <div className="flex justify-between items-center mb-2 z-10">
                 <Link to="/games" className="p-2 bg-white/5 rounded-xl hover:bg-white/10 text-white border border-white/10"><ArrowLeft size={20}/></Link>
-                <div className="bg-[#111] px-6 py-2 rounded-full border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
-                     <span className="text-red-500 font-bold text-lg font-mono tracking-wide flex items-center gap-2">
-                        <Wallet size={16}/> {balance.toFixed(2)}
-                     </span>
+                <div className="flex bg-[#111] p-1 rounded-xl border border-white/10 shadow-lg">
+                    <div className="px-4 py-1.5 bg-white/5 rounded-lg text-sm font-bold text-yellow-400 font-mono tracking-wide">
+                        {balance.toFixed(2)}
+                    </div>
                 </div>
-                <button onClick={() => setSoundOn(!soundOn)} className="p-2 bg-white/5 rounded-xl text-gray-400 hover:text-white border border-white/10">
-                    {soundOn ? <Volume2 size={20}/> : <VolumeX size={20}/>}
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={() => setSoundOn(!soundOn)} className="p-2 bg-white/5 rounded-xl text-gray-400 hover:text-white border border-white/10">
+                        {soundOn ? <Volume2 size={18}/> : <VolumeX size={18}/>}
+                    </button>
+                </div>
+            </div>
+
+            {/* BD Time */}
+            <div className="flex justify-center mb-4">
+                <div className="text-[10px] text-gray-500 font-mono flex items-center gap-1 bg-black/30 px-3 py-1 rounded-full border border-white/5">
+                    <Globe size={10}/> Global Time: {bdTime}
+                </div>
+            </div>
+
+            {/* History */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 h-8 mask-fade-right px-1">
+                {history.map((h, i) => (
+                    <div key={i} className={`px-3 py-1 rounded-lg text-xs font-bold font-mono border min-w-[50px] text-center ${h.val >= 2 ? 'bg-green-500/20 border-green-500/50 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-400'}`}>
+                        {h.val.toFixed(2)}x
+                    </div>
+                ))}
             </div>
 
             {/* Canvas Area */}
-            <div className="relative bg-[#0f172a] rounded-3xl border-4 border-[#1e293b] overflow-hidden h-[300px] mb-4 shadow-2xl">
+            <div className="relative bg-[#0f172a] rounded-3xl border-4 border-[#1e293b] overflow-hidden h-[260px] mb-6 shadow-2xl">
                 <canvas ref={canvasRef} className="w-full h-full block" width={600} height={400} />
                 
                 {/* Overlay Status */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-10 w-full">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-10">
                     {gameState === 'BETTING' ? (
                         <div className="animate-pulse">
-                            <Loader2 size={48} className="text-red-500 animate-spin mx-auto mb-2"/>
-                            <p className="text-xs text-red-400 font-bold uppercase tracking-widest mb-1">Preparing Flight</p>
-                            <p className="text-5xl font-black text-white drop-shadow-lg">{timeLeft}s</p>
+                            <p className="text-xs text-blue-400 font-bold uppercase tracking-widest mb-1">Takeoff In</p>
+                            <p className="text-6xl font-black text-white drop-shadow-lg">{timeLeft}</p>
                         </div>
                     ) : (
                         <div>
-                             <p className={`text-7xl font-black tracking-tighter drop-shadow-2xl ${gameState === 'CRASHED' ? 'text-red-600 scale-110' : 'text-white'} transition-all`}>
+                             <p className={`text-7xl font-black tracking-tighter drop-shadow-2xl ${gameState === 'CRASHED' ? 'text-red-500' : 'text-white'}`}>
                                  {multiplier.toFixed(2)}x
                              </p>
-                             {gameState === 'CRASHED' && (
-                                 <div className="mt-2 animate-bounce">
-                                     <p className="text-white font-black uppercase text-xl bg-red-600 px-6 py-2 rounded-full inline-block shadow-[0_0_20px_#dc2626]">
-                                         PLANE CRASHED
-                                     </p>
-                                 </div>
-                             )}
+                             {gameState === 'CRASHED' && <p className="text-red-400 font-bold uppercase text-xs mt-2 bg-red-900/30 px-3 py-1 rounded-full inline-block">Crashed</p>}
                         </div>
                     )}
-                </div>
-                
-                {/* History Bar */}
-                <div className="absolute top-2 left-2 right-2 flex gap-2 overflow-hidden h-8 mask-fade-right">
-                    {history.map((h, i) => (
-                        <div key={i} className={`px-3 py-1 rounded text-[10px] font-bold font-mono border min-w-[50px] text-center flex items-center justify-center ${h.val >= 2 ? 'bg-green-500/20 border-green-500/50 text-green-400' : 'bg-gray-800/80 border-gray-700 text-gray-400'}`}>
-                            {h.val.toFixed(2)}x
-                        </div>
-                    ))}
                 </div>
             </div>
 
             {/* Controls */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="grid grid-cols-2 gap-4 mb-6">
                 <BetPanel id={1} />
                 <BetPanel id={2} />
             </div>
 
             {/* Live Bets */}
             <div className="flex-1 bg-[#111] rounded-2xl border border-white/10 overflow-hidden flex flex-col shadow-lg">
-                <div className="p-3 border-b border-white/5 bg-[#151515] flex justify-between items-center">
-                    <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-                        <Users size={14} className="text-red-500"/> Live Bets
-                    </h3>
+                <div className="p-3 border-b border-white/5 bg-white/5 flex justify-between items-center">
+                    <h3 className="text-xs font-bold text-white flex items-center gap-2"><Users size={14} className="text-blue-400"/> Live Bets</h3>
                     <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_#22c55e]"></span> {liveBets.length + 420} Online
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_#22c55e]"></span> {liveBets.length + 124} Online
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto max-h-[300px] p-2 space-y-1 custom-scrollbar">
@@ -598,12 +586,12 @@ const Crash: React.FC = () => {
                     
                     {/* Bot Bets */}
                     {liveBets.map((bot, i) => (
-                        <div key={i} className="flex justify-between items-center p-2 rounded-lg hover:bg-white/5 transition border border-transparent hover:border-white/5">
+                        <div key={i} className="flex justify-between items-center p-2 rounded-lg hover:bg-white/5 transition">
                             <div className="flex items-center gap-2">
                                 <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${bot.user}`} className="w-5 h-5 rounded-full bg-white/10"/>
                                 <span className="text-xs text-gray-400 font-medium">{bot.user}</span>
                             </div>
-                            <span className="text-xs text-white font-mono font-bold">{bot.bet}</span>
+                            <span className="text-xs text-white font-mono">{bot.bet}</span>
                             {bot.cashout ? (
                                 <span className="text-xs text-green-400 font-bold bg-green-900/20 px-2 py-0.5 rounded border border-green-500/20">x{bot.cashout}</span>
                             ) : (
