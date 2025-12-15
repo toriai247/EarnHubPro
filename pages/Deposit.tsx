@@ -1,13 +1,14 @@
 
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, CheckCircle, Loader2, Copy, ArrowRight, X, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Loader2, Copy, ArrowRight, X, Clock, FileText, Zap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { PaymentMethod } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../context/UIContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { updateWallet, createTransaction } from '../lib/actions';
 
 const Deposit: React.FC = () => {
   const { toast } = useUI();
@@ -17,9 +18,9 @@ const Deposit: React.FC = () => {
   const [amount, setAmount] = useState(''); 
   const [senderNumber, setSenderNumber] = useState('');
   const [transactionId, setTransactionId] = useState('');
-  const [userNote, setUserNote] = useState(''); // New State
+  const [userNote, setUserNote] = useState(''); 
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'success'>('idle');
+  const [status, setStatus] = useState<'idle' | 'success' | 'auto_approved'>('idle');
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
@@ -45,12 +46,15 @@ const Deposit: React.FC = () => {
       if (!transactionId || transactionId.length < 4) { toast.error("Valid Transaction ID is required."); return; }
       
       const bdtAmount = parseFloat(amount);
-
       setLoading(true);
 
       try {
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
           if (sessionError || !session) throw new Error("Session expired. Please login again.");
+
+          // --- AUTO APPROVE LOGIC ---
+          // Determine if we should auto-approve (Simulation: All deposits under 25000 get auto-approved for this feature)
+          const isAutoApprove = bdtAmount < 25000; 
 
           const { error: insertError } = await supabase.from('deposit_requests').insert({
               user_id: session.user.id,
@@ -58,11 +62,11 @@ const Deposit: React.FC = () => {
               amount: bdtAmount, 
               transaction_id: transactionId,
               sender_number: senderNumber,
-              user_note: userNote, // Include Note
-              screenshot_url: null, // No screenshot
-              status: 'pending',
-              admin_note: 'Manual Deposit Request',
-              processed_at: null
+              user_note: userNote, 
+              screenshot_url: null,
+              status: isAutoApprove ? 'approved' : 'pending', // Auto approve or pending
+              admin_note: isAutoApprove ? 'AUTO_APPROVE_CHECK' : 'Manual Deposit Request', // Special flag
+              processed_at: isAutoApprove ? new Date().toISOString() : null
           });
 
           if (insertError) {
@@ -70,8 +74,16 @@ const Deposit: React.FC = () => {
               throw new Error("Database error: " + insertError.message);
           }
 
-          setStatus('success');
-          setTimeout(() => navigate('/wallet'), 2500);
+          if (isAutoApprove) {
+              // Immediately Credit User
+              await updateWallet(session.user.id, bdtAmount, 'increment', 'deposit_balance');
+              await createTransaction(session.user.id, 'deposit', bdtAmount, `Auto Deposit: ${selectedMethod.name}`);
+              setStatus('auto_approved');
+          } else {
+              setStatus('success');
+          }
+
+          setTimeout(() => navigate('/wallet'), 3000);
 
       } catch (e: any) {
           toast.error(e.message || "Failed to submit deposit.");
@@ -89,17 +101,21 @@ const Deposit: React.FC = () => {
       return 'from-blue-600 to-indigo-600 shadow-blue-900/20';
   };
 
-  if (status === 'success') {
+  if (status === 'success' || status === 'auto_approved') {
       return (
           <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-6 animate-fade-in bg-black">
               <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mb-4 shadow-[0_0_50px_rgba(34,197,94,0.3)]">
                   <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }}>
-                      <CheckCircle size={48} className="text-green-500" />
+                      {status === 'auto_approved' ? <Zap size={48} className="text-yellow-400" fill="currentColor" /> : <CheckCircle size={48} className="text-green-500" />}
                   </motion.div>
               </div>
-              <h2 className="text-3xl font-bold text-white">Deposit Queued</h2>
+              <h2 className="text-3xl font-bold text-white">
+                  {status === 'auto_approved' ? 'Instant Success!' : 'Deposit Queued'}
+              </h2>
               <p className="text-gray-400 text-sm max-w-xs mx-auto">
-                  Your funds will be added automatically once the admin verifies your Transaction ID.
+                  {status === 'auto_approved' 
+                    ? "Your deposit has been automatically approved and added to your balance." 
+                    : "Your funds will be added automatically once the admin verifies your Transaction ID."}
               </p>
               <Link to="/wallet" className="px-8 py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition">Return to Wallet</Link>
           </div>
@@ -177,15 +193,15 @@ const Deposit: React.FC = () => {
                    <div className="flex-1 bg-green-900/10 border border-green-500/20 p-3 rounded-xl flex items-center gap-3">
                        <div className="bg-green-500/20 p-2 rounded-full text-green-400"><Clock size={16}/></div>
                        <div>
-                           <p className="text-[9px] text-green-200 font-bold uppercase">Average Time</p>
-                           <p className="text-green-400 font-bold text-xs">Fast: ~10 Minutes</p>
+                           <p className="text-[9px] text-green-200 font-bold uppercase">Approval</p>
+                           <p className="text-green-400 font-bold text-xs">Instant / 5m</p>
                        </div>
                    </div>
                    <div className="flex-1 bg-red-900/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-3">
-                       <div className="bg-red-500/20 p-2 rounded-full text-red-400"><Clock size={16}/></div>
+                       <div className="bg-red-500/20 p-2 rounded-full text-red-400"><Zap size={16}/></div>
                        <div>
-                           <p className="text-[9px] text-red-200 font-bold uppercase">Max Wait</p>
-                           <p className="text-red-400 font-bold text-xs">Auto-Resolve: 5 Hrs</p>
+                           <p className="text-[9px] text-red-200 font-bold uppercase">System</p>
+                           <p className="text-red-400 font-bold text-xs">Auto-Verify</p>
                        </div>
                    </div>
                </div>

@@ -42,16 +42,16 @@ const BusinessLogic: React.FC = () => {
         <GlassCard className="border-l-4 border-l-purple-500">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-purple-500/20 rounded-lg text-purple-400"><Gamepad2 size={24}/></div>
-            <h2 className="text-xl font-bold text-white">2. The House Edge</h2>
+            <h2 className="text-xl font-bold text-white">2. The "Hook & Drain" Algorithm</h2>
           </div>
           <p className="text-gray-400 text-sm mb-4">
-            Games are mathematically designed so the platform wins over time.
+            Automated difficulty adjustment based on user winnings.
           </p>
           <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-2 text-sm">
-            <p className="text-gray-300"><strong className="text-white">Crash/Spin:</strong> Odds are set below 50% win rate or payouts are less than true odds.</p>
-            <p className="text-gray-300"><strong className="text-white">Rigging (God Mode):</strong> In 'Game Control', you can force high-winning users to lose next X games.</p>
+            <p className="text-gray-300"><strong className="text-green-400">Hook Phase:</strong> If user balance &lt; 5000, Win Rate = 65%. Keeps them interested.</p>
+            <p className="text-gray-300"><strong className="text-red-400">Drain Phase:</strong> If user balance &gt; 5000, Win Rate drops to 25%. Slowly reclaims profit.</p>
             <div className="mt-2 text-xs bg-purple-500/10 p-2 rounded text-purple-300">
-              *Warning: Betting features require strict disclaimers to avoid legal issues (see below).
+              *Warning: This logic applies automatically to Crash, Spin, and Dice.
             </div>
           </div>
         </GlassCard>
@@ -76,23 +76,18 @@ const BusinessLogic: React.FC = () => {
         <GlassCard className="border-l-4 border-l-red-500 bg-red-950/10">
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-red-500/20 rounded-lg text-red-400"><ShieldCheck size={24}/></div>
-            <h2 className="text-xl font-bold text-white">Liability Shield (Important)</h2>
+            <h2 className="text-xl font-bold text-white">Auto-Security</h2>
           </div>
           <div className="text-sm text-gray-300 space-y-3">
             <p>
-              Since you mentioned having <strong className="text-red-400">No License</strong>, the system now includes mandatory warnings to shift responsibility to the user.
+              The system auto-approves deposits under 25,000 to build trust.
             </p>
             <div className="bg-black/40 p-3 rounded-lg border border-red-500/20">
-              <h4 className="text-red-400 font-bold mb-1 flex items-center gap-2"><AlertTriangle size={12}/> Defense Strategy</h4>
-              <ul className="list-disc pl-4 text-xs text-gray-400 space-y-1">
-                <li><strong>Popup Disclaimer:</strong> Users must agree that betting is risky/haram before entering.</li>
-                <li><strong>Terms of Service:</strong> Updated to state this is a "Social Gaming" platform, not a bank.</li>
-                <li><strong>No Liability:</strong> "Admin is not responsible for losses" is explicitly stated.</li>
-              </ul>
+              <h4 className="text-red-400 font-bold mb-1 flex items-center gap-2"><AlertTriangle size={12}/> Fraud Trap</h4>
+              <p className="text-xs text-gray-400">
+                 If a user abuses auto-approve with fake Transaction IDs, use the <strong>"Fraud Ban"</strong> button in Finance Manager. This suspends them and reverses the balance immediately.
+              </p>
             </div>
-            <p className="text-xs text-gray-500 italic">
-              *Note: These are UI protections. Real legal safety depends on your local laws.
-            </p>
           </div>
         </GlassCard>
 

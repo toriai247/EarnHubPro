@@ -53,6 +53,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   // NOTE: We allow the nav to show on video pages now per user request
   const isVideoPage = location.pathname.startsWith('/video/watch'); 
   const isGuest = !session;
+  
+  // Page Detection
+  const isHome = location.pathname === '/';
 
   // --- AUTO NOTIFICATION LOGIC ---
   useEffect(() => {
@@ -111,27 +114,31 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const activeNavItems = (isDealer && isDealerRoute) ? dealerNavItems : userNavItems;
 
   useEffect(() => {
-    // ADSTERRA SCRIPT INJECTION (Blocked for Admins)
+    // ADSTERRA SCRIPT INJECTION (Blocked for Admins & Non-Home Pages)
     const injectAds = async () => {
-        if (!isAdmin && !document.getElementById('adsterra-popunder')) {
+        // Ads only show on Home Page AND if not admin
+        const shouldShowAds = !isAdmin && isHome;
+
+        if (shouldShowAds && !document.getElementById('adsterra-popunder')) {
             const script = document.createElement('script');
             script.id = 'adsterra-popunder';
             script.src = "//pl28239628.effectivegatecpm.com/13/6e/86/136e8611d131c94ee0c19190cf3bce9a.js";
             script.type = "text/javascript";
             document.body.appendChild(script);
-        } else if (isAdmin) {
-            // Cleanup if became admin
+        } else if (!shouldShowAds) {
+            // Cleanup if became admin or navigated away from home
             const existing = document.getElementById('adsterra-popunder');
             if (existing) existing.remove();
         }
     };
-    // Only inject if session exists and role check is complete, or if guest (guests see ads)
+    
+    // Check session first
     if (session) {
         if (isAdmin === false) injectAds();
     } else {
-        injectAds(); // Guests see ads
+        injectAds(); // Guests see ads on Home
     }
-  }, [isAdmin, session]);
+  }, [isAdmin, session, isHome]);
 
   useEffect(() => {
     if (!session) {
@@ -187,7 +194,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   return (
     <div className="min-h-screen flex flex-col bg-void text-main font-sans transition-colors duration-500">
       
-      {config?.global_alert && <GlobalAlertBanner message={config.global_alert} />}
+      {/* Global Alert - Only on Home Page */}
+      {config?.global_alert && isHome && <GlobalAlertBanner message={config.global_alert} />}
 
       {!isVideoPage && (
         <header className="sticky top-0 z-40 bg-void/90 backdrop-blur-md border-b border-border-base px-4 py-3 flex justify-between items-center transition-colors duration-500">

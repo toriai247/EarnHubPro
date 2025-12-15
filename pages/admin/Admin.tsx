@@ -90,7 +90,7 @@ const Admin: React.FC = () => {
               { id: 'database_ultra', icon: HardDrive, label: 'Database', path: '/admin/database_ultra', color: 'text-cyan-500' },
               { id: 'images', icon: Image, label: 'Assets', path: '/admin/images', color: 'text-pink-300' },
               { id: 'noti_sender', icon: BellRing, label: 'Notify', path: '/admin/noti_sender', color: 'text-yellow-300' },
-              { id: 'business_logic', icon: BookOpen, label: 'Roadmap', path: '/admin/business_logic', color: 'text-green-300' },
+              { id: 'business_logic', icon: BookOpen, label: 'Algo Logic', path: '/admin/business_logic', color: 'text-green-300' },
           ]
       },
       {

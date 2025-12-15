@@ -16,7 +16,7 @@ const GAMES_META: Game[] = [
       color: 'text-purple-400',
       bgColor: 'from-purple-900/40 to-purple-600/10',
       path: '/games/plinko',
-      status: 'maintenance',
+      status: 'active',
       players: 3200,
       type: 'crash'
     },
@@ -88,7 +88,7 @@ const GAMES_META: Game[] = [
       color: 'text-purple-400',
       bgColor: 'from-purple-900/40 to-purple-600/10',
       path: '/games/spin',
-      status: 'maintenance', 
+      status: 'active', 
       players: 1205,
       type: 'wheel'
     },
@@ -100,7 +100,7 @@ const GAMES_META: Game[] = [
       color: 'text-blue-400',
       bgColor: 'from-blue-900/40 to-blue-600/10',
       path: '/games/crash',
-      status: 'maintenance', 
+      status: 'active', 
       players: 4203,
       type: 'crash'
     },
@@ -190,6 +190,13 @@ const Games: React.FC = () => {
 
                       <h3 className="text-base font-bold text-white mb-1 group-hover:text-green-400 transition">{game.name}</h3>
                       <p className="text-[10px] text-gray-400 leading-relaxed line-clamp-2 mb-4 flex-1">{game.description}</p>
+                      
+                      {/* Player Count */}
+                      {game.players && (
+                          <div className="flex items-center gap-1 text-[9px] text-gray-500 mb-2">
+                              <Users size={10} /> {game.players.toLocaleString()} Players
+                          </div>
+                      )}
 
                       <div className="mt-auto">
                           <button className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 group-hover:bg-white group-hover:text-black">
@@ -225,5 +232,15 @@ const Games: React.FC = () => {
     </div>
   );
 };
+
+// Simple User Icon component if not imported
+const Users = ({size, className}: {size:number, className?:string}) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+      <circle cx="9" cy="7" r="4"></circle>
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+    </svg>
+);
 
 export default Games;

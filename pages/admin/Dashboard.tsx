@@ -8,7 +8,7 @@ import {
   LayoutDashboard, CreditCard, Gamepad2, Gift, Settings, 
   MonitorOff, LifeBuoy, Sliders, CalendarClock, Briefcase,
   HardDrive, BellRing, GitFork, CheckSquare, PieChart as PieChartIcon, FileText,
-  Cpu, Wifi, Layers, Terminal, BarChart2
+  Cpu, Wifi, Layers, Terminal, BarChart2, CloudDownload
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import BalanceDisplay from '../../components/BalanceDisplay';
@@ -50,12 +50,14 @@ const Dashboard: React.FC = () => {
   const [pieData, setPieData] = useState<any[]>([]);
   const [systemHealth, setSystemHealth] = useState({ cpu: 12, ram: 34, status: 'OPTIMAL' });
   const [adsterraRevenue, setAdsterraRevenue] = useState<string | null>(null);
+  const [dropGalaxyBalance, setDropGalaxyBalance] = useState<string | null>(null);
 
   // Fallback token provided by user
   const ADSTERRA_TOKEN = '14810bb4192661f1a6277491c12a2946';
 
   useEffect(() => {
     fetchRealStats();
+    fetchDropGalaxy();
     
     // Simulate server load
     const interval = setInterval(() => {
@@ -68,6 +70,22 @@ const Dashboard: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [config]);
+
+  const fetchDropGalaxy = async () => {
+      try {
+          const res = await fetch('https://dropgalaxy.com/api/account/info?key=112990tql43b45ns5kjkck');
+          if (res.ok) {
+              const data = await res.json();
+              if (data?.result?.balance) {
+                  setDropGalaxyBalance(`$${data.result.balance}`);
+              } else {
+                  setDropGalaxyBalance('Active');
+              }
+          }
+      } catch (e) {
+          console.warn("DropGalaxy fetch failed (CORS?)");
+      }
+  };
 
   const fetchRealStats = async () => {
     setLoading(true);
@@ -229,7 +247,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* KPI GRID */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="bg-gradient-to-br from-green-900/40 to-black border border-green-500/20 rounded-xl p-3 relative overflow-hidden">
               <div className="flex justify-between items-start mb-1">
                   <span className="text-[10px] text-green-400 font-bold uppercase">Net Profit</span>
@@ -260,6 +278,21 @@ const Dashboard: React.FC = () => {
                  )}
               </h3>
               <p className="text-[9px] text-gray-500">Adsterra API</p>
+          </div>
+          
+          <div className="bg-gradient-to-br from-indigo-900/40 to-black border border-indigo-500/20 rounded-xl p-3 relative overflow-hidden">
+              <div className="flex justify-between items-start mb-1">
+                  <span className="text-[10px] text-indigo-400 font-bold uppercase">DropGalaxy</span>
+                  <CloudDownload size={16} className="text-indigo-500"/>
+              </div>
+              <h3 className="text-xl font-black text-white flex items-center gap-2">
+                 {dropGalaxyBalance ? (
+                     dropGalaxyBalance
+                 ) : (
+                     <span className="text-xs text-gray-500">Syncing...</span>
+                 )}
+              </h3>
+              <p className="text-[9px] text-gray-500">File Host Balance</p>
           </div>
           
           <div className="bg-gradient-to-br from-yellow-900/20 to-black border border-yellow-500/20 rounded-xl p-3 relative overflow-hidden">

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -7,18 +8,15 @@ import { CurrencyProvider } from './context/CurrencyContext';
 import { UIProvider } from './context/UIContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SystemProvider, useSystem } from './context/SystemContext';
+import { SimulationProvider } from './context/SimulationContext'; // Import Simulation
 import InstallPWA from './components/InstallPWA'; 
 import FeatureAccessBlock from './components/FeatureAccessBlock';
 import RiskNotice from './components/RiskNotice'; 
-import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 // --- LAZY LOADED COMPONENTS (Code Splitting) ---
 const Home = lazy(() => import('./pages/Home'));
 const Menu = lazy(() => import('./pages/Menu'));
 const Invest = lazy(() => import('./pages/Invest'));
-const Vip = lazy(() => import('./pages/Vip'));
-const UnlimitedEarn = lazy(() => import('./pages/UnlimitedEarn'));
-const PublicEarnPage = lazy(() => import('./pages/PublicEarnPage'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const Invite = lazy(() => import('./pages/Invite'));
 const Video = lazy(() => import('./pages/Video'));
@@ -43,7 +41,9 @@ const Exchange = lazy(() => import('./pages/Exchange'));
 const Advertise = lazy(() => import('./pages/Advertise')); 
 const Profile = lazy(() => import('./pages/Profile'));
 const PublicProfile = lazy(() => import('./pages/PublicProfile'));
+const PublicEarnPage = lazy(() => import('./pages/PublicEarnPage')); // New Import
 const SearchUsers = lazy(() => import('./pages/SearchUsers')); 
+const UnlimitedEarn = lazy(() => import('./pages/UnlimitedEarn'));
 const Login = lazy(() => import('./pages/Login'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword')); 
 const UpdatePassword = lazy(() => import('./pages/UpdatePassword')); 
@@ -127,76 +127,40 @@ const RequireStaff: React.FC<{ session: any; children: React.ReactNode }> = ({ s
 const AppContent: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isStuck, setIsStuck] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-
-    // Safety Timeout: If Supabase takes > 6 seconds, show the manual fix button
-    const stuckTimer = setTimeout(() => {
-        if (mounted && loading) setIsStuck(true);
-    }, 6000);
-
     const checkSession = async () => {
       try {
-        // Try getting session
         const { data, error } = await supabase.auth.getSession();
-        if (mounted) {
-            setSession(data.session);
-            setLoading(false);
-        }
+        setSession(data.session);
         
         if (data.session && Notification.permission === 'default') {
             Notification.requestPermission();
         }
       } catch (e) {
         console.error("Auth check failed", e);
-        if (mounted) setLoading(false);
+      } finally {
+        setLoading(false);
       }
     };
 
     checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-      if (mounted) {
-          setSession(session);
-          setLoading(false);
-      }
+      setSession(session);
+      setLoading(false);
     });
 
     return () => {
-        mounted = false;
-        clearTimeout(stuckTimer);
         subscription.unsubscribe();
     };
   }, []);
 
-  // Manual Reset Function for users stuck on loading
-  const handleManualReset = () => {
-      // Clear Supabase Local Storage
-      localStorage.clear(); // Nuclear option to ensure clean slate
-      window.location.reload();
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-void flex flex-col items-center justify-center text-brand p-6">
-        <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mb-6"></div>
-        <div className="font-display font-bold tracking-wider text-lg text-main mb-2">NAXXIVO</div>
-        
-        {isStuck && (
-            <div className="mt-8 animate-fade-in flex flex-col items-center">
-                <div className="flex items-center gap-2 text-yellow-500 text-xs font-bold mb-3 bg-yellow-500/10 px-3 py-2 rounded-lg border border-yellow-500/20">
-                    <AlertTriangle size={14} /> Connection taking longer than usual...
-                </div>
-                <button 
-                    onClick={handleManualReset}
-                    className="flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-xl shadow-lg hover:bg-gray-200 transition text-sm"
-                >
-                    <RefreshCw size={16} /> Tap to Fix & Reload
-                </button>
-            </div>
-        )}
+      <div className="min-h-screen bg-void flex flex-col items-center justify-center text-brand p-4">
+        <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mb-4"></div>
+        <div className="font-display font-bold tracking-wider text-lg text-main">NAXXIVO</div>
       </div>
     );
   }
@@ -245,7 +209,6 @@ const AppContent: React.FC = () => {
 
             {/* User Protected Routes */}
             <Route path="/invest" element={<RequireAuth session={session}><FeatureGuard feature="invest"><Invest /></FeatureGuard></RequireAuth>} />
-            <Route path="/vip-plans" element={<RequireAuth session={session}><FeatureGuard feature="invest"><Vip /></FeatureGuard></RequireAuth>} />
             <Route path="/tasks" element={<RequireAuth session={session}><FeatureGuard feature="tasks"><Tasks /></FeatureGuard></RequireAuth>} />
             <Route path="/advertise" element={<RequireAuth session={session}><Advertise /></RequireAuth>} /> 
             <Route path="/invite" element={<RequireAuth session={session}><FeatureGuard feature="invite"><Invite /></FeatureGuard></RequireAuth>} />
@@ -292,7 +255,9 @@ const App: React.FC = () => {
         <CurrencyProvider>
           <Router>
             <SystemProvider>
+              <SimulationProvider>
                 <AppContent />
+              </SimulationProvider>
             </SystemProvider>
           </Router>
         </CurrencyProvider>

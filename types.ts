@@ -38,6 +38,7 @@ export interface UnlimitedEarnLog {
     device_info: string;
     country: string;
     amount: number;
+    source?: string; // Added source tracking
     created_at: string;
 }
 

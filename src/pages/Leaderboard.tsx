@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
@@ -59,11 +58,14 @@ const Leaderboard: React.FC = () => {
               .select('id, user_uid, name_1, avatar_1, level_1, is_kyc_1, is_dealer')
               .in('id', userIds);
 
-          const profileMap = new Map(profiles?.map((p: any) => [p.id, p]));
+          const profileMap = new Map<string, any>();
+          if (profiles) {
+              (profiles as any[]).forEach(p => profileMap.set(p.id, p));
+          }
 
           // 3. Construct Leader List
           const list: LeaderboardUser[] = wallets.map((w: any, index: number) => {
-              const p = profileMap.get(w.user_id);
+              const p = profileMap.get(w.user_id) as any;
               return {
                   id: w.user_id,
                   uid: p?.user_uid || 0,

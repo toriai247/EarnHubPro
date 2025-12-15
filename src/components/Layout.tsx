@@ -44,6 +44,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const navigate = useNavigate();
   const { isFeatureEnabled, config } = useSystem();
   const [balance, setBalance] = useState<number>(0);
+  const [balanceLoading, setBalanceLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isDealer, setIsDealer] = useState(false); 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -145,10 +146,12 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         setUnreadCount(0);
         setIsDealer(false);
         setIsAdmin(false);
+        setBalanceLoading(false);
         return;
     }
 
     const fetchData = async () => {
+      setBalanceLoading(true);
       try {
         const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         if (error) return; 
@@ -178,6 +181,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         }
       } catch (err) {
         console.error("Layout data fetch error:", err);
+      } finally {
+        setBalanceLoading(false);
       }
     };
 
@@ -232,8 +237,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                         </Link>
                     )}
                     
-                    <div className="hidden sm:flex px-2 py-1 bg-card border border-border-base rounded text-xs font-mono text-main transition-colors">
-                        <BalanceDisplay amount={balance} isHeader={true} isNative={true} />
+                    <div className="hidden sm:flex px-2 py-1 bg-card border border-border-base rounded text-xs font-mono text-main transition-colors min-w-[80px] justify-center">
+                        <BalanceDisplay amount={balance} isHeader={true} isNative={true} loading={balanceLoading} />
                     </div>
                     <Link to="/notifications" className="relative p-2 text-muted hover:text-main transition-colors active:scale-90 duration-200">
                       <Bell size={20} />

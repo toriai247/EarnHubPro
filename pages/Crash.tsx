@@ -4,7 +4,7 @@ import { ArrowLeft, Volume2, VolumeX, Trophy, Rocket, History, Clock, Users, Set
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
-import { getPlayableBalance, deductGameBalance } from '../lib/gameMath';
+import { getPlayableBalance, deductGameBalance, determineOutcome } from '../lib/gameMath';
 import { useUI } from '../context/UIContext';
 import { useCurrency } from '../context/CurrencyContext';
 import GlassCard from '../components/GlassCard';
@@ -21,6 +21,99 @@ const BOTS = [
     'SkyHigh', 'MoneyMaker', 'CryptoBoss', 'AlphaBet', 'SniperX', 'RichKid', 
     'TakaFly', 'SpeedRacer', 'MoonWalker', 'GambleGod', 'RiskTaker', 'FortuneH', 'ZenMaster'
 ];
+
+// --- EXTRACTED COMPONENT TO FIX INPUT FOCUS ISSUE ---
+const BetPanelControl = ({ 
+    id, 
+    amount, setAmount, 
+    autoCash, setAutoCash, 
+    autoBet, setAutoBet,
+    hasBet, cashedOut, 
+    profit, multiplier, 
+    gameState, balance, format, 
+    onPlaceBet, onCashOut 
+}: any) => {
+    return (
+        <div className="bg-[#1e1e1e] rounded-xl p-3 border border-white/5 flex flex-col gap-3 relative overflow-hidden shadow-lg">
+            {/* Result Overlay */}
+            {cashedOut && (
+                <div className="absolute inset-0 bg-green-900/90 z-20 flex flex-col items-center justify-center backdrop-blur-sm border-2 border-green-500 rounded-xl">
+                    <p className="text-xs font-bold text-green-200 uppercase tracking-widest">You Won</p>
+                    <p className="text-2xl font-black text-white drop-shadow-md">{format(profit)}</p>
+                    <p className="text-[10px] text-green-300 mt-1 font-mono">x{multiplier.toFixed(2)}</p>
+                </div>
+            )}
+            
+            {/* Controls */}
+            <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                    <div className="relative">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">BDT</div>
+                            <input 
+                                type="number" 
+                                value={amount} 
+                                onChange={e=>setAmount(e.target.value)} 
+                                disabled={hasBet} 
+                                className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-2 py-3 text-white font-mono font-bold text-base focus:border-red-500 outline-none transition-colors"
+                            />
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 mt-1">
+                            <button onClick={()=>setAmount((parseFloat(amount)/2).toFixed(0))} className="text-[9px] bg-white/5 hover:bg-white/10 py-1 rounded text-gray-400 font-bold uppercase">1/2</button>
+                            <button onClick={()=>setAmount((parseFloat(amount)*2).toFixed(0))} className="text-[9px] bg-white/5 hover:bg-white/10 py-1 rounded text-gray-400 font-bold uppercase">2x</button>
+                            <button onClick={()=>setAmount(balance.toFixed(0))} className="text-[9px] bg-white/5 hover:bg-white/10 py-1 rounded text-gray-400 font-bold uppercase col-span-2">MAX</button>
+                    </div>
+                </div>
+                <div className="w-24">
+                    <div className="relative">
+                            <div className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">Auto</div>
+                            <input 
+                                type="number" 
+                                placeholder="100x" 
+                                value={autoCash} 
+                                onChange={e=>setAutoCash(e.target.value)} 
+                                disabled={hasBet} 
+                                className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-2 py-3 text-white font-mono font-bold text-base focus:border-red-500 outline-none transition-colors"
+                            />
+                    </div>
+                    <div className="mt-1 flex items-center justify-between px-1">
+                        <span className="text-[9px] text-gray-500 font-bold uppercase">Auto Bet</span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={autoBet} onChange={e => setAutoBet(e.target.checked)} className="sr-only peer" />
+                            <div className="w-7 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-green-500"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            {/* Big Button */}
+            {hasBet && !cashedOut ? (
+                <button 
+                    onClick={onCashOut}
+                    disabled={gameState !== 'FLYING'}
+                    className="w-full py-4 bg-orange-500 hover:bg-orange-400 text-black font-black text-xl uppercase rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] active:scale-95 transition flex flex-col items-center justify-center leading-none"
+                >
+                    <span>CASHOUT</span>
+                    <span className="text-xs font-mono mt-1 font-bold">{(parseFloat(amount) * multiplier).toFixed(0)} BDT</span>
+                </button>
+            ) : (
+                <button 
+                    onClick={onPlaceBet}
+                    disabled={gameState !== 'BETTING'}
+                    className={`w-full py-4 rounded-xl font-black text-xl uppercase tracking-wider transition flex flex-col items-center justify-center leading-none ${
+                        gameState === 'FLYING' || gameState === 'CRASHED' 
+                        ? 'bg-red-900/20 text-red-500 border border-red-500/20 cursor-not-allowed' 
+                        : 'bg-green-500 text-black hover:bg-green-400 shadow-[0_0_20px_rgba(34,197,94,0.4)] active:scale-95'
+                    }`}
+                >
+                    {gameState === 'FLYING' ? 'WAIT' : 'BET'}
+                    <span className="text-[10px] font-bold mt-1 opacity-70">
+                            {gameState === 'FLYING' ? 'Next Round' : 'Place Bet'}
+                    </span>
+                </button>
+            )}
+        </div>
+    );
+};
 
 const Crash: React.FC = () => {
     const { toast } = useUI();
@@ -138,6 +231,11 @@ const Crash: React.FC = () => {
         setHistory(prevHistory);
 
         requestRef.current = requestAnimationFrame(syncGameLoop);
+        
+        // Attempt auto-play on mount if sound enabled
+        if (soundOn) {
+            bgMusic.current.play().catch(e => console.log("Autoplay blocked, waiting for user interaction"));
+        }
 
         return () => {
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -146,15 +244,14 @@ const Crash: React.FC = () => {
         };
     }, []);
 
-    // Handle Music Playback based on state
+    // Handle Music Playback Toggle (Controlled ONLY by mute button)
     useEffect(() => {
-        if (soundOn && gameState === 'FLYING') {
+        if (soundOn) {
             bgMusic.current.play().catch(()=>{});
         } else {
             bgMusic.current.pause();
-            bgMusic.current.currentTime = 0;
         }
-    }, [gameState, soundOn]);
+    }, [soundOn]);
 
     const fetchBalance = async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -421,90 +518,7 @@ const Crash: React.FC = () => {
              ctx.fill();
 
              ctx.restore();
-             
-             // Shake effect handling happens via CSS on parent usually, but drawing visual cue helps
         }
-    };
-
-    // --- RENDER ---
-    const BetPanel = ({ id }: { id: 1 | 2 }) => {
-        const amount = id === 1 ? bet1Amount : bet2Amount;
-        const setAmount = id === 1 ? setBet1Amount : setBet2Amount;
-        const autoCash = id === 1 ? bet1AutoCashout : bet2AutoCashout;
-        const setAutoCash = id === 1 ? setBet1AutoCashout : setBet2AutoCashout;
-        const hasBet = id === 1 ? hasBet1 : hasBet2;
-        const cashedOut = id === 1 ? cashedOut1 : cashedOut2;
-        const profit = id === 1 ? profit1 : profit2;
-        const autoBet = id === 1 ? autoBet1 : autoBet2;
-        const setAutoBet = id === 1 ? setAutoBet1 : setAutoBet2;
-
-        return (
-            <div className="bg-[#1e1e1e] rounded-xl p-3 border border-white/5 flex flex-col gap-3 relative overflow-hidden shadow-lg">
-                {/* Result Overlay */}
-                {cashedOut && (
-                    <div className="absolute inset-0 bg-green-900/90 z-20 flex flex-col items-center justify-center backdrop-blur-sm border-2 border-green-500 rounded-xl">
-                        <p className="text-xs font-bold text-green-200 uppercase tracking-widest">You Won</p>
-                        <p className="text-2xl font-black text-white drop-shadow-md">{format(profit)}</p>
-                        <p className="text-[10px] text-green-300 mt-1 font-mono">x{multiplier.toFixed(2)}</p>
-                    </div>
-                )}
-                
-                {/* Controls */}
-                <div className="flex gap-2 items-end">
-                    <div className="flex-1">
-                        <div className="relative">
-                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">BDT</div>
-                             <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} disabled={hasBet} className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-2 py-3 text-white font-mono font-bold text-base focus:border-red-500 outline-none transition-colors"/>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 mt-1">
-                             <button onClick={()=>setAmount((parseFloat(amount)/2).toFixed(0))} className="text-[9px] bg-white/5 hover:bg-white/10 py-1 rounded text-gray-400 font-bold uppercase">1/2</button>
-                             <button onClick={()=>setAmount((parseFloat(amount)*2).toFixed(0))} className="text-[9px] bg-white/5 hover:bg-white/10 py-1 rounded text-gray-400 font-bold uppercase">2x</button>
-                             <button onClick={()=>setAmount(balance.toFixed(0))} className="text-[9px] bg-white/5 hover:bg-white/10 py-1 rounded text-gray-400 font-bold uppercase col-span-2">MAX</button>
-                        </div>
-                    </div>
-                    <div className="w-24">
-                        <div className="relative">
-                             <div className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">Auto</div>
-                             <input type="number" placeholder="100x" value={autoCash} onChange={e=>setAutoCash(e.target.value)} disabled={hasBet} className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-2 py-3 text-white font-mono font-bold text-base focus:border-red-500 outline-none transition-colors"/>
-                        </div>
-                        <div className="mt-1 flex items-center justify-between px-1">
-                            <span className="text-[9px] text-gray-500 font-bold uppercase">Auto Bet</span>
-                             <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" checked={autoBet} onChange={e => setAutoBet(e.target.checked)} className="sr-only peer" />
-                                <div className="w-7 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-green-500"></div>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Big Button */}
-                {hasBet && !cashedOut ? (
-                    <button 
-                        onClick={() => handleCashOut(id)}
-                        disabled={gameState !== 'FLYING'}
-                        className="w-full py-4 bg-orange-500 hover:bg-orange-400 text-black font-black text-xl uppercase rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] active:scale-95 transition flex flex-col items-center justify-center leading-none"
-                    >
-                        <span>CASHOUT</span>
-                        <span className="text-xs font-mono mt-1 font-bold">{(parseFloat(amount) * multiplier).toFixed(0)} BDT</span>
-                    </button>
-                ) : (
-                    <button 
-                        onClick={() => placeBet(id)}
-                        disabled={gameState !== 'BETTING'}
-                        className={`w-full py-4 rounded-xl font-black text-xl uppercase tracking-wider transition flex flex-col items-center justify-center leading-none ${
-                            gameState === 'FLYING' || gameState === 'CRASHED' 
-                            ? 'bg-red-900/20 text-red-500 border border-red-500/20 cursor-not-allowed' 
-                            : 'bg-green-500 text-black hover:bg-green-400 shadow-[0_0_20px_rgba(34,197,94,0.4)] active:scale-95'
-                        }`}
-                    >
-                        {gameState === 'FLYING' ? 'WAIT' : 'BET'}
-                        <span className="text-[10px] font-bold mt-1 opacity-70">
-                             {gameState === 'FLYING' ? 'Next Round' : 'Place Bet'}
-                        </span>
-                    </button>
-                )}
-            </div>
-        );
     };
 
     if (gameState === 'SYNCING') {
@@ -570,10 +584,28 @@ const Crash: React.FC = () => {
                 </div>
             </div>
 
-            {/* Controls */}
+            {/* Controls - Using Extracted Component */}
             <div className="grid grid-cols-2 gap-3 mb-6">
-                <BetPanel id={1} />
-                <BetPanel id={2} />
+                <BetPanelControl 
+                    id={1}
+                    amount={bet1Amount} setAmount={setBet1Amount}
+                    autoCash={bet1AutoCashout} setAutoCash={setBet1AutoCashout}
+                    autoBet={autoBet1} setAutoBet={setAutoBet1}
+                    hasBet={hasBet1} cashedOut={cashedOut1}
+                    profit={profit1} multiplier={multiplier}
+                    gameState={gameState} balance={balance} format={format}
+                    onPlaceBet={() => placeBet(1)} onCashOut={() => handleCashOut(1)}
+                />
+                <BetPanelControl 
+                    id={2}
+                    amount={bet2Amount} setAmount={setBet2Amount}
+                    autoCash={bet2AutoCashout} setAutoCash={setBet2AutoCashout}
+                    autoBet={autoBet2} setAutoBet={setAutoBet2}
+                    hasBet={hasBet2} cashedOut={cashedOut2}
+                    profit={profit2} multiplier={multiplier}
+                    gameState={gameState} balance={balance} format={format}
+                    onPlaceBet={() => placeBet(2)} onCashOut={() => handleCashOut(2)}
+                />
             </div>
 
             {/* Live Bets */}

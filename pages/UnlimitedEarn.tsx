@@ -1,15 +1,25 @@
+
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { supabase } from '../integrations/supabase/client';
 import { 
     Link as LinkIcon, Copy, TrendingUp, Users, Globe, Monitor, 
     MousePointer, Eye, Loader2, ArrowRight, Zap, AlertCircle, Activity,
-    Map as MapIcon, Smartphone, RefreshCw, BookOpen, Flame, Dice5, Check, Share2
+    Map as MapIcon, Smartphone, RefreshCw, BookOpen, Flame, Dice5, Check, Share2, Gift, Link2
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+
+// --- AFFILIATE CONFIGURATION ---
+const PARTNER_BANNERS = [
+    { id: 1, name: "ShrinkMe - Leaderboard", img: "https://shrinkme.io/banners/ref/728x90GIF.gif", link: "https://shrinkme.io/ref/103373471738485103929" },
+    { id: 2, name: "ShrinkMe - Banner 1", img: "https://shrinkme.io/banners/ref/728x90.png", link: "https://shrinkme.io/ref/103373471738485103929" },
+    { id: 3, name: "ShrinkMe - Banner 2", img: "https://shrinkme.io/banners/ref/728x90-2.png", link: "https://shrinkme.io/ref/103373471738485103929" },
+    { id: 4, name: "ShrinkMe - Rect", img: "https://shrinkme.io/banners/ref/336x280.png", link: "https://shrinkme.io/ref/103373471738485103929" },
+    { id: 5, name: "Ouo.io", img: "https://ouo.io/images/banners/r1.jpg", link: "http://ouo.io/ref/riQiDnjE" }
+];
 
 const UnlimitedEarn: React.FC = () => {
     const { toast } = useUI();
@@ -24,6 +34,10 @@ const UnlimitedEarn: React.FC = () => {
     const [recentLogs, setRecentLogs] = useState<any[]>([]);
     const [userUid, setUserUid] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
+    
+    // Shortener State
+    const [shortLink, setShortLink] = useState('');
+    const [isShortening, setIsShortening] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -90,9 +104,39 @@ const UnlimitedEarn: React.FC = () => {
     // Construct Universal Link (No category param)
     const promoLink = userUid ? `${window.location.origin}/#/u-link/${userUid}` : 'Loading...';
 
+    const handleBannerClick = async (bannerId: number, name: string, link: string) => {
+        // 1. Open immediately to prevent popup blocking
+        window.open(link, '_blank');
+
+        // 2. Track click source
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        try {
+            await supabase.from('unlimited_earn_logs').insert({
+                referrer_id: session.user.id,
+                action_type: 'click',
+                amount: 0.00, // No direct earnings for clicking banner yourself, just tracking
+                visitor_ip: '0.0.0.0', // Admin check
+                device_info: navigator.userAgent,
+                country: 'Unknown',
+                source: `Banner_${bannerId}_${name}` // Track specific banner
+            });
+            // Don't refresh whole data to keep UI smooth, maybe just toast
+            // toast.success("Click tracked"); 
+        } catch (e) {
+            console.error("Tracking failed", e);
+        }
+    };
+
     const copyLink = () => {
         navigator.clipboard.writeText(promoLink);
         toast.success(`Copied Smart Link!`);
+    };
+    
+    const copyShortLink = () => {
+        navigator.clipboard.writeText(shortLink);
+        toast.success(`Copied Short Link!`);
     };
 
     const shareLink = async () => {
@@ -101,13 +145,48 @@ const UnlimitedEarn: React.FC = () => {
                 await navigator.share({
                     title: 'Check this out!',
                     text: 'Login and win 12000 TK Bonus instantly!',
-                    url: promoLink
+                    url: shortLink || promoLink
                 });
             } catch (err) {
                 console.error('Share failed:', err);
             }
         } else {
             copyLink();
+        }
+    };
+
+    const handleShorten = async () => {
+        if (!promoLink || promoLink.includes('Loading')) return;
+        setIsShortening(true);
+        try {
+            const apiToken = 'a314d689ed2d97048989982ae75ca370096fda91';
+            const url = encodeURIComponent(promoLink);
+            const alias = `Nxv${userUid}${Math.floor(Math.random()*100)}`; // Random suffix to avoid collision
+            
+            // Attempt 1: Custom Alias
+            let response = await fetch(`https://api.gplinks.com/api?api=${apiToken}&url=${url}&alias=${alias}`);
+            let data = await response.json();
+            
+            if (data.status === 'success') {
+                setShortLink(data.shortenedUrl);
+                toast.success("Link Shortened Successfully!");
+            } else {
+                 // Attempt 2: Random Alias (Fallback)
+                 response = await fetch(`https://api.gplinks.com/api?api=${apiToken}&url=${url}`);
+                 data = await response.json();
+                 
+                 if (data.status === 'success') {
+                    setShortLink(data.shortenedUrl);
+                    toast.success("Link Shortened!");
+                 } else {
+                    toast.error("Shortener Error: " + (data.message || 'Unknown'));
+                 }
+            }
+        } catch (e) {
+            console.error(e);
+            toast.error("Network Error. Ensure CORS is allowed or check API status.");
+        } finally {
+            setIsShortening(false);
         }
     };
 
@@ -130,6 +209,41 @@ const UnlimitedEarn: React.FC = () => {
                 </button>
             </div>
 
+            {/* PARTNER SLIDER COMPONENT */}
+            <div className="py-2">
+                <div className="flex items-center justify-between mb-3 px-1">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                        <Gift size={14} className="text-pink-500"/> Partner Offers
+                    </h3>
+                    <span className="text-[9px] bg-pink-500/10 text-pink-400 border border-pink-500/20 px-2 py-0.5 rounded font-bold uppercase animate-pulse flex items-center gap-1">
+                        <Zap size={10} /> Signup Bonus Active
+                    </span>
+                </div>
+                
+                <div className="w-full overflow-hidden relative bg-black/20 border-y border-white/5 py-4 rounded-xl">
+                    <div className="flex gap-4 w-max animate-marquee hover:[animation-play-state:paused]">
+                        {/* Triple the list for seamless infinite loop */}
+                        {[...PARTNER_BANNERS, ...PARTNER_BANNERS, ...PARTNER_BANNERS].map((b, i) => (
+                            <div 
+                                key={i} 
+                                onClick={() => handleBannerClick(b.id, b.name || `Banner ${b.id}`, b.link)}
+                                className="block relative group shrink-0 cursor-pointer"
+                            >
+                                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition duration-300 rounded-lg"></div>
+                                <img 
+                                    src={b.img} 
+                                    alt="Make Money" 
+                                    className="h-[60px] sm:h-[80px] w-auto rounded-lg shadow-lg border border-white/10 object-contain bg-[#111]"
+                                />
+                                <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[8px] font-bold px-1.5 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition">
+                                    VISIT
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
             {/* LINK GENERATOR */}
             <GlassCard className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border-cyan-500/30 p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none"><LinkIcon size={120} /></div>
@@ -138,19 +252,48 @@ const UnlimitedEarn: React.FC = () => {
                     Your Smart Link
                 </h3>
                 
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="flex-1 bg-black/40 border border-cyan-500/30 rounded-xl px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-black/50 transition" onClick={copyLink}>
-                        <code className="text-white font-mono text-xs sm:text-sm truncate mr-2">{promoLink}</code>
-                        <Copy size={16} className="text-cyan-500 group-hover:text-white transition shrink-0" />
+                <div className="flex flex-col gap-3">
+                    {/* ORIGINAL LINK ROW */}
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex-1 bg-black/40 border border-cyan-500/30 rounded-xl px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-black/50 transition" onClick={copyLink}>
+                            <code className="text-white font-mono text-xs sm:text-sm truncate mr-2">{promoLink}</code>
+                            <Copy size={16} className="text-cyan-500 group-hover:text-white transition shrink-0" />
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={copyLink} className="bg-cyan-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-cyan-500 transition shadow-lg shadow-cyan-500/20 whitespace-nowrap">
+                                Copy Link
+                            </button>
+                            <button onClick={shareLink} className="p-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition border border-white/10">
+                                <Share2 size={20} />
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex gap-2">
-                        <button onClick={copyLink} className="bg-cyan-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-cyan-500 transition shadow-lg shadow-cyan-500/20 whitespace-nowrap">
-                            Copy Link
+                    
+                    {/* SHORTENER ROW */}
+                    {shortLink ? (
+                        <motion.div 
+                            initial={{ opacity: 0, height: 0 }} 
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="flex flex-col sm:flex-row gap-3 items-center bg-green-500/10 border border-green-500/20 p-2 rounded-xl"
+                        >
+                            <div className="flex-1 px-2">
+                                <p className="text-[10px] text-green-400 font-bold uppercase mb-1">Shortened URL (Higher CPM)</p>
+                                <code className="text-white font-mono text-sm block truncate">{shortLink}</code>
+                            </div>
+                            <button onClick={copyShortLink} className="w-full sm:w-auto bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-500 flex items-center justify-center gap-2">
+                                <Copy size={14}/> Copy Short
+                            </button>
+                        </motion.div>
+                    ) : (
+                        <button 
+                            onClick={handleShorten}
+                            disabled={isShortening}
+                            className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-white/10 transition flex items-center justify-center gap-2"
+                        >
+                            {isShortening ? <Loader2 className="animate-spin" size={14} /> : <Link2 size={14} />} 
+                            Generate Short Link (GPLinks)
                         </button>
-                        <button onClick={shareLink} className="p-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition border border-white/10">
-                            <Share2 size={20} />
-                        </button>
-                    </div>
+                    )}
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -273,6 +416,7 @@ const UnlimitedEarn: React.FC = () => {
                                 <th className="p-3">Action</th>
                                 <th className="p-3">Device / Browser</th>
                                 <th className="p-3">Location</th>
+                                <th className="p-3">Source</th>
                                 <th className="p-3 text-right">Revenue</th>
                             </tr>
                         </thead>
@@ -287,8 +431,8 @@ const UnlimitedEarn: React.FC = () => {
                                     </td>
                                     <td className="p-3">
                                         <div className="flex flex-col">
-                                            <span className="text-white font-bold">{log.device_type}</span>
-                                            <span className="text-[10px] text-gray-500">{log.browser} on {log.os}</span>
+                                            <span className="text-white font-bold">{log.device_type || 'Unknown'}</span>
+                                            <span className="text-[10px] text-gray-500 truncate max-w-[100px]">{log.device_info || 'N/A'}</span>
                                         </div>
                                     </td>
                                     <td className="p-3">
@@ -297,6 +441,9 @@ const UnlimitedEarn: React.FC = () => {
                                             <span className="text-[10px] text-gray-500">{log.city}</span>
                                         </div>
                                     </td>
+                                    <td className="p-3">
+                                        <span className="text-[10px] text-amber-500 font-mono bg-amber-900/10 px-1 rounded">{log.source || 'N/A'}</span>
+                                    </td>
                                     <td className="p-3 text-right font-mono text-green-400 font-bold">
                                         +<BalanceDisplay amount={log.amount} />
                                     </td>
@@ -304,7 +451,7 @@ const UnlimitedEarn: React.FC = () => {
                             ))}
                             {recentLogs.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="p-6 text-center text-gray-600">No recent logs found.</td>
+                                    <td colSpan={6} className="p-6 text-center text-gray-600">No recent logs found.</td>
                                 </tr>
                             )}
                         </tbody>

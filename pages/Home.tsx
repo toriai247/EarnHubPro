@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom';
 import { 
   ArrowDownLeft, ArrowUpRight, ArrowRightLeft, Zap, Globe, TrendingUp, Users, ArrowRight, Star, 
   Gamepad2, DollarSign, CheckCircle2, Award, Briefcase, Play, History, Wallet, 
-  ChevronRight, Quote, Gift, Layers, Activity, Crown, Flame, Sparkles, Grid, Eye, EyeOff, Send, RefreshCw, HelpCircle
+  ChevronRight, Quote, Gift, Layers, Activity, Crown, Flame, Sparkles, Grid, Eye, EyeOff, Send, RefreshCw, HelpCircle,
+  Radio, ExternalLink
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -14,46 +15,34 @@ import { WalletData, UserProfile } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import { createUserProfile } from '../lib/actions';
 import { useSystem } from '../context/SystemContext';
+import { useSimulation } from '../context/SimulationContext'; // Import
 import { motion, AnimatePresence } from 'framer-motion';
 import SmartAd from '../components/SmartAd';
 
 const MotionDiv = motion.div as any;
 
+// --- AFFILIATE CONFIGURATION ---
+const PARTNER_BANNERS = [
+    { id: 1, img: "https://shrinkme.io/banners/ref/728x90GIF.gif", link: "https://shrinkme.io/ref/103373471738485103929" },
+    { id: 2, img: "https://shrinkme.io/banners/ref/728x90.png", link: "https://shrinkme.io/ref/103373471738485103929" },
+    { id: 3, img: "https://shrinkme.io/banners/ref/728x90-2.png", link: "https://shrinkme.io/ref/103373471738485103929" },
+    { id: 4, img: "https://shrinkme.io/banners/ref/336x280.png", link: "https://shrinkme.io/ref/103373471738485103929" },
+    { id: 5, img: "https://ouo.io/images/banners/r1.jpg", link: "http://ouo.io/ref/riQiDnjE" }
+];
+
 const Home: React.FC = () => {
   const { isFeatureEnabled, config } = useSystem();
+  const { onlineUsers, liveFeed } = useSimulation(); // Use Simulation Data
+  
   const [user, setUser] = useState<UserProfile | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(true);
   const [showBalance, setShowBalance] = useState(true);
 
-  // Fake Live Activity for Guest Mode
-  const [liveActivity, setLiveActivity] = useState([
-      { user: 'User88**', action: 'withdrew', amount: '৳500', time: 'Just now' },
-      { user: 'Rahim**', action: 'earned', amount: '৳50', time: '2s ago' },
-      { user: 'Crypto**', action: 'won', amount: '৳1200', time: '5s ago' },
-  ]);
-
   useEffect(() => {
     fetchData();
-    
-    // Simulate live ticker for guest mode
-    if (isGuest) {
-        const interval = setInterval(() => {
-            const actions = ['withdrew', 'earned', 'won', 'deposited'];
-            const amounts = ['৳50', '৳100', '৳500', '৳1000', '৳2500'];
-            const users = ['User', 'Player', 'Earner', 'Member', 'Pro'];
-            const newItem = {
-                user: `${users[Math.floor(Math.random()*users.length)]}${Math.floor(Math.random()*999)}**`,
-                action: actions[Math.floor(Math.random()*actions.length)],
-                amount: amounts[Math.floor(Math.random()*amounts.length)],
-                time: 'Just now'
-            };
-            setLiveActivity(prev => [newItem, ...prev.slice(0, 3)]);
-        }, 2500);
-        return () => clearInterval(interval);
-    }
-  }, [isGuest]);
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -99,14 +88,81 @@ const Home: React.FC = () => {
     show: { opacity: 1, y: 0 }
   };
 
-  // --- GUEST VIEW (Enhanced Structure) ---
+  // --- SHARED LIVE TICKER COMPONENT ---
+  const LiveTicker = () => (
+      <div className="bg-[#0a0a0a] border-b border-white/5 py-3 overflow-hidden relative">
+         <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#0a0a0a] to-transparent z-10"></div>
+         <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0a0a0a] to-transparent z-10"></div>
+         
+         <div className="flex items-center justify-center gap-8 overflow-hidden">
+             <AnimatePresence mode="popLayout">
+                 {liveFeed.map((act) => (
+                     <motion.div 
+                        key={act.id} 
+                        initial={{ opacity: 0, y: 10 }} 
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        layout
+                        className="flex items-center gap-2 text-[10px] font-mono whitespace-nowrap min-w-[180px]"
+                     >
+                         <span>{act.icon}</span>
+                         <span className="text-gray-400 font-bold">{act.user}</span>
+                         <span className={act.color}>{act.action}</span>
+                         <span className="text-white font-black bg-white/5 px-1.5 rounded">{act.amount}</span>
+                         <span className="text-gray-600 italic hidden sm:inline">{act.time}</span>
+                     </motion.div>
+                 ))}
+             </AnimatePresence>
+         </div>
+      </div>
+  );
+
+  // --- PARTNER SLIDER COMPONENT ---
+  const PartnerSlider = () => (
+      <div className="py-2">
+          <div className="flex items-center justify-between mb-3 px-1">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                  <Gift size={14} className="text-pink-500"/> Partner Offers
+              </h3>
+              <span className="text-[9px] bg-pink-500/10 text-pink-400 border border-pink-500/20 px-2 py-0.5 rounded font-bold uppercase animate-pulse flex items-center gap-1">
+                  <Zap size={10} /> Signup Bonus Active
+              </span>
+          </div>
+          
+          <div className="w-full overflow-hidden relative bg-black/20 border-y border-white/5 py-4">
+              <div className="flex gap-4 w-max animate-marquee hover:[animation-play-state:paused]">
+                  {/* Triple the list for seamless infinite loop */}
+                  {[...PARTNER_BANNERS, ...PARTNER_BANNERS, ...PARTNER_BANNERS].map((b, i) => (
+                      <a 
+                          key={i} 
+                          href={b.link} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="block relative group shrink-0"
+                      >
+                          <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition duration-300 rounded-lg"></div>
+                          <img 
+                              src={b.img} 
+                              alt="Make Money" 
+                              className="h-[50px] sm:h-[70px] w-auto rounded-lg shadow-lg border border-white/10 object-contain bg-[#111]"
+                          />
+                          <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[8px] font-bold px-1.5 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition">
+                              VISIT
+                          </div>
+                      </a>
+                  ))}
+              </div>
+          </div>
+      </div>
+  );
+
+  // --- GUEST VIEW ---
   if (isGuest) {
       return (
         <div className="min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden selection:bg-brand selection:text-black pb-24">
              
              {/* 1. HERO SECTION */}
              <div className="relative pt-12 pb-10 px-6 text-center border-b border-white/5 bg-gradient-to-b from-blue-900/10 to-black overflow-hidden">
-                {/* Background Glow */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-lg h-64 bg-blue-600/20 blur-[100px] rounded-full pointer-events-none"></div>
                 
                 <motion.div 
@@ -120,6 +176,12 @@ const Home: React.FC = () => {
                     </div>
                 </motion.div>
                 
+                <div className="flex justify-center mb-4">
+                    <div className="bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full flex items-center gap-2 text-[10px] font-bold text-green-400 animate-pulse">
+                        <Radio size={12} className="text-red-500" /> {onlineUsers.toLocaleString()} Users Online
+                    </div>
+                </div>
+
                 <h1 className="text-4xl font-black uppercase tracking-tight mb-3 relative z-10">
                     Naxxivo <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand to-blue-400">Pro</span>
                 </h1>
@@ -140,29 +202,11 @@ const Home: React.FC = () => {
              </div>
 
              {/* 2. LIVE ACTIVITY TICKER */}
-             <div className="bg-[#0a0a0a] border-b border-white/5 py-3 overflow-hidden relative">
-                 <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#0a0a0a] to-transparent z-10"></div>
-                 <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0a0a0a] to-transparent z-10"></div>
-                 
-                 <div className="flex items-center justify-center gap-8 overflow-hidden">
-                     <AnimatePresence mode="popLayout">
-                         {liveActivity.map((act, i) => (
-                             <motion.div 
-                                key={`${act.user}-${i}`} 
-                                initial={{ opacity: 0, y: 10 }} 
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                className="flex items-center gap-2 text-[10px] font-mono whitespace-nowrap min-w-[180px]"
-                             >
-                                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_#22c55e]"></div>
-                                 <span className="text-gray-400 font-bold">{act.user}</span>
-                                 <span className={act.action === 'lost' ? 'text-red-400' : 'text-blue-400'}>{act.action}</span>
-                                 <span className="text-white font-black bg-white/5 px-1.5 rounded">{act.amount}</span>
-                                 <span className="text-gray-600 italic">{act.time}</span>
-                             </motion.div>
-                         ))}
-                     </AnimatePresence>
-                 </div>
+             <LiveTicker />
+
+             {/* 2.5 PARTNER SLIDER (GUEST) */}
+             <div className="mt-6 mb-2">
+                 <PartnerSlider />
              </div>
 
              {/* 3. STRUCTURED FEATURES GRID */}
@@ -237,6 +281,11 @@ const Home: React.FC = () => {
   return (
     <MotionDiv variants={container} initial="hidden" animate="show" className="space-y-8 pb-24 pt-4 px-4 sm:px-0">
       
+      {/* 0. LIVE TICKER (FOR AUTH USERS TOO) */}
+      <div className="-mx-4 sm:-mx-0 mb-4 rounded-b-xl overflow-hidden">
+        <LiveTicker />
+      </div>
+
       {user && <DailyBonus userId={user.id} />}
 
       {/* 1. ASSET CARD */}
@@ -251,9 +300,14 @@ const Home: React.FC = () => {
                       <h2 className="font-bold text-white leading-none">{user?.name_1?.split(' ')[0]}</h2>
                   </div>
               </div>
-              <Link to="/menu" className="p-2 bg-white/5 rounded-full border border-white/5 text-gray-300 hover:text-white transition">
-                  <Grid size={20} />
-              </Link>
+              <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-green-500 font-bold bg-green-900/10 px-2 py-1 rounded border border-green-900/20 flex items-center gap-1 animate-pulse">
+                      <Radio size={10} /> {onlineUsers} Online
+                  </span>
+                  <Link to="/menu" className="p-2 bg-white/5 rounded-full border border-white/5 text-gray-300 hover:text-white transition">
+                      <Grid size={20} />
+                  </Link>
+              </div>
           </div>
 
           <GlassCard className="p-6 border-yellow-500/20 bg-gradient-to-br from-yellow-900/10 to-black relative overflow-hidden shadow-2xl">
@@ -295,7 +349,12 @@ const Home: React.FC = () => {
           </div>
       </MotionDiv>
 
-      {/* 2.5 HOT DEALS SLIDER */}
+      {/* 2.5 PARTNER SLIDER (USER) */}
+      <MotionDiv variants={item}>
+          <PartnerSlider />
+      </MotionDiv>
+
+      {/* 2.6 HOT DEALS SLIDER */}
       <MotionDiv variants={item}>
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
               <Flame size={12} className="text-red-500" /> Hot Deals
@@ -318,27 +377,6 @@ const Home: React.FC = () => {
                       <p className="text-xs text-blue-200/80 mt-1">Get extra cash instantly.</p>
                   </div>
               </Link>
-          </div>
-      </MotionDiv>
-
-      {/* 2.6 REFERRAL SPOTLIGHT */}
-      <MotionDiv variants={item}>
-          <div className="bg-gradient-to-r from-pink-900/20 to-purple-900/20 border border-pink-500/30 rounded-2xl p-5 flex items-center justify-between relative overflow-hidden group">
-              <div className="absolute inset-0 bg-pink-500/5 group-hover:bg-pink-500/10 transition"></div>
-              <div className="relative z-10">
-                  <h4 className="font-black text-white text-lg flex items-center gap-2">
-                      Refer & Earn <Sparkles size={16} className="text-yellow-400 fill-yellow-400" />
-                  </h4>
-                  <p className="text-xs text-pink-200 mt-1">Get 100 TK + 5% Commission per friend!</p>
-                  <Link to="/invite" className="inline-block mt-3 bg-pink-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-pink-500 transition">
-                      Invite Friends
-                  </Link>
-              </div>
-              <div className="relative z-10">
-                  <div className="w-16 h-16 bg-pink-500/20 rounded-full flex items-center justify-center border border-pink-500/40 shadow-[0_0_20px_rgba(236,72,153,0.3)]">
-                      <Users size={32} className="text-pink-400" />
-                  </div>
-              </div>
           </div>
       </MotionDiv>
 

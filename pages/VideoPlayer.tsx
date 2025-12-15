@@ -7,7 +7,8 @@ import GlassCard from '../components/GlassCard';
 import { 
     ArrowLeft, Play, Pause, CheckCircle2, 
     Clock, DollarSign, Share2, Maximize, Minimize, 
-    AlertCircle, Flag, Heart, Loader2, Zap, User as UserIcon, Volume2, VolumeX, ExternalLink
+    AlertCircle, Flag, Heart, Loader2, Zap, User as UserIcon, 
+    Volume2, VolumeX, ExternalLink, RefreshCw, Tv
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -42,6 +43,7 @@ const VideoPlayer: React.FC = () => {
     // UI State
     const [cinemaMode, setCinemaMode] = useState(false);
     const [iframeInteracted, setIframeInteracted] = useState(false);
+    const [iframeKey, setIframeKey] = useState(0); // Used to reload iframe
     
     // Refs
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -70,12 +72,8 @@ const VideoPlayer: React.FC = () => {
                 }
                 // For iframes, we pause the timer to prevent cheating via background tabs
                 if (timerRef.current) {
-                    clearInterval(timerRef.current);
-                    setIsPlaying(false);
+                    stopIframeTimer();
                 }
-            } else {
-                // If native video was playing, maybe resume? No, let user resume manually.
-                // For iframe, if they come back, they need to click "Resume" or we rely on them continuing to watch.
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -166,7 +164,6 @@ const VideoPlayer: React.FC = () => {
         const diff = currentTime - lastTimeRef.current;
 
         // Anti-Cheat: If diff is too large (seeking forward), revert.
-        // Allow small skips (lag) or backward seeking.
         if (diff > 2) {
             videoRef.current.currentTime = lastTimeRef.current; 
             toast.error("Fast-forwarding is disabled.");
@@ -227,11 +224,11 @@ const VideoPlayer: React.FC = () => {
         setIsPlaying(false);
     };
 
-    // --- IFRAME LOGIC FIX ---
+    // --- IFRAME LOGIC ---
     const startIframeTimer = () => {
         if (hasClaimedToday || canClaim) return;
         setIframeInteracted(true);
-        setIsPlaying(true); // Visual state for timer
+        setIsPlaying(true); 
         
         // Start Timer
         stopIframeTimer();
@@ -252,6 +249,14 @@ const VideoPlayer: React.FC = () => {
         setIsPlaying(false);
     };
 
+    const reloadIframe = () => {
+        setIframeKey(prev => prev + 1);
+        stopIframeTimer();
+        setIframeInteracted(false);
+        setWatchedSeconds(0);
+        toast.info("Player reloaded");
+    };
+
     // --- CLAIM REWARD ---
     const handleClaim = async () => {
         if (!canClaim || hasClaimedToday) return;
@@ -261,14 +266,18 @@ const VideoPlayer: React.FC = () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("No session");
 
-            // Fallback for missing RPC
+            // Update Wallet
             await updateWallet(session.user.id, video.cost_per_view, 'increment', 'earning_balance');
+            
+            // Log Transaction
             await createTransaction(
                 session.user.id, 
                 'earn', 
                 video.cost_per_view, 
                 `Video Reward: ${video.title}`
             );
+            
+            // Decrement Budget
             await supabase.from('video_ads').update({ 
                 remaining_budget: Math.max(0, video.remaining_budget - video.cost_per_view)
             }).eq('id', video.id);
@@ -286,11 +295,32 @@ const VideoPlayer: React.FC = () => {
     };
 
     const getEmbedUrl = (url: string) => {
-        if (url.includes('youtube.com') || url.includes('youtu.be')) {
-            const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([\w-]{11})/);
-            // Autoplay=1 to start, but user still needs to interact with browser usually
-            return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&controls=1&rel=0` : url;
+        if (!url) return '';
+        
+        // YouTube (Standard, Shorts, Embed)
+        const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([\w-]{11})/);
+        if (ytMatch) {
+            // Autoplay enabled, Modest branding to hide logo, Rel 0 to show related from same channel
+            return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&modestbranding=1&rel=0&playsinline=1&controls=1`;
         }
+        
+        // Vimeo
+        const vimeoMatch = url.match(/(?:vimeo\.com\/)(\d+)/);
+        if (vimeoMatch) {
+            return `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1&title=0&byline=0&portrait=0`;
+        }
+        
+        // Facebook Watch
+        if (url.includes('facebook.com') && url.includes('/videos/')) {
+             return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=0&autoplay=1`;
+        }
+
+        // DailyMotion
+        const dmMatch = url.match(/(?:dailymotion\.com\/video\/)([\w]+)/);
+        if (dmMatch) {
+             return `https://www.dailymotion.com/embed/video/${dmMatch[1]}?autoplay=1`;
+        }
+
         return url;
     };
 
@@ -321,14 +351,18 @@ const VideoPlayer: React.FC = () => {
     return (
         <div className={`min-h-screen bg-[#050505] text-white flex flex-col ${cinemaMode ? 'z-[100] fixed inset-0' : 'pb-24'}`}>
             
-            {/* Header (Hidden in Cinema Mode to reduce distraction, Back button is in player) */}
+            {/* Header */}
             {!cinemaMode && (
                 <div className="bg-black/80 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
-                    <span className="font-bold text-sm text-gray-400">Watch & Earn</span>
-                    <div className="flex items-center gap-2">
-                        <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Reward</div>
-                        <div className="bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full text-green-400 font-mono font-bold text-xs">
-                            +<BalanceDisplay amount={video.cost_per_view}/>
+                    <button onClick={() => navigate('/video')} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition">
+                        <ArrowLeft size={18} />
+                    </button>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                             <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Reward</div>
+                             <div className="bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full text-green-400 font-mono font-bold text-xs">
+                                 +<BalanceDisplay amount={video.cost_per_view}/>
+                             </div>
                         </div>
                     </div>
                 </div>
@@ -340,7 +374,6 @@ const VideoPlayer: React.FC = () => {
                 {/* VIDEO STAGE */}
                 <div className={`relative w-full bg-black group ${cinemaMode ? 'h-full' : 'aspect-video shadow-2xl border-b border-white/5'}`}>
                     
-                    {/* VIDEO ELEMENT */}
                     {isNative ? (
                         <video 
                             ref={videoRef}
@@ -355,41 +388,51 @@ const VideoPlayer: React.FC = () => {
                             onPause={handlePause}
                         />
                     ) : (
-                        <div className="relative w-full h-full">
+                        <div className="relative w-full h-full bg-black">
                             {!iframeInteracted ? (
                                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm cursor-pointer" onClick={startIframeTimer}>
-                                    <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mb-4 shadow-[0_0_30px_#dc2626] animate-pulse">
+                                    <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mb-4 shadow-[0_0_30px_#dc2626] animate-pulse group-hover:scale-110 transition">
                                         <Play size={32} fill="white" className="ml-1" />
                                     </div>
-                                    <p className="text-white font-bold uppercase tracking-widest text-sm">Tap to Start</p>
+                                    <p className="text-white font-bold uppercase tracking-widest text-sm">Tap to Watch</p>
                                 </div>
                             ) : null}
-                            {/* Allow interaction with iframe for manual play */}
+                            
+                            {/* IFRAME RENDERER */}
                             {iframeInteracted && (
                                 <iframe 
+                                    key={iframeKey}
                                     src={getEmbedUrl(video.video_url)} 
                                     className="w-full h-full"
                                     frameBorder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                     allowFullScreen
                                     title={video.title}
+                                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
                                 ></iframe>
                             )}
                         </div>
                     )}
 
-                    {/* OVERLAY: BACK BUTTON */}
-                    <div className="absolute top-4 left-4 z-50">
-                        <button onClick={() => navigate('/video')} className="p-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 border border-white/10">
-                            <ArrowLeft size={20} />
-                        </button>
-                    </div>
+                    {/* OVERLAY: BACK BUTTON (Cinema Only) */}
+                    {cinemaMode && (
+                        <div className="absolute top-4 left-4 z-50">
+                            <button onClick={() => setCinemaMode(false)} className="p-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 border border-white/10">
+                                <ArrowLeft size={20} />
+                            </button>
+                        </div>
+                    )}
 
-                    {/* OVERLAY: CINEMA TOGGLE */}
-                    <div className="absolute top-4 right-4 z-50">
+                    {/* OVERLAY: TOOLS */}
+                    <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
                         <button onClick={() => setCinemaMode(!cinemaMode)} className="p-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 border border-white/10">
                             {cinemaMode ? <Minimize size={20} /> : <Maximize size={20} />}
                         </button>
+                        {!isNative && (
+                             <button onClick={reloadIframe} className="p-2 bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 border border-white/10" title="Reload Player">
+                                <RefreshCw size={20} />
+                             </button>
+                        )}
                     </div>
 
                     {/* OVERLAY: BIG PLAY BUTTON (Native Only - If Paused) */}
@@ -412,17 +455,21 @@ const VideoPlayer: React.FC = () => {
                         </div>
                     )}
 
-                    {/* OVERLAY: CONTROLS BAR (Locked Seeking for Native, Hidden for Iframe) */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent pt-12 pb-3 px-4 z-40 flex flex-col gap-3">
+                    {/* OVERLAY: CONTROLS BAR */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent pt-16 pb-4 px-4 z-40 flex flex-col gap-3 transition-opacity duration-300">
                         
                         {/* Progress Bar (Visual Only) */}
                         <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden relative">
                             <motion.div 
-                                className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
+                                className={`h-full relative ${hasClaimedToday ? 'bg-green-500' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`}
                                 style={{ width: `${progressPercent}%` }}
                                 animate={{ width: `${progressPercent}%` }}
                                 transition={{ ease: "linear" }}
-                            />
+                            >
+                                {progressPercent < 100 && (
+                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-[0_0_10px_white]"></div>
+                                )}
+                            </motion.div>
                         </div>
 
                         <div className="flex items-center justify-between">
@@ -445,15 +492,26 @@ const VideoPlayer: React.FC = () => {
                                 )}
                                 {/* Iframe Info */}
                                 {!isNative && (
-                                    <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                                        <ExternalLink size={14}/> External Player
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Tv size={16} className="text-gray-400" />
+                                        <span className="text-xs font-bold text-gray-300">External Player</span>
+                                    </div>
                                 )}
                             </div>
 
                             {/* Timer Badge */}
-                            <div className={`px-3 py-1 rounded-lg border text-[10px] font-bold uppercase flex items-center gap-2 ${isPlaying ? 'bg-black/50 border-white/10 text-green-400' : 'bg-yellow-500/20 border-yellow-500 text-yellow-400'}`}>
-                                <Clock size={12}/> {isPlaying ? `${Math.round(watchedSeconds)}s / ${requiredSeconds}s` : 'Paused'}
+                            <div className={`px-3 py-1 rounded-lg border text-[10px] font-bold uppercase flex items-center gap-2 ${
+                                hasClaimedToday 
+                                ? 'bg-green-500/20 border-green-500 text-green-400' 
+                                : isPlaying 
+                                    ? 'bg-black/50 border-white/10 text-white' 
+                                    : 'bg-yellow-500/20 border-yellow-500 text-yellow-400'
+                                }`}>
+                                {hasClaimedToday ? (
+                                    <><CheckCircle2 size={12}/> Completed</>
+                                ) : (
+                                    <><Clock size={12}/> {isPlaying ? `${Math.round(watchedSeconds)}s / ${requiredSeconds}s` : 'Paused'}</>
+                                )}
                             </div>
                         </div>
                     </div>

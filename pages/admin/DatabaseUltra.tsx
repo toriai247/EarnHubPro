@@ -21,19 +21,17 @@ const TABLE_LIST = [
     'ludo_cards', 'spin_items', 'bot_profiles', 'help_requests', 
     'game_configs', 'task_attempts', 'daily_bonus_config', 'daily_streaks',
     'influencer_campaigns', 'influencer_submissions', 'published_sites', 'video_ads',
-    'task_reports', 'ad_interactions'
+    'task_reports', 'ad_interactions', 'unlimited_earn_logs'
 ];
 
 // SQL Templates Library
 const SQL_TOOLS = {
     setup: [
         {
-            title: 'Fix: Transaction Types Constraint',
-            desc: 'Updates the database constraint to allow all transaction types including game_bet.',
+            title: 'System: Source Tracking for Affiliate',
+            desc: 'Adds a source column to unlimited_earn_logs to track specific banner clicks.',
             sql: `
-ALTER TABLE public.transactions DROP CONSTRAINT IF EXISTS transactions_type_check;
-ALTER TABLE public.transactions ADD CONSTRAINT transactions_type_check 
-CHECK (type IN ('deposit', 'withdraw', 'earn', 'bonus', 'invest', 'game_win', 'game_loss', 'game_bet', 'referral', 'penalty', 'transfer', 'sponsorship', 'asset_buy', 'asset_sell', 'fee', 'roi_claim'));
+ALTER TABLE public.unlimited_earn_logs ADD COLUMN IF NOT EXISTS source TEXT;
 `
         },
         {
@@ -203,8 +201,6 @@ TRUNCATE TABLE public.ad_interactions;
         }
     ]
 };
-
-// ... (rest of the file remains unchanged)
 
 interface BackupFile {
     name: string;

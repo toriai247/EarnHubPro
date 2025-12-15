@@ -5,7 +5,7 @@ import { supabase } from '../../integrations/supabase/client';
 import { DepositRequest, WithdrawRequest } from '../../types';
 import { 
     CheckCircle, XCircle, Loader2, RefreshCw, DollarSign, Banknote, 
-    Clock, History, FileText, CreditCard, Copy, ArrowRightLeft, ArrowDown, ArrowUp, Search, Scale, AlertTriangle 
+    Clock, History, FileText, CreditCard, Copy, ArrowRightLeft, ArrowDown, ArrowUp, Search, Scale, AlertTriangle, ShieldBan
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { updateWallet, createTransaction } from '../../lib/actions';
@@ -93,6 +93,36 @@ const FinanceManager: React.FC = () => {
           fetchData();
       } catch (e: any) {
           toast.error("Error: " + e.message);
+      } finally {
+          setProcessingId(null);
+      }
+  };
+
+  // --- FRAUD ACTION (SUSPEND USER) ---
+  const handleFraudAction = async (req: DepositRequest) => {
+      if (!await confirm(`FRAUD DETECTED? \n\nThis will SUSPEND the user immediately and mark the deposit as REJECTED (Fraud). \n\nContinue?`)) return;
+
+      setProcessingId(req.id);
+      try {
+          // 1. Mark Request as Rejected
+          await supabase.from('deposit_requests').update({
+              status: 'rejected',
+              admin_note: 'FRAUD - FAKE DEPOSIT',
+              processed_at: new Date().toISOString()
+          }).eq('id', req.id);
+
+          // 2. Suspend User
+          await supabase.from('profiles').update({ is_suspended: true, admin_notes: 'Banned for Fake Deposit Auto-Approve abuse.' }).eq('id', req.user_id);
+
+          // 3. Deduct the fake money they got (Reversal)
+          await updateWallet(req.user_id, req.amount, 'decrement', 'deposit_balance');
+          await createTransaction(req.user_id, 'penalty', req.amount, `Reversal: Fake Deposit ${req.amount}`);
+
+          toast.success("User Suspended & Funds Reversed.");
+          fetchData();
+
+      } catch (e: any) {
+          toast.error("Action Failed: " + e.message);
       } finally {
           setProcessingId(null);
       }
@@ -362,9 +392,26 @@ const FinanceManager: React.FC = () => {
                                                     )}
                                                 </div>
                                             ) : (
-                                                <span className={`px-3 py-1 rounded text-xs font-bold uppercase ${req.status === 'approved' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                    {req.status}
-                                                </span>
+                                                <div className="flex items-center gap-4">
+                                                    <span className={`px-3 py-1 rounded text-xs font-bold uppercase ${req.status === 'approved' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                        {req.status}
+                                                    </span>
+                                                    
+                                                    {/* AUTO APPROVE WARNING & BAN */}
+                                                    {req.admin_note === 'AUTO_APPROVE_CHECK' && req.status === 'approved' && (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/20 animate-pulse">
+                                                                ⚠️ Auto Approved - Please Check
+                                                            </span>
+                                                            <button 
+                                                                onClick={() => handleFraudAction(req)}
+                                                                className="px-3 py-1 bg-red-600 text-white text-[10px] font-bold rounded hover:bg-red-500 flex items-center gap-1"
+                                                            >
+                                                                <ShieldBan size={12}/> Fraud? Ban User
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </GlassCard>
