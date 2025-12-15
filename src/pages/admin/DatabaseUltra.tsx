@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
@@ -6,7 +7,7 @@ import {
     FileJson, Clock, RefreshCw, Loader2, 
     Terminal, Save, Trash2, HardDrive, 
     Copy, List, BarChart3, Search, Code, Activity, PieChart, 
-    AlertOctagon, Skull, AlertTriangle, HardDriveDownload, Cpu, Hammer
+    AlertOctagon, Skull, AlertTriangle, HardDriveDownload, Cpu, Hammer, Play
 } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 
@@ -20,12 +21,19 @@ const TABLE_LIST = [
     'ludo_cards', 'spin_items', 'bot_profiles', 'help_requests', 
     'game_configs', 'task_attempts', 'daily_bonus_config', 'daily_streaks',
     'influencer_campaigns', 'influencer_submissions', 'published_sites', 'video_ads',
-    'task_reports', 'ad_interactions'
+    'task_reports', 'ad_interactions', 'unlimited_earn_logs'
 ];
 
 // SQL Templates Library
 const SQL_TOOLS = {
     setup: [
+        {
+            title: 'System: Source Tracking for Affiliate',
+            desc: 'Adds a source column to unlimited_earn_logs to track specific banner clicks.',
+            sql: `
+ALTER TABLE public.unlimited_earn_logs ADD COLUMN IF NOT EXISTS source TEXT;
+`
+        },
         {
             title: 'System: Ad Analytics Table',
             desc: 'Creates a table to track ad clicks and impressions for AdSense, Adsterra, and Monetag.',
@@ -41,7 +49,9 @@ CREATE TABLE IF NOT EXISTS public.ad_interactions (
 
 -- Enable RLS but allow inserts from authenticated users
 ALTER TABLE public.ad_interactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public insert access" ON public.ad_interactions;
 CREATE POLICY "Public insert access" ON public.ad_interactions FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Admin view access" ON public.ad_interactions;
 CREATE POLICY "Admin view access" ON public.ad_interactions FOR SELECT USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'admin' OR admin_user = true)));
 `
         },
@@ -105,7 +115,7 @@ BEGIN
     SELECT COALESCE(SUM(amount), 0) INTO sum_withdrawals FROM transactions WHERE user_id = target_user_id AND type = 'withdraw';
     SELECT COALESCE(SUM(amount), 0) INTO sum_earnings FROM transactions WHERE user_id = target_user_id AND type IN ('earn', 'referral', 'bonus');
     SELECT COALESCE(SUM(amount), 0) INTO sum_game_wins FROM transactions WHERE user_id = target_user_id AND type = 'game_win';
-    SELECT COALESCE(SUM(amount), 0) INTO sum_game_bets FROM transactions WHERE user_id = target_user_id AND type = 'game_bet'; -- Negative
+    SELECT COALESCE(SUM(amount), 0) INTO sum_game_bets FROM transactions WHERE user_id = target_user_id AND type IN ('game_bet', 'game_loss', 'invest'); -- Negative
     
     final_balance := (sum_deposits + sum_earnings + sum_game_wins) - (sum_withdrawals + ABS(sum_game_bets));
     
@@ -326,6 +336,23 @@ const DatabaseUltra: React.FC = () => {
     const copySQL = (sql: string) => {
         navigator.clipboard.writeText(sql);
         toast.success("SQL Copied. Paste in Supabase Editor.");
+    };
+
+    const handleRunSQL = async (sql: string) => {
+        if (!await confirm("Execute this SQL command directly against the database?", "Confirm Execution")) return;
+        
+        const { error } = await supabase.rpc('admin_run_sql', { sql });
+        
+        if (error) {
+            if (error.message.includes('function admin_run_sql') && error.message.includes('does not exist')) {
+                toast.error("Error: The 'admin_run_sql' function is missing. Please go to SQL Runner to install it first, or copy this SQL to Supabase Dashboard.");
+            } else {
+                toast.error("Execution Failed: " + error.message);
+            }
+        } else {
+            toast.success("SQL Executed Successfully!");
+            refreshStats(); // Refresh stats after running
+        }
     };
 
     const estimatedSizeMB = (totalRecords * 0.5) / 1024; 
@@ -553,9 +580,14 @@ const DatabaseUltra: React.FC = () => {
                                 <GlassCard key={idx} className="border border-blue-500/20 bg-blue-900/10 hover:border-blue-500/40 transition group">
                                     <div className="flex justify-between items-start mb-3">
                                         <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 group-hover:scale-110 transition"><Code size={20}/></div>
-                                        <button onClick={() => copySQL(tool.sql)} className="text-[10px] bg-black/40 hover:bg-blue-600 text-gray-400 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
-                                            <Copy size={10}/> Copy SQL
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleRunSQL(tool.sql)} className="text-[10px] bg-green-600 hover:bg-green-500 text-white px-2 py-1 rounded transition flex items-center gap-1 shadow-lg">
+                                                <Play size={10}/> Run
+                                            </button>
+                                            <button onClick={() => copySQL(tool.sql)} className="text-[10px] bg-black/40 hover:bg-blue-600 text-gray-400 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
+                                                <Copy size={10}/> Copy
+                                            </button>
+                                        </div>
                                     </div>
                                     <h4 className="font-bold text-white text-sm mb-1">{tool.title}</h4>
                                     <p className="text-xs text-gray-400 mb-3 h-8">{tool.desc}</p>
@@ -574,9 +606,14 @@ const DatabaseUltra: React.FC = () => {
                                 <GlassCard key={idx} className="border border-yellow-500/20 bg-yellow-900/10 hover:border-yellow-500/40 transition group">
                                     <div className="flex justify-between items-start mb-3">
                                         <div className="p-2 bg-yellow-500/20 rounded-lg text-yellow-400 group-hover:scale-110 transition"><Terminal size={20}/></div>
-                                        <button onClick={() => copySQL(tool.sql)} className="text-[10px] bg-black/40 hover:bg-yellow-600 text-gray-400 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
-                                            <Copy size={10}/> Copy SQL
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleRunSQL(tool.sql)} className="text-[10px] bg-green-600 hover:bg-green-500 text-white px-2 py-1 rounded transition flex items-center gap-1 shadow-lg">
+                                                <Play size={10}/> Run
+                                            </button>
+                                            <button onClick={() => copySQL(tool.sql)} className="text-[10px] bg-black/40 hover:bg-yellow-600 text-gray-400 hover:text-white px-2 py-1 rounded transition flex items-center gap-1">
+                                                <Copy size={10}/> Copy
+                                            </button>
+                                        </div>
                                     </div>
                                     <h4 className="font-bold text-white text-sm mb-1">{tool.title}</h4>
                                     <p className="text-xs text-gray-400 mb-3 h-8">{tool.desc}</p>
@@ -599,7 +636,12 @@ const DatabaseUltra: React.FC = () => {
                                             <h4 className="font-bold text-red-400 text-lg mb-1 flex items-center gap-2"><AlertTriangle size={18}/> {tool.title}</h4>
                                             <p className="text-xs text-gray-400 max-w-md">{tool.desc}</p>
                                         </div>
-                                        <button onClick={() => copySQL(tool.sql)} className="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500 hover:text-white transition"><Copy size={14}/></button>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleRunSQL(tool.sql)} className="p-2 bg-red-600 text-white rounded hover:bg-red-500 transition shadow-lg flex items-center gap-2 text-xs font-bold px-4">
+                                                <Play size={14}/> EXECUTE
+                                            </button>
+                                            <button onClick={() => copySQL(tool.sql)} className="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500 hover:text-white transition"><Copy size={14}/></button>
+                                        </div>
                                     </div>
                                 </GlassCard>
                             ))}

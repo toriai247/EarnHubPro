@@ -8,7 +8,7 @@ import {
   LayoutDashboard, CreditCard, Gamepad2, Gift, Settings, 
   MonitorOff, LifeBuoy, Sliders, CalendarClock, Briefcase,
   HardDrive, BellRing, GitFork, CheckSquare, PieChart as PieChartIcon, FileText,
-  Cpu, Wifi, Layers, Terminal, BarChart2, DownloadCloud, Key, Table, Cloud
+  Cpu, Wifi, Layers, Terminal, BarChart2, DownloadCloud
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import BalanceDisplay from '../../components/BalanceDisplay';
@@ -222,26 +222,6 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6 pb-4">
       
-      {/* --- QUICK ACCESS (SUPABASE CONTROL) --- */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Link to="/admin/sql_runner" className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl hover:bg-red-900/40 transition group flex flex-col items-center justify-center text-center">
-              <Terminal size={24} className="text-red-500 mb-2 group-hover:scale-110 transition"/>
-              <span className="text-xs font-bold text-red-100 uppercase">SQL Runner</span>
-          </Link>
-          <Link to="/admin/auth_manager" className="p-4 bg-orange-900/20 border border-orange-500/30 rounded-xl hover:bg-orange-900/40 transition group flex flex-col items-center justify-center text-center">
-              <Key size={24} className="text-orange-500 mb-2 group-hover:scale-110 transition"/>
-              <span className="text-xs font-bold text-orange-100 uppercase">Auth Manager</span>
-          </Link>
-          <Link to="/admin/table_manager" className="p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl hover:bg-blue-900/40 transition group flex flex-col items-center justify-center text-center">
-              <Table size={24} className="text-blue-500 mb-2 group-hover:scale-110 transition"/>
-              <span className="text-xs font-bold text-blue-100 uppercase">Schema View</span>
-          </Link>
-          <Link to="/admin/storage_manager" className="p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl hover:bg-purple-900/40 transition group flex flex-col items-center justify-center text-center">
-              <Cloud size={24} className="text-purple-500 mb-2 group-hover:scale-110 transition"/>
-              <span className="text-xs font-bold text-purple-100 uppercase">Storage</span>
-          </Link>
-      </div>
-
       {/* SYSTEM HEALTH - COMPACT */}
       <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
           <div className="flex items-center gap-4">
