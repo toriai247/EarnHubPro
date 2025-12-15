@@ -2,11 +2,11 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
-  Trophy, Crown, TrendingUp, Medal, Flame, RefreshCw, 
-  Search, ShieldCheck, User, ArrowUp, Star 
+  Trophy, Crown, TrendingUp, Flame, 
+  ShieldCheck, ArrowUp, Star 
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Skeleton from '../components/Skeleton';
 import BalanceDisplay from '../components/BalanceDisplay';
 import GoogleAd from '../components/GoogleAd';
@@ -21,10 +21,16 @@ interface LeaderboardUser {
     rank: number;
     level: number;
     isCurrentUser: boolean;
-    badge?: string;
+    badge?: 'dealer' | 'verified';
 }
 
-interface ProfileData {
+interface WalletEntry {
+    user_id: string;
+    total_earning?: number;
+    investment_balance?: number;
+}
+
+interface ProfileEntry {
     id: string;
     user_uid: number;
     name_1: string | null;
@@ -54,42 +60,52 @@ const Leaderboard: React.FC = () => {
           const sortField = filter === 'earning' ? 'total_earning' : 'investment_balance';
 
           // 1. Fetch Top 100 Wallets
-          const { data: wallets, error } = await supabase
+          const { data: walletsData, error } = await supabase
               .from('wallets')
               .select(`user_id, ${sortField}`)
               .order(sortField, { ascending: false })
               .limit(100);
 
           if (error) throw error;
-          if (!wallets) {
+          
+          // Explicit cast to expected shape to satisfy TS
+          const wallets = walletsData as unknown as WalletEntry[] | null;
+
+          if (!wallets || wallets.length === 0) {
              setLeaders([]);
              setLoading(false);
              return;
           }
 
           // 2. Fetch Associated Profiles
-          const userIds = wallets.map((w: any) => w.user_id);
-          const { data: profiles } = await supabase
+          const userIds = wallets.map((w) => w.user_id);
+          const { data: profilesData } = await supabase
               .from('profiles')
               .select('id, user_uid, name_1, avatar_1, level_1, is_kyc_1, is_dealer')
               .in('id', userIds);
 
-          const profileMap = new Map<string, ProfileData>();
+          const profiles = profilesData as ProfileEntry[] | null;
+
+          const profileMap = new Map<string, ProfileEntry>();
           if (profiles) {
-              (profiles as any[]).forEach((p) => {
-                  profileMap.set(p.id, p as ProfileData);
+              profiles.forEach((p) => {
+                  profileMap.set(p.id, p);
               });
           }
 
           // 3. Construct Leader List
-          const list: LeaderboardUser[] = wallets.map((w: any, index: number) => {
+          const list: LeaderboardUser[] = wallets.map((w, index) => {
               const p = profileMap.get(w.user_id);
+              
+              // Safely access the amount based on the filter
+              const amount = filter === 'earning' ? (w.total_earning || 0) : (w.investment_balance || 0);
+
               return {
                   id: w.user_id,
                   uid: p?.user_uid || 0,
                   name: p?.name_1 || `User ${p?.user_uid || 'Unknown'}`,
                   avatar: p?.avatar_1 || undefined,
-                  amount: w[sortField] || 0,
+                  amount: amount,
                   rank: index + 1,
                   level: p?.level_1 || 1,
                   isCurrentUser: w.user_id === userId,
@@ -106,13 +122,14 @@ const Leaderboard: React.FC = () => {
                   setCurrentUser(userInTop);
               } else {
                   // Calculate rank if outside top 100
-                  const { data: myWallet } = await supabase
+                  const { data: myWalletData } = await supabase
                       .from('wallets')
                       .select(sortField)
                       .eq('user_id', userId)
                       .single();
                   
-                  const myAmount = myWallet ? myWallet[sortField as keyof typeof myWallet] : 0;
+                  const myWallet = myWalletData as unknown as WalletEntry | null;
+                  const myAmount = filter === 'earning' ? (myWallet?.total_earning || 0) : (myWallet?.investment_balance || 0);
                   
                   // Count how many have more than me
                   const { count } = await supabase
@@ -120,18 +137,20 @@ const Leaderboard: React.FC = () => {
                       .select('*', { count: 'exact', head: true })
                       .gt(sortField, myAmount);
                   
-                  const { data: myProfile } = await supabase
+                  const { data: myProfileData } = await supabase
                       .from('profiles')
                       .select('name_1, avatar_1, level_1, user_uid')
                       .eq('id', userId)
                       .single();
 
+                  const myProfile = myProfileData as ProfileEntry | null;
+
                   setCurrentUser({
                       id: userId,
                       uid: myProfile?.user_uid || 0,
                       name: myProfile?.name_1 || 'You',
-                      avatar: myProfile?.avatar_1,
-                      amount: myAmount as number,
+                      avatar: myProfile?.avatar_1 || undefined,
+                      amount: myAmount,
                       rank: (count || 0) + 1,
                       level: myProfile?.level_1 || 1,
                       isCurrentUser: true
@@ -162,7 +181,7 @@ const Leaderboard: React.FC = () => {
                       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="flex flex-col items-center relative">
                           <div className="relative mb-2">
                               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-slate-400 overflow-hidden shadow-[0_0_20px_rgba(148,163,184,0.3)] bg-[#1a1a1a]">
-                                  <img src={second.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${second.name}`} className="w-full h-full object-cover" />
+                                  <img src={second.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${second.name}`} className="w-full h-full object-cover" alt={second.name} />
                               </div>
                               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-slate-500 text-black text-xs font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-[#111]">2</div>
                           </div>
@@ -179,7 +198,7 @@ const Leaderboard: React.FC = () => {
                           <Crown size={32} className="text-yellow-400 mb-1 absolute -top-10 drop-shadow-lg animate-bounce" fill="currentColor" />
                           <div className="relative mb-2">
                               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-yellow-400 overflow-hidden shadow-[0_0_30px_rgba(250,204,21,0.4)] bg-[#1a1a1a]">
-                                  <img src={first.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${first.name}`} className="w-full h-full object-cover" />
+                                  <img src={first.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${first.name}`} className="w-full h-full object-cover" alt={first.name} />
                               </div>
                               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-400 text-black text-sm font-black w-7 h-7 flex items-center justify-center rounded-full border-2 border-[#111]">1</div>
                           </div>
@@ -195,7 +214,7 @@ const Leaderboard: React.FC = () => {
                       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col items-center relative">
                           <div className="relative mb-2">
                               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-orange-600 overflow-hidden shadow-[0_0_20px_rgba(234,88,12,0.3)] bg-[#1a1a1a]">
-                                  <img src={third.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${third.name}`} className="w-full h-full object-cover" />
+                                  <img src={third.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${third.name}`} className="w-full h-full object-cover" alt={third.name} />
                               </div>
                               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-orange-600 text-black text-xs font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-[#111]">3</div>
                           </div>
@@ -282,7 +301,7 @@ const Leaderboard: React.FC = () => {
                    <div className={`font-black text-sm w-6 text-center ${getRankColor(user.rank)}`}>{user.rank}</div>
                    
                    <div className="w-10 h-10 rounded-full bg-black/40 overflow-hidden border border-white/10 shrink-0">
-                       <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} className="w-full h-full object-cover" loading="lazy" />
+                       <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} className="w-full h-full object-cover" loading="lazy" alt={user.name} />
                    </div>
 
                    <div className="flex-1 min-w-0">
@@ -319,7 +338,7 @@ const Leaderboard: React.FC = () => {
                         <div className="font-black text-lg text-blue-400 w-8 text-center">{currentUser.rank}</div>
                         
                         <div className="w-10 h-10 rounded-full bg-black/40 overflow-hidden border border-white/10 shrink-0">
-                            <img src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.name}`} className="w-full h-full object-cover" />
+                            <img src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.name}`} className="w-full h-full object-cover" alt="You" />
                         </div>
 
                         <div className="flex-1 min-w-0">
