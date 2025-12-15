@@ -61,11 +61,6 @@ const Leaderboard: React.FC = () => {
               .limit(100);
 
           if (error) throw error;
-          if (!wallets) {
-             setLeaders([]);
-             setLoading(false);
-             return;
-          }
 
           // 2. Fetch Associated Profiles
           const userIds = wallets.map((w: any) => w.user_id);
@@ -76,14 +71,14 @@ const Leaderboard: React.FC = () => {
 
           const profileMap = new Map<string, ProfileData>();
           if (profiles) {
-              (profiles as any[]).forEach((p) => {
+              profiles.forEach((p: any) => {
                   profileMap.set(p.id, p as ProfileData);
               });
           }
 
           // 3. Construct Leader List
           const list: LeaderboardUser[] = wallets.map((w: any, index: number) => {
-              const p = profileMap.get(w.user_id) as ProfileData | undefined;
+              const p = profileMap.get(w.user_id);
               return {
                   id: w.user_id,
                   uid: p?.user_uid || 0,
@@ -130,7 +125,7 @@ const Leaderboard: React.FC = () => {
                       id: userId,
                       uid: myProfile?.user_uid || 0,
                       name: myProfile?.name_1 || 'You',
-                      avatar: myProfile?.avatar_1,
+                      avatar: myProfile?.avatar_1 || undefined,
                       amount: myAmount as number,
                       rank: (count || 0) + 1,
                       level: myProfile?.level_1 || 1,
