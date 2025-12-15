@@ -8,7 +8,7 @@ import {
   LayoutDashboard, CreditCard, Gamepad2, Gift, Settings, 
   MonitorOff, LifeBuoy, Sliders, CalendarClock, Briefcase,
   HardDrive, BellRing, GitFork, CheckSquare, PieChart as PieChartIcon, FileText,
-  Cpu, Wifi, Layers, Terminal, BarChart2, Download
+  Cpu, Wifi, Layers, Terminal, BarChart2, CloudDownload, Key, Table, Cloud
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import BalanceDisplay from '../../components/BalanceDisplay';
@@ -162,19 +162,13 @@ const Dashboard: React.FC = () => {
 
         if (logs) setRecentTransactions(logs);
         
-        // --- ADSTERRA FETCH ---
-        // Uses the configured token or the hardcoded fallback
         const apiToken = config?.adsterra_api_token || ADSTERRA_TOKEN;
-        
         if (apiToken) {
             try {
-                // Attempt to fetch stats. Note: This may be blocked by CORS in a pure browser environment
-                // without a proxy. If it fails, it will catch.
                 const res = await fetch(`https://api3.adsterratools.com/publisher/stats.json?api_token=${apiToken}`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data && data.items) {
-                        // Sum up revenue
                         const totalRev = data.items.reduce((sum: number, item: any) => sum + (item.revenue || 0), 0);
                         setAdsterraRevenue(`$${totalRev.toFixed(2)}`);
                     } else {
@@ -228,6 +222,26 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6 pb-4">
       
+      {/* --- QUICK ACCESS (SUPABASE CONTROL) --- */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Link to="/admin/sql_runner" className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl hover:bg-red-900/40 transition group flex flex-col items-center justify-center text-center">
+              <Terminal size={24} className="text-red-500 mb-2 group-hover:scale-110 transition"/>
+              <span className="text-xs font-bold text-red-100 uppercase">SQL Runner</span>
+          </Link>
+          <Link to="/admin/auth_manager" className="p-4 bg-orange-900/20 border border-orange-500/30 rounded-xl hover:bg-orange-900/40 transition group flex flex-col items-center justify-center text-center">
+              <Key size={24} className="text-orange-500 mb-2 group-hover:scale-110 transition"/>
+              <span className="text-xs font-bold text-orange-100 uppercase">Auth Manager</span>
+          </Link>
+          <Link to="/admin/table_manager" className="p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl hover:bg-blue-900/40 transition group flex flex-col items-center justify-center text-center">
+              <Table size={24} className="text-blue-500 mb-2 group-hover:scale-110 transition"/>
+              <span className="text-xs font-bold text-blue-100 uppercase">Schema View</span>
+          </Link>
+          <Link to="/admin/storage_manager" className="p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl hover:bg-purple-900/40 transition group flex flex-col items-center justify-center text-center">
+              <Cloud size={24} className="text-purple-500 mb-2 group-hover:scale-110 transition"/>
+              <span className="text-xs font-bold text-purple-100 uppercase">Storage</span>
+          </Link>
+      </div>
+
       {/* SYSTEM HEALTH - COMPACT */}
       <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
           <div className="flex items-center gap-4">
@@ -283,7 +297,7 @@ const Dashboard: React.FC = () => {
           <div className="bg-gradient-to-br from-indigo-900/40 to-black border border-indigo-500/20 rounded-xl p-3 relative overflow-hidden">
               <div className="flex justify-between items-start mb-1">
                   <span className="text-[10px] text-indigo-400 font-bold uppercase">DropGalaxy</span>
-                  <Download size={16} className="text-indigo-500"/>
+                  <CloudDownload size={16} className="text-indigo-500"/>
               </div>
               <h3 className="text-xl font-black text-white flex items-center gap-2">
                  {dropGalaxyBalance ? (
