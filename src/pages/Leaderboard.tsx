@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
@@ -21,6 +22,16 @@ interface LeaderboardUser {
     level: number;
     isCurrentUser: boolean;
     badge?: string;
+}
+
+interface ProfileData {
+    id: string;
+    user_uid: number;
+    name_1: string | null;
+    avatar_1: string | null;
+    level_1: number;
+    is_kyc_1: boolean;
+    is_dealer: boolean;
 }
 
 const Leaderboard: React.FC = () => {
@@ -50,6 +61,11 @@ const Leaderboard: React.FC = () => {
               .limit(100);
 
           if (error) throw error;
+          if (!wallets) {
+             setLeaders([]);
+             setLoading(false);
+             return;
+          }
 
           // 2. Fetch Associated Profiles
           const userIds = wallets.map((w: any) => w.user_id);
@@ -58,19 +74,21 @@ const Leaderboard: React.FC = () => {
               .select('id, user_uid, name_1, avatar_1, level_1, is_kyc_1, is_dealer')
               .in('id', userIds);
 
-          const profileMap = new Map<string, any>();
+          const profileMap = new Map<string, ProfileData>();
           if (profiles) {
-              (profiles as any[]).forEach(p => profileMap.set(p.id, p));
+              profiles.forEach((p: any) => {
+                  profileMap.set(p.id, p as ProfileData);
+              });
           }
 
           // 3. Construct Leader List
           const list: LeaderboardUser[] = wallets.map((w: any, index: number) => {
-              const p = profileMap.get(w.user_id) as any;
+              const p = profileMap.get(w.user_id);
               return {
                   id: w.user_id,
                   uid: p?.user_uid || 0,
                   name: p?.name_1 || `User ${p?.user_uid || 'Unknown'}`,
-                  avatar: p?.avatar_1,
+                  avatar: p?.avatar_1 || undefined,
                   amount: w[sortField] || 0,
                   rank: index + 1,
                   level: p?.level_1 || 1,
@@ -112,7 +130,7 @@ const Leaderboard: React.FC = () => {
                       id: userId,
                       uid: myProfile?.user_uid || 0,
                       name: myProfile?.name_1 || 'You',
-                      avatar: myProfile?.avatar_1,
+                      avatar: myProfile?.avatar_1 || undefined,
                       amount: myAmount as number,
                       rank: (count || 0) + 1,
                       level: myProfile?.level_1 || 1,
