@@ -24,6 +24,17 @@ interface LeaderboardUser {
     badge?: string;
 }
 
+// Add this interface to fix types
+interface ProfileData {
+    id: string;
+    user_uid: number;
+    name_1: string;
+    avatar_1: string;
+    level_1: number;
+    is_kyc_1: boolean;
+    is_dealer: boolean;
+}
+
 const Leaderboard: React.FC = () => {
   const [filter, setFilter] = useState<'earning' | 'invest'>('earning');
   const [leaders, setLeaders] = useState<LeaderboardUser[]>([]);
@@ -53,16 +64,17 @@ const Leaderboard: React.FC = () => {
           if (error) throw error;
 
           // 2. Fetch Associated Profiles
-          const userIds = wallets.map((w: any) => w.user_id);
+          const userIds = wallets?.map((w: any) => w.user_id) || [];
           const { data: profiles } = await supabase
               .from('profiles')
               .select('id, user_uid, name_1, avatar_1, level_1, is_kyc_1, is_dealer')
               .in('id', userIds);
 
-          const profileMap = new Map(profiles?.map((p: any) => [p.id, p]));
+          // Fix: Type the Map correctly
+          const profileMap = new Map<string, any>(profiles?.map((p: any) => [p.id, p]));
 
           // 3. Construct Leader List
-          const list: LeaderboardUser[] = wallets.map((w: any, index: number) => {
+          const list: LeaderboardUser[] = (wallets || []).map((w: any, index: number) => {
               const p = profileMap.get(w.user_id);
               return {
                   id: w.user_id,
@@ -110,7 +122,7 @@ const Leaderboard: React.FC = () => {
                       id: userId,
                       uid: myProfile?.user_uid || 0,
                       name: myProfile?.name_1 || 'You',
-                      avatar: myProfile?.avatar_1,
+                      avatar: myProfile?.avatar_1 || undefined,
                       amount: myAmount as number,
                       rank: (count || 0) + 1,
                       level: myProfile?.level_1 || 1,
