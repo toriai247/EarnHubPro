@@ -2,11 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Search, RefreshCw, AlertCircle, ArrowRight, Copy, 
-  ShieldCheck, Lock, Users, Filter, UserX, CheckCircle2, MoreVertical, Ban, ShieldAlert, BadgeAlert, StickyNote, Briefcase, Eye, Star, Activity, Crown, Zap, DollarSign, Calendar, Trophy, Trash2
+  ShieldCheck, Lock, Users, Filter, UserX, CheckCircle2, MoreVertical, Ban, ShieldAlert, BadgeAlert, StickyNote, Briefcase, Eye, Star, Activity, Crown, Zap, DollarSign, Calendar, Trophy
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
-import { supabaseAdmin } from '../../integrations/supabase/admin-client'; // Import Admin Client
 import { UserProfile } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import Skeleton from '../../components/Skeleton';
@@ -91,37 +90,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
   const handleCopy = (text: string, label: string = "ID") => {
       navigator.clipboard.writeText(text);
       toast.success(`${label} copied`);
-  };
-
-  // --- PRIVILEGED ACTIONS USING SERVICE KEY ---
-  
-  const handleHardDelete = async (userId: string) => {
-      if (currentUserRole !== 'admin') {
-          toast.error("Only Admins can delete users.");
-          return;
-      }
-      
-      const confirmed = await confirm(
-          "⚠ DANGER: This will permanently delete the user from Authentication and Database. This cannot be undone.",
-          "HARD DELETE USER?"
-      );
-      
-      if (!confirmed) return;
-
-      try {
-          // Use supabaseAdmin to bypass RLS and delete from auth.users
-          const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
-          
-          if (error) throw error;
-          
-          // Also cleanup profile if trigger doesn't handle it
-          await supabaseAdmin.from('profiles').delete().eq('id', userId);
-          
-          toast.success("User permanently deleted.");
-          fetchUsers();
-      } catch (e: any) {
-          toast.error("Delete failed: " + e.message);
-      }
   };
 
   const filteredUsers = users.filter(u => {
@@ -300,17 +268,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
                                         >
                                             Manage
                                         </button>
-                                        
-                                        {/* Hard Delete Button (Admin Only) */}
-                                        {currentUserRole === 'admin' && (
-                                            <button 
-                                                onClick={() => handleHardDelete(u.id)}
-                                                className="p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition"
-                                                title="Hard Delete User (Requires Service Key)"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
                                     </>
                                 ) : (
                                     <span className="text-xs text-gray-600 italic w-full text-center lg:text-right">Read Only</span>

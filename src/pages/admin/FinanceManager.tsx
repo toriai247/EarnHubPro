@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
-import { supabaseAdmin } from '../../integrations/supabase/admin-client'; // Import Admin Client
 import { DepositRequest, WithdrawRequest } from '../../types';
 import { 
     CheckCircle, XCircle, Loader2, RefreshCw, DollarSign, Banknote, 
@@ -101,40 +100,28 @@ const FinanceManager: React.FC = () => {
 
   // --- FRAUD ACTION (SUSPEND USER - ADMIN POWER) ---
   const handleFraudAction = async (req: DepositRequest) => {
-      if (!await confirm(`FRAUD DETECTED? \n\nThis will SUSPEND the user immediately using Admin Power and mark the deposit as REJECTED (Fraud). \n\nContinue?`)) return;
+      if (!await confirm(`FRAUD DETECTED? \n\nThis will SUSPEND the user immediately and mark the deposit as REJECTED (Fraud). \n\nContinue?`)) return;
 
       setProcessingId(req.id);
       try {
-          // 1. Mark Request as Rejected (Using Admin Client to force update if needed)
-          await supabaseAdmin.from('deposit_requests').update({
+          // 1. Mark Request as Rejected
+          await supabase.from('deposit_requests').update({
               status: 'rejected',
               admin_note: 'FRAUD - FAKE DEPOSIT (Admin Override)',
               processed_at: new Date().toISOString()
           }).eq('id', req.id);
 
-          // 2. Suspend User (Using Admin Client to bypass any RLS)
-          await supabaseAdmin.from('profiles').update({ 
+          // 2. Suspend User
+          await supabase.from('profiles').update({ 
               is_suspended: true, 
               admin_notes: 'Banned for Fake Deposit Auto-Approve abuse.' 
           }).eq('id', req.user_id);
 
-          // 3. Deduct the fake money they got (Reversal) - Force update wallet
-          const { data: wallet } = await supabaseAdmin.from('wallets').select('deposit_balance').eq('user_id', req.user_id).single();
-          if (wallet) {
-               await supabaseAdmin.from('wallets').update({
-                   deposit_balance: Math.max(0, wallet.deposit_balance - req.amount)
-               }).eq('user_id', req.user_id);
-               
-               await supabaseAdmin.from('transactions').insert({
-                   user_id: req.user_id,
-                   type: 'penalty',
-                   amount: req.amount,
-                   status: 'success',
-                   description: `Reversal: Fake Deposit ${req.amount} (Admin)`
-               });
-          }
+          // 3. Deduct the fake money they got (Reversal)
+          await updateWallet(req.user_id, req.amount, 'decrement', 'deposit_balance');
+          await createTransaction(req.user_id, 'penalty', req.amount, `Reversal: Fake Deposit ${req.amount}`);
 
-          toast.success("User Suspended & Funds Reversed via Admin Power.");
+          toast.success("User Suspended & Funds Reversed.");
           fetchData();
 
       } catch (e: any) {

@@ -37,12 +37,6 @@ import ImageManager from './ImageManager';
 import BusinessLogic from './BusinessLogic';
 import AdAnalytics from './AdAnalytics';
 
-// Advanced Pages
-import SqlRunner from './advanced/SqlRunner';
-import AuthManager from './advanced/AuthManager';
-import StorageManager from './advanced/StorageManager';
-import TableManager from './advanced/TableManager';
-
 const Admin: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -56,15 +50,6 @@ const Admin: React.FC = () => {
 
   // --- NAVIGATION STRUCTURE ---
   const navCategories = [
-      {
-          title: "Supabase Control",
-          items: [
-              { id: 'sql_runner', icon: Terminal, label: 'SQL Runner', path: '/admin/sql_runner', color: 'text-red-500' },
-              { id: 'auth_manager', icon: Key, label: 'Auth Manager', path: '/admin/auth_manager', color: 'text-orange-400' },
-              { id: 'table_manager', icon: Table, label: 'Schema View', path: '/admin/table_manager', color: 'text-blue-300' },
-              { id: 'storage_manager', icon: Cloud, label: 'Storage Buckets', path: '/admin/storage_manager', color: 'text-purple-300' },
-          ]
-      },
       {
           title: "Core",
           items: [
@@ -222,12 +207,6 @@ const Admin: React.FC = () => {
                         <Route index element={<Dashboard />} />
                         <Route path="dashboard" element={<Dashboard />} />
                         
-                        {/* Advanced Tools */}
-                        <Route path="sql_runner" element={<SqlRunner />} />
-                        <Route path="auth_manager" element={<AuthManager />} />
-                        <Route path="storage_manager" element={<StorageManager />} />
-                        <Route path="table_manager" element={<TableManager />} />
-
                         {/* Core & Modules */}
                         <Route path="users" element={<UserManagement onSelectUser={setSelectedUserId} />} />
                         <Route path="revenue" element={<EarningsAnalytics />} />
@@ -281,9 +260,9 @@ const Admin: React.FC = () => {
                 <LayoutDashboard size={20} />
                 <span className="text-[9px] font-bold mt-1">Dash</span>
             </Link>
-            <Link to="/admin/sql_runner" className={`flex flex-col items-center justify-center w-full h-full ${isPathActive('/admin/sql_runner') ? 'text-red-500' : 'text-gray-500'}`}>
-                <Terminal size={20} />
-                <span className="text-[9px] font-bold mt-1">SQL</span>
+            <Link to="/admin/users" className={`flex flex-col items-center justify-center w-full h-full ${isPathActive('/admin/users') ? 'text-indigo-500' : 'text-gray-500'}`}>
+                <Users size={20} />
+                <span className="text-[9px] font-bold mt-1">Users</span>
             </Link>
              <Link to="/admin/finance" className={`flex flex-col items-center justify-center w-full h-full ${isPathActive('/admin/finance') ? 'text-green-500' : 'text-gray-500'}`}>
                 <Banknote size={20} />
