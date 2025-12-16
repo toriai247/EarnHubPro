@@ -26,7 +26,6 @@ import WithdrawSettings from './WithdrawSettings';
 import MonthlyPay from './MonthlyPay';
 import OffSystems from './OffSystems'; 
 import HelpRequests from './HelpRequests';
-import DatabaseUltra from './DatabaseUltra';
 import NotiSender from './NotiSender';
 import ReferralControl from './ReferralControl';
 import VerificationRequest from './VerificationRequest';
@@ -84,7 +83,6 @@ const Admin: React.FC = () => {
           items: [
               { id: 'config', icon: Settings, label: 'Settings', path: '/admin/config', color: 'text-white' },
               { id: 'off_systems', icon: MonitorOff, label: 'Controls', path: '/admin/off_systems', color: 'text-red-500' },
-              { id: 'database_ultra', icon: HardDrive, label: 'DB Tools', path: '/admin/database_ultra', color: 'text-cyan-500' },
               { id: 'images', icon: Image, label: 'Assets', path: '/admin/images', color: 'text-pink-300' },
               { id: 'noti_sender', icon: BellRing, label: 'Notify', path: '/admin/noti_sender', color: 'text-yellow-300' },
               { id: 'business_logic', icon: BookOpen, label: 'Algo Logic', path: '/admin/business_logic', color: 'text-green-300' },
@@ -222,7 +220,6 @@ const Admin: React.FC = () => {
                         {/* System */}
                         <Route path="config" element={<WebsiteSettings />} />
                         <Route path="off_systems" element={<OffSystems />} />
-                        <Route path="database_ultra" element={<DatabaseUltra />} />
                         <Route path="images" element={<ImageManager />} />
                         <Route path="noti_sender" element={<NotiSender />} />
                         <Route path="business_logic" element={<BusinessLogic />} />
