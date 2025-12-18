@@ -8,7 +8,7 @@ import {
   LayoutDashboard, CreditCard, Gamepad2, Gift, Settings, 
   MonitorOff, LifeBuoy, Sliders, CalendarClock, Briefcase,
   HardDrive, BellRing, GitFork, CheckSquare, PieChart as PieChartIcon, FileText,
-  Cpu, Wifi, Layers, Terminal, BarChart2, CloudDownload
+  Cpu, Wifi, Layers, Terminal, BarChart2, DownloadCloud
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import BalanceDisplay from '../../components/BalanceDisplay';
@@ -163,18 +163,14 @@ const Dashboard: React.FC = () => {
         if (logs) setRecentTransactions(logs);
         
         // --- ADSTERRA FETCH ---
-        // Uses the configured token or the hardcoded fallback
         const apiToken = config?.adsterra_api_token || ADSTERRA_TOKEN;
         
         if (apiToken) {
             try {
-                // Attempt to fetch stats. Note: This may be blocked by CORS in a pure browser environment
-                // without a proxy. If it fails, it will catch.
                 const res = await fetch(`https://api3.adsterratools.com/publisher/stats.json?api_token=${apiToken}`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data && data.items) {
-                        // Sum up revenue
                         const totalRev = data.items.reduce((sum: number, item: any) => sum + (item.revenue || 0), 0);
                         setAdsterraRevenue(`$${totalRev.toFixed(2)}`);
                     } else {
@@ -283,7 +279,7 @@ const Dashboard: React.FC = () => {
           <div className="bg-gradient-to-br from-indigo-900/40 to-black border border-indigo-500/20 rounded-xl p-3 relative overflow-hidden">
               <div className="flex justify-between items-start mb-1">
                   <span className="text-[10px] text-indigo-400 font-bold uppercase">DropGalaxy</span>
-                  <CloudDownload size={16} className="text-indigo-500"/>
+                  <DownloadCloud size={16} className="text-indigo-500"/>
               </div>
               <h3 className="text-xl font-black text-white flex items-center gap-2">
                  {dropGalaxyBalance ? (
