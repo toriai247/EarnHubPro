@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Volume2, VolumeX, HelpCircle, RefreshCw, Trophy, Wallet } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, HelpCircle, RefreshCw, Trophy, Wallet, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
@@ -35,6 +35,11 @@ const Thimbles: React.FC = () => {
     const [shuffleSpeed, setShuffleSpeed] = useState(0.4);
     const timeoutRef = useRef<any>(null);
     const [soundOn, setSoundOn] = useState(true);
+
+    // Safety Settings
+    const [stopLossStreak, setStopLossStreak] = useState<number>(0);
+    const [consecutiveLosses, setConsecutiveLosses] = useState<number>(0);
+    const [isAutoStopped, setIsAutoStopped] = useState(false);
 
     const shuffleSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'));
     const winSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'));
@@ -91,32 +96,45 @@ const Thimbles: React.FC = () => {
         setSelectedCupId(null);
     };
 
+    const handleQuickAmount = (action: 'min' | 'half' | 'double' | 'max') => {
+        const current = parseFloat(betAmount) || 0;
+        let next = current;
+        if (action === 'min') next = 1;
+        if (action === 'half') next = Math.max(1, current / 2);
+        if (action === 'double') next = Math.min(500, current * 2);
+        if (action === 'max') next = Math.min(500, totalBalance);
+        setBetAmount(next.toFixed(0));
+    };
+
     const startGame = async () => {
+        if (isAutoStopped) {
+            toast.info("Auto-stop active. Reset losses to continue.");
+            return;
+        }
+
         const amount = parseFloat(betAmount);
-        if (isNaN(amount) || amount <= 0) { toast.error("Invalid amount"); return; }
+        
+        if (isNaN(amount) || amount < 1) { toast.error("Minimum bet is 1 BDT"); return; }
+        if (amount > 500) { toast.error("Maximum bet is 500 BDT"); return; }
         if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        // Deduct
         try {
             await deductGameBalance(session.user.id, amount);
             setTotalBalance(prev => prev - amount);
-            
             await createTransaction(session.user.id, 'game_bet', amount, `Thimbles Bet: ${ballCount} Ball(s)`);
         } catch (e: any) {
             toast.error(e.message);
             return;
         }
 
-        // Logic
         resetCups(ballCount);
-        setPhase(1); // Reveal balls first
+        setPhase(1); 
 
-        // Start Sequence
         setTimeout(() => {
-            setPhase(2); // Start Shuffling state
+            setPhase(2); 
             performShuffles();
         }, 1000);
     };
@@ -162,46 +180,36 @@ const Thimbles: React.FC = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if(!session) return;
 
-        // RIGGING INTERVENTION
         const winChance = ballCount === 1 ? 0.33 : 0.66;
         const outcome = await determineOutcome(session.user.id, winChance);
         
-        // Check current reality
-        const pickedCup = cups.find(c => c.id === cupId);
-        const actuallyHasBall = pickedCup?.hasBall;
+        const currentPickedCup = cups.find(c => c.id === cupId);
+        const actuallyHasBall = currentPickedCup?.hasBall;
 
-        // Apply Rigging
         let finalCups = [...cups];
         if (outcome === 'loss' && actuallyHasBall) {
-            // Force Loss: Move ball from picked to another empty cup
             const emptyCup = finalCups.find(c => c.id !== cupId && !c.hasBall);
             if(emptyCup) {
-                // Find index of picked
                 const pIdx = finalCups.findIndex(c => c.id === cupId);
                 const eIdx = finalCups.findIndex(c => c.id === emptyCup.id);
                 finalCups[pIdx].hasBall = false;
                 finalCups[eIdx].hasBall = true;
             }
         } else if (outcome === 'win' && !actuallyHasBall) {
-            // Force Win: Move ball from another cup to picked cup
-            const fullCup = finalCups.find(c => c.id !== cupId && c.hasBall);
-            if(fullCup) {
+            const ballCup = finalCups.find(c => c.id !== cupId && c.hasBall);
+            if(ballCup) {
                 const pIdx = finalCups.findIndex(c => c.id === cupId);
-                const fIdx = finalCups.findIndex(c => c.id === fullCup.id);
+                const bIdx = finalCups.findIndex(c => c.id === ballCup.id);
                 finalCups[pIdx].hasBall = true;
-                finalCups[fIdx].hasBall = false;
+                finalCups[bIdx].hasBall = false;
             }
         }
         
-        // Update state silently before reveal
         setCups(finalCups);
-        
-        // Proceed with animation
         setSelectedCupId(cupId);
         setPhase(4);
         playSound('click');
 
-        // Re-check updated state
         const finalPicked = finalCups.find(c => c.id === cupId);
         const isWin = finalPicked?.hasBall;
         const amount = parseFloat(betAmount);
@@ -215,6 +223,7 @@ const Thimbles: React.FC = () => {
             setHistory(prev => [isWin ? 'win' : 'loss', ...prev].slice(0, 10));
             
             if (isWin) {
+                setConsecutiveLosses(0);
                 playSound('win');
                 toast.success(`Won ${format(payout)}!`);
                 confetti({
@@ -227,12 +236,25 @@ const Thimbles: React.FC = () => {
                 await updateWallet(session.user.id, payout, 'increment', 'game_balance');
                 await createTransaction(session.user.id, 'game_win', payout, `Thimbles Win`);
                 setTotalBalance(prev => prev + payout);
+            } else {
+                const newStreak = consecutiveLosses + 1;
+                setConsecutiveLosses(newStreak);
+                if (stopLossStreak > 0 && newStreak >= stopLossStreak) {
+                    setIsAutoStopped(true);
+                    toast.warning(`Auto-stopped: reached ${stopLossStreak} consecutive losses.`);
+                }
             }
 
             fetchBalance();
             setPhase(0);
             setRevealAll(false);
         }, 2500);
+    };
+
+    const resetSafety = () => {
+        setConsecutiveLosses(0);
+        setIsAutoStopped(false);
+        toast.success("Safety settings reset.");
     };
 
     return (
@@ -327,6 +349,32 @@ const Thimbles: React.FC = () => {
 
             <GlassCard className="p-5 border-white/10 bg-[#151515]">
                 
+                {/* Safety Setting */}
+                <div className="flex items-center justify-between mb-4 bg-black/20 p-2 rounded-xl border border-white/5">
+                    <div className="flex items-center gap-2">
+                        <ShieldAlert size={14} className="text-orange-400" />
+                        <span className="text-[10px] font-bold text-gray-400 uppercase">Stop on Loss Streak</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="number" 
+                            min="0"
+                            value={stopLossStreak || ''}
+                            onChange={e => setStopLossStreak(parseInt(e.target.value) || 0)}
+                            placeholder="Off"
+                            className="w-12 bg-black/40 border border-white/10 rounded px-1 py-0.5 text-xs text-white text-center outline-none focus:border-orange-500"
+                        />
+                        {consecutiveLosses > 0 && (
+                            <div className="flex items-center gap-1">
+                                <span className="text-[9px] text-red-400 font-bold">{consecutiveLosses} streak</span>
+                                <button onClick={resetSafety} className="p-1 bg-white/5 rounded hover:bg-white/10 text-gray-500">
+                                    <RefreshCw size={10} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 <div className="flex bg-black/40 p-1 rounded-xl mb-4 border border-white/5 relative">
                     <button 
                         onClick={() => setBallCount(1)}
@@ -355,32 +403,32 @@ const Thimbles: React.FC = () => {
                             className="w-full bg-black/40 border border-white/10 rounded-xl py-4 pl-8 pr-4 text-white font-mono font-bold text-xl focus:border-red-500 outline-none transition-all placeholder:text-gray-700"
                         />
                     </div>
-                    <button onClick={() => setBetAmount((totalBalance).toFixed(0))} disabled={phase !== 0} className="px-5 py-4 bg-white/5 rounded-xl text-xs font-bold hover:bg-white/10 text-red-500 border border-white/5">MAX</button>
+                    <button onClick={() => handleQuickAmount('max')} disabled={phase !== 0 || isAutoStopped} className="px-5 py-4 bg-white/5 rounded-xl text-xs font-bold hover:bg-white/10 text-red-500 border border-white/5">MAX</button>
                 </div>
 
                 <div className="grid grid-cols-4 gap-2 mb-6">
-                    {[10, 50, 100, 500].map(amt => (
+                    {['min', 'half', 'double', 'max'].map((action) => (
                         <button 
-                            key={amt} 
-                            onClick={() => setBetAmount(amt.toString())}
+                            key={action}
+                            onClick={() => handleQuickAmount(action as any)}
                             disabled={phase !== 0}
-                            className="py-2.5 bg-white/5 rounded-lg text-xs font-bold text-gray-400 hover:text-white hover:bg-white/10 transition border border-white/5 active:scale-95"
+                            className="py-2.5 bg-white/5 rounded-lg text-xs font-bold text-gray-400 hover:text-white hover:bg-white/10 transition border border-white/5 active:scale-95 uppercase"
                         >
-                            {amt}
+                            {action}
                         </button>
                     ))}
                 </div>
 
                 <button 
                     onClick={startGame} 
-                    disabled={phase !== 0}
+                    disabled={phase !== 0 || isAutoStopped}
                     className={`w-full py-4 rounded-xl font-black text-lg uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-3 active:scale-[0.98] ${
-                        phase !== 0
+                        phase !== 0 || isAutoStopped
                         ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-white/5' 
                         : 'bg-green-500 text-black hover:bg-green-400 shadow-green-500/20'
                     }`}
                 >
-                    {phase !== 0 ? <><RefreshCw size={20} className="animate-spin"/> RUNNING...</> : 'BET NOW'}
+                    {phase !== 0 ? <><RefreshCw size={20} className="animate-spin"/> RUNNING...</> : isAutoStopped ? 'AUTO STOPPED' : 'BET NOW'}
                 </button>
 
             </GlassCard>

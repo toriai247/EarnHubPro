@@ -20,16 +20,16 @@ const SYMBOLS = [
     { id: 'phoenix', icon: Sun, color: 'text-red-500', multiplier: 5, label: 'Phoenix' },
 ];
 
-const BET_OPTIONS = [1, 2, 3, 5, 10, 25];
+const BET_OPTIONS = [10, 20, 50, 100, 250, 500];
 const MIN_BET = 1;
-const MAX_BET = 30;
+const MAX_BET = 500;
 
 const ReelsOfGods: React.FC = () => {
     const { toast } = useUI();
-    const { format } = useCurrency();
+    const { format, symbol } = useCurrency();
     
     const [totalBalance, setTotalBalance] = useState(0);
-    const [betAmount, setBetAmount] = useState<string>('3');
+    const [betAmount, setBetAmount] = useState<string>('20');
     const [isSpinning, setIsSpinning] = useState(false);
     
     const [reels, setReels] = useState<number[]>([0, 1, 2]); 
@@ -73,7 +73,7 @@ const ReelsOfGods: React.FC = () => {
         const amount = parseFloat(betAmount);
         
         if (isNaN(amount) || amount < MIN_BET || amount > MAX_BET) { 
-            toast.error(`Stake must be between ${MIN_BET} and ${MAX_BET} EUR`); 
+            toast.error(`Stake must be between ${MIN_BET} and ${MAX_BET} BDT`); 
             return; 
         }
         
@@ -105,8 +105,8 @@ const ReelsOfGods: React.FC = () => {
     };
 
     const finalizeSpin = async (bet: number, userId: string) => {
-        // RIGGING
-        const outcome = await determineOutcome(userId, 0.35); // 35% win chance default
+        // RIGGING CHECK: determineOutcome handles the 10% win rate if balance >= 1000
+        const outcome = await determineOutcome(userId, 0.35); // 35% win chance default hook phase
 
         let r1, r2, r3;
 
@@ -115,18 +115,18 @@ const ReelsOfGods: React.FC = () => {
             r1 = Math.floor(Math.random() * SYMBOLS.length);
             r2 = Math.floor(Math.random() * SYMBOLS.length);
             r3 = Math.floor(Math.random() * SYMBOLS.length);
-            // If accidentally 3 match, change one
+            // If accidentally 3 match, change one to force loss
             if (r1 === r2 && r2 === r3) r3 = (r3 + 1) % SYMBOLS.length;
         } else {
-            // Win - force 3 match or 2 match high value
+            // Win - force 3 match or high value 2 match
             const symbolIdx = Math.floor(Math.random() * SYMBOLS.length);
             r1 = symbolIdx;
             r2 = symbolIdx;
-            // 80% chance of 3 match if win state
-            if (Math.random() < 0.8) {
+            // 85% chance of 3 match if win state selected by engine
+            if (Math.random() < 0.85) {
                 r3 = symbolIdx;
             } else {
-                r3 = (symbolIdx + 1) % SYMBOLS.length; // 2 match
+                r3 = (symbolIdx + 1) % SYMBOLS.length; 
             }
         }
         
@@ -140,9 +140,9 @@ const ReelsOfGods: React.FC = () => {
         if (r1 === r2 && r2 === r3) {
             multiplier = SYMBOLS[r1].multiplier;
         } 
-        // 2 Match (Any Pair) - Consolation
+        // 2 Match (Any Pair) - Consolation prize
         else if (r1 === r2 || r2 === r3 || r1 === r3) {
-            multiplier = 1.5; 
+            multiplier = 1.4; 
         }
 
         const payout = bet * multiplier;
@@ -214,8 +214,8 @@ const ReelsOfGods: React.FC = () => {
                         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/50 pointer-events-none z-20"></div>
                         
                         {[0, 1, 2].map((i) => {
-                            const symbol = SYMBOLS[reels[i]];
-                            const Icon = symbol.icon;
+                            const sym = SYMBOLS[reels[i]];
+                            const Icon = sym.icon;
 
                             return (
                                 <div key={i} className="flex-1 h-32 bg-[#e5e5e5] rounded border-2 border-[#78350f] relative overflow-hidden flex items-center justify-center shadow-inner">
@@ -238,8 +238,8 @@ const ReelsOfGods: React.FC = () => {
                                                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
                                                 className="flex flex-col items-center justify-center"
                                             >
-                                                <div className={`p-2 rounded-full border-2 border-dashed border-opacity-30 ${symbol.color.replace('text', 'border')}`}>
-                                                    <Icon size={56} className={`${symbol.color} drop-shadow-md`} strokeWidth={2.5} />
+                                                <div className={`p-2 rounded-full border-2 border-dashed border-opacity-30 ${sym.color.replace('text', 'border')}`}>
+                                                    <Icon size={56} className={`${sym.color} drop-shadow-md`} strokeWidth={2.5} />
                                                 </div>
                                             </motion.div>
                                         )}
@@ -259,19 +259,22 @@ const ReelsOfGods: React.FC = () => {
 
                     <div className="mt-4 bg-[#d4b483] p-3 rounded-xl border border-[#a16207]">
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-[#451a03] font-bold text-xs uppercase">Bet Amount (EUR)</span>
-                            <span className="text-[#451a03] font-bold text-xs">Max: 30</span>
+                            <span className="text-[#451a03] font-bold text-xs uppercase">Bet Amount (BDT)</span>
+                            <span className="text-[#451a03] font-bold text-xs">Max: 500</span>
                         </div>
-                        <input 
-                            type="number" 
-                            value={betAmount} 
-                            onChange={e => {
-                                const val = parseFloat(e.target.value);
-                                if (val > MAX_BET) setBetAmount(MAX_BET.toString());
-                                else setBetAmount(e.target.value);
-                            }}
-                            className="w-full bg-[#fffbeb] border-2 border-[#a16207] rounded-lg p-2 text-center font-bold text-xl text-[#451a03] outline-none shadow-inner"
-                        />
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#78350f] font-bold">{symbol}</span>
+                            <input 
+                                type="number" 
+                                value={betAmount} 
+                                onChange={e => {
+                                    const val = parseFloat(e.target.value);
+                                    if (val > MAX_BET) setBetAmount(MAX_BET.toString());
+                                    else setBetAmount(e.target.value);
+                                }}
+                                className="w-full bg-[#fffbeb] border-2 border-[#a16207] rounded-lg p-2 text-center font-bold text-xl text-[#451a03] outline-none shadow-inner pl-8"
+                            />
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 mt-3">
@@ -293,7 +296,7 @@ const ReelsOfGods: React.FC = () => {
 
                     <div className="mt-4 flex items-center justify-between gap-4">
                         <div className="flex-1 flex flex-col items-center">
-                            <span className="text-[10px] font-bold text-[#78350f] uppercase">Total Funds</span>
+                            <span className="text-[10px] font-bold text-[#78350f] uppercase">Asset Balance</span>
                             <span className="text-lg font-black text-[#451a03]"><BalanceDisplay amount={totalBalance} /></span>
                         </div>
                         
@@ -309,7 +312,7 @@ const ReelsOfGods: React.FC = () => {
                         </button>
                         
                         <div className="flex-1 flex flex-col items-center opacity-50">
-                            <span className="text-[10px] font-bold text-[#78350f] uppercase">Max</span>
+                            <span className="text-[10px] font-bold text-[#78350f] uppercase">Max Multiplier</span>
                             <span className="text-lg font-black text-[#451a03]">x100</span>
                         </div>
                     </div>
@@ -328,10 +331,11 @@ const ReelsOfGods: React.FC = () => {
             <div className="mt-8 bg-black/40 backdrop-blur-md p-4 rounded-xl border border-white/10 text-xs text-gray-300 relative z-10">
                 <h3 className="font-bold text-white mb-2 flex items-center gap-2"><Info size={14}/> How to Play</h3>
                 <ul className="list-disc pl-4 space-y-1">
-                    <li>Place a bet (Min 1, Max 30 EUR).</li>
-                    <li>Match 3 symbols for the big multiplier win.</li>
-                    <li>Match any 2 symbols for a 1.5x consolation prize.</li>
-                    <li>Funds are deducted from all available wallets.</li>
+                    <li>Place a bet (Min 1, Max 500 BDT).</li>
+                    <li>Match 3 symbols for huge multiplier wins.</li>
+                    <li>Match any 2 symbols for a 1.4x consolation prize.</li>
+                    <li>Winnings are automatically added to your game wallet.</li>
+                    <li>System algorithm enforces fair play limits based on balance.</li>
                 </ul>
             </div>
         </div>

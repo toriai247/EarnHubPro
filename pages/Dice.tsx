@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Volume2, VolumeX, RefreshCw, Trophy, Wallet } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, RefreshCw, Trophy, Wallet, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { updateWallet, createTransaction } from '../lib/actions';
@@ -27,6 +27,11 @@ const Dice: React.FC = () => {
   const [history, setHistory] = useState<number[]>([]);
   const [soundOn, setSoundOn] = useState(true);
 
+  // Safety Feature States
+  const [stopLossStreak, setStopLossStreak] = useState<number>(0);
+  const [consecutiveLosses, setConsecutiveLosses] = useState<number>(0);
+  const [isAutoStopped, setIsAutoStopped] = useState(false);
+
   const rollSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'));
   const winSfx = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'));
 
@@ -47,16 +52,23 @@ const Dice: React.FC = () => {
   const handleQuickAmount = (action: 'min' | 'half' | 'double' | 'max') => {
       const current = parseFloat(betAmount) || 0;
       let next = current;
-      if (action === 'min') next = 10;
-      if (action === 'half') next = Math.max(10, current / 2);
-      if (action === 'double') next = current * 2;
-      if (action === 'max') next = totalBalance;
-      setBetAmount(next.toFixed(2));
+      if (action === 'min') next = 1;
+      if (action === 'half') next = Math.max(1, current / 2);
+      if (action === 'double') next = Math.min(500, current * 2);
+      if (action === 'max') next = Math.min(500, totalBalance);
+      setBetAmount(next.toFixed(0));
   };
 
   const playGame = async () => {
+      if (isAutoStopped) {
+          toast.info("Auto-stop active. Reset losses to continue.");
+          return;
+      }
+
       const amount = parseFloat(betAmount);
-      if (isNaN(amount) || amount <= 0) { toast.error("Invalid amount"); return; }
+      
+      if (isNaN(amount) || amount < 1) { toast.error("Minimum bet is 1 BDT"); return; }
+      if (amount > 500) { toast.error("Maximum bet is 500 BDT"); return; }
       if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -68,11 +80,9 @@ const Dice: React.FC = () => {
           rollSfx.current.play().catch(()=>{});
       }
 
-      // 1. Deduct using All Wallets logic
       try {
           await deductGameBalance(session.user.id, amount);
-          setTotalBalance(prev => prev - amount); // Optimistic
-          
+          setTotalBalance(prev => prev - amount); 
           await createTransaction(session.user.id, 'game_bet', amount, `Dice Bet: ${selectedBet.toUpperCase()}`);
       } catch (e: any) {
           toast.error(e.message);
@@ -80,14 +90,11 @@ const Dice: React.FC = () => {
           return;
       }
 
-      // 2. Rigged Outcome
-      // Standard chances: High/Low ~41%, Seven ~16%
       let baseChance = 0.45;
       if (selectedBet === 'seven') baseChance = 0.16;
 
       const outcome = await determineOutcome(session.user.id, baseChance);
 
-      // 3. Generate Dice
       let d1 = 1, d2 = 1;
       let total = 2;
       let attempts = 0;
@@ -107,7 +114,6 @@ const Dice: React.FC = () => {
           attempts++;
       }
 
-      // Animation delay
       setTimeout(() => {
           setDiceResult([d1, d2]);
           setIsRolling(false);
@@ -125,6 +131,7 @@ const Dice: React.FC = () => {
       setHistory(prev => [total, ...prev.slice(0, 10)]);
 
       if (win) {
+          setConsecutiveLosses(0);
           if (soundOn) winSfx.current.play().catch(()=>{});
           confetti({
              particleCount: 100,
@@ -137,9 +144,15 @@ const Dice: React.FC = () => {
           await updateWallet(userId, payout, 'increment', 'game_balance'); 
           await createTransaction(userId, 'game_win', payout, `Dice Win: ${total}`);
           setTotalBalance(prev => prev + payout);
+      } else {
+          const newStreak = consecutiveLosses + 1;
+          setConsecutiveLosses(newStreak);
+          if (stopLossStreak > 0 && newStreak >= stopLossStreak) {
+              setIsAutoStopped(true);
+              toast.warning(`Auto-stopped: reached ${stopLossStreak} consecutive losses.`);
+          }
       }
 
-      // Log history
       await supabase.from('game_history').insert({
           user_id: userId,
           game_id: 'dice',
@@ -163,6 +176,12 @@ const Dice: React.FC = () => {
           case 4: return { x: 0, y: 90 };
           default: return { x: 0, y: 0 };
       }
+  };
+
+  const resetSafety = () => {
+      setConsecutiveLosses(0);
+      setIsAutoStopped(false);
+      toast.success("Safety settings reset.");
   };
 
   return (
@@ -237,6 +256,32 @@ const Dice: React.FC = () => {
         </div>
 
         <GlassCard className="p-4 bg-[#151515] border-t border-white/10 rounded-t-3xl rounded-b-none -mx-4 pb-10">
+            {/* Safety Control */}
+            <div className="flex items-center justify-between mb-4 bg-black/20 p-2 rounded-xl border border-white/5">
+                <div className="flex items-center gap-2">
+                    <ShieldAlert size={14} className="text-orange-400" />
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Stop on Loss Streak</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <input 
+                        type="number" 
+                        min="0"
+                        value={stopLossStreak || ''}
+                        onChange={e => setStopLossStreak(parseInt(e.target.value) || 0)}
+                        placeholder="Off"
+                        className="w-12 bg-black/40 border border-white/10 rounded px-1 py-0.5 text-xs text-white text-center outline-none focus:border-orange-500"
+                    />
+                    {consecutiveLosses > 0 && (
+                        <div className="flex items-center gap-1">
+                            <span className="text-[9px] text-red-400 font-bold">{consecutiveLosses} streak</span>
+                            <button onClick={resetSafety} className="p-1 bg-white/5 rounded hover:bg-white/10 text-gray-500">
+                                <RefreshCw size={10} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             <div className="flex bg-black/40 p-1.5 rounded-xl mb-4 border border-white/5 relative h-12">
                 <motion.div 
                     className={`absolute top-1.5 bottom-1.5 w-[calc(33.33%-4px)] rounded-lg shadow-lg ${
@@ -286,10 +331,10 @@ const Dice: React.FC = () => {
                 </div>
                 <button 
                     onClick={playGame}
-                    disabled={isRolling}
-                    className={`h-14 px-8 rounded-xl font-black uppercase text-sm shadow-lg flex items-center gap-2 transition active:scale-95 ${isRolling ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-white text-black hover:bg-gray-200'}`}
+                    disabled={isRolling || isAutoStopped}
+                    className={`h-14 px-8 rounded-xl font-black uppercase text-sm shadow-lg flex items-center gap-2 transition active:scale-95 ${isRolling || isAutoStopped ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-white text-black hover:bg-gray-200'}`}
                 >
-                    {isRolling ? <RefreshCw className="animate-spin" /> : 'ROLL DICE'}
+                    {isRolling ? <RefreshCw className="animate-spin" /> : isAutoStopped ? 'STOPPED' : 'ROLL DICE'}
                 </button>
             </div>
 

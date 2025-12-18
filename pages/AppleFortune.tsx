@@ -97,9 +97,22 @@ const AppleFortune: React.FC = () => {
         return newGrid;
     };
 
+    const handleQuickAmount = (action: 'min' | 'half' | 'double' | 'max') => {
+        const current = parseFloat(betAmount) || 0;
+        let next = current;
+        if (action === 'min') next = 1;
+        if (action === 'half') next = Math.max(1, current / 2);
+        if (action === 'double') next = Math.min(500, current * 2);
+        if (action === 'max') next = Math.min(500, totalBalance);
+        setBetAmount(next.toFixed(0));
+    };
+
     const startGame = async () => {
         const amount = parseFloat(betAmount);
-        if (isNaN(amount) || amount <= 0) { toast.error("Invalid amount"); return; }
+        
+        // Enforce limits: 1 BDT min, 500 BDT max
+        if (isNaN(amount) || amount < 1) { toast.error("Minimum bet is 1 BDT"); return; }
+        if (amount > 500) { toast.error("Maximum bet is 500 BDT"); return; }
         if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
 
         const { data: { session } } = await supabase.auth.getSession();
@@ -132,29 +145,18 @@ const AppleFortune: React.FC = () => {
         if(!session) return;
 
         // RIGGING CHECK
-        // Every step is a gamble. We check win probability.
-        // Base probability depends on bad apple count.
-        // 1 Bad = 80% win rate. 2 Bad = 60%. 3 Bad = 40%. 4 Bad = 20%.
         const badCount = getBadAppleCount(rowIdx);
         const naturalWinChance = (5 - badCount) / 5;
         
-        // Ask rigging engine for outcome
+        // Ask rigging engine for outcome - Handles 10% win rate if balance >= 1000
         const outcome = await determineOutcome(session.user.id, naturalWinChance);
 
-        // Check if selected cell is actually bad
         let isBad = mineGrid[rowIdx] ? mineGrid[rowIdx][colIdx] : false;
 
-        // Apply Rigging
+        // Apply Rigging strictly
         if (outcome === 'loss' && !isBad) {
-            // Force Loss: User picked Good, but we want Loss. Make it Bad.
             isBad = true;
-            // Also update underlying grid for consistency if we revealed all
-            const newMines = [...mineGrid];
-            newMines[rowIdx][colIdx] = true; 
-            // We need to ensure we don't exceed bad count, so flip another bad to good if needed
-            // But for simplicity, just marking this one bad is enough to kill them.
         } else if (outcome === 'win' && isBad) {
-            // Force Win: User picked Bad, but we want Win. Make it Good.
             isBad = false;
         }
 
@@ -165,10 +167,9 @@ const AppleFortune: React.FC = () => {
             playSound('bad');
             setGameState('lost');
             
-            // REVEAL ALL
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
-                    const cellIsBad = r === rowIdx && c === colIdx ? true : mineGrid[r][c]; // Use dynamic result
+                    const cellIsBad = r === rowIdx && c === colIdx ? true : mineGrid[r][c]; 
                     
                     if (r === rowIdx && c === colIdx) {
                         newGrid[r][c] = 'bad'; 
@@ -246,27 +247,24 @@ const AppleFortune: React.FC = () => {
             
             <div className="flex justify-between items-center mb-6 relative z-10">
                <div className="flex items-center gap-3">
-                   <Link to="/games" className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 transition text-white border border-white/5 backdrop-blur-md">
+                   <Link to="/games" className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 transition text-white border border-white/5">
                        <ArrowLeft size={20} />
                    </Link>
-                   <h1 className="text-xl font-black text-white uppercase tracking-wider flex items-center gap-2">
-                       Apple Fortune
-                   </h1>
+                   <h1 className="text-xl font-black text-white uppercase tracking-wider">Apple Fortune</h1>
                </div>
-               <div className="flex gap-2">
-                   <button onClick={() => setSoundOn(!soundOn)} className="p-2 text-gray-400 hover:text-white transition bg-white/5 rounded-xl border border-white/5 backdrop-blur-md">
-                       {soundOn ? <Volume2 size={20}/> : <VolumeX size={20}/>}
-                   </button>
-               </div>
+               <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                    <Wallet size={16} className="text-yellow-500" />
+                    <span className="text-lg font-black text-yellow-400 tracking-wide"><BalanceDisplay amount={totalBalance}/></span>
+                </div>
+               <button onClick={() => setSoundOn(!soundOn)} className="p-2 text-gray-400 hover:text-white transition bg-white/5 rounded-xl border border-white/5">
+                   {soundOn ? <Volume2 size={20}/> : <VolumeX size={20}/>}
+               </button>
             </div>
 
             <div className="relative rounded-[32px] overflow-hidden shadow-2xl border-4 border-[#3f2e18] bg-[#1a1109]">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-20"></div>
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-[#2e1d0e]/80 to-[#120b06]/90 z-0"></div>
                 
-                <div className="absolute top-0 left-0 w-32 h-32 bg-green-900/20 rounded-br-full blur-2xl z-0"></div>
-                <div className="absolute bottom-0 right-0 w-40 h-40 bg-green-900/10 rounded-tl-full blur-3xl z-0"></div>
-
                 <div className="relative z-10 p-5 flex gap-4">
                     <div className="hidden sm:flex flex-col-reverse justify-between py-1 pr-2 border-r border-white/5 w-16">
                         {MULTIPLIERS.map((m, i) => (
@@ -330,20 +328,12 @@ const AppleFortune: React.FC = () => {
                                                             {(cellStatus === 'good' || cellStatus === 'revealed_good') && (
                                                                 <div className={`drop-shadow-[0_0_10px_rgba(239,68,68,0.5)] filter ${cellStatus === 'revealed_good' ? 'opacity-40 grayscale' : ''}`}>
                                                                     <Apple size={22} className="text-red-500 fill-red-500" strokeWidth={2.5} />
-                                                                    {cellStatus === 'good' && <div className="absolute inset-0 bg-red-500 blur-lg opacity-30 animate-pulse"></div>}
                                                                 </div>
                                                             )}
                                                             {(cellStatus === 'bad' || cellStatus === 'revealed_bad') && (
                                                                 <div className="relative">
-                                                                    <div className="absolute inset-0 bg-black/50 rounded-full blur-md"></div>
                                                                     <Apple size={22} className="text-purple-900/80 fill-black relative z-10 opacity-50" />
                                                                     <Skull size={14} className="text-gray-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20" />
-                                                                    {cellStatus === 'bad' && (
-                                                                        <motion.div 
-                                                                            initial={{ scale: 0 }} animate={{ scale: 1.5, opacity: 0 }} 
-                                                                            className="absolute inset-0 bg-red-500 rounded-full z-0"
-                                                                        />
-                                                                    )}
                                                                 </div>
                                                             )}
                                                         </motion.div>
@@ -357,16 +347,10 @@ const AppleFortune: React.FC = () => {
                         })}
                     </div>
                 </div>
-                
-                <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 to-purple-600 opacity-50"></div>
             </div>
 
             <GlassCard className="mt-6 p-5 border-white/10 bg-[#0f0f0f] relative z-10 rounded-[24px]">
                 
-                <div className="flex justify-between items-center mb-4 text-xs font-bold text-gray-500 uppercase tracking-wide">
-                     <span className="flex items-center gap-1"><Wallet size={14} className="text-yellow-500"/> Total: <span className="text-white font-mono"><BalanceDisplay amount={totalBalance}/></span></span>
-                </div>
-
                 {gameState === 'playing' ? (
                     <div className="flex gap-4 items-stretch">
                         <div className="flex-1 bg-black/40 rounded-2xl p-3 border border-white/5 flex items-center justify-center flex-col">
@@ -394,7 +378,7 @@ const AppleFortune: React.FC = () => {
                     <>
                         <div className="flex items-center gap-3 mb-4">
                             <div className="flex-1 relative group">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold group-focus-within:text-green-500 transition-colors">{symbol}</span>
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{symbol}</span>
                                 <input 
                                     type="number" 
                                     value={betAmount} 
@@ -406,13 +390,13 @@ const AppleFortune: React.FC = () => {
                         </div>
 
                         <div className="grid grid-cols-4 gap-2 mb-6">
-                            {[10, 50, 100, 500].map(amt => (
+                            {['min', 'half', 'double', 'max'].map((action) => (
                                 <button 
-                                    key={amt} 
-                                    onClick={() => setBetAmount(amt.toString())}
-                                    className="py-3 bg-white/5 rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:bg-white/10 transition border border-white/5 active:scale-95"
+                                    key={action}
+                                    onClick={() => handleQuickAmount(action as any)}
+                                    className="py-3 bg-white/5 rounded-xl text-[10px] font-bold text-gray-400 hover:text-white hover:bg-white/10 border border-white/5 uppercase"
                                 >
-                                    {amt}
+                                    {action}
                                 </button>
                             ))}
                         </div>

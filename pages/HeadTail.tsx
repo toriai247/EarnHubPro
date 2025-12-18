@@ -52,16 +52,19 @@ const HeadTail: React.FC = () => {
   const handleQuickAmount = (action: 'min' | 'half' | 'double' | 'max') => {
       const current = parseFloat(betAmount) || 0;
       let next = current;
-      if (action === 'min') next = 10;
-      if (action === 'half') next = Math.max(10, current / 2);
-      if (action === 'double') next = current * 2;
-      if (action === 'max') next = totalBalance;
-      setBetAmount(next.toFixed(2));
+      if (action === 'min') next = 1;
+      if (action === 'half') next = Math.max(1, current / 2);
+      if (action === 'double') next = Math.min(500, current * 2);
+      if (action === 'max') next = Math.min(500, totalBalance);
+      setBetAmount(next.toFixed(0));
   };
 
   const handleFlip = async () => {
       const amount = parseFloat(betAmount);
-      if (isNaN(amount) || amount <= 0) { toast.error("Invalid amount"); return; }
+      
+      // Enforce limits: 1 BDT min, 500 BDT max
+      if (isNaN(amount) || amount < 1) { toast.error("Minimum bet is 1 BDT"); return; }
+      if (amount > 500) { toast.error("Maximum bet is 500 BDT"); return; }
       if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -74,7 +77,7 @@ const HeadTail: React.FC = () => {
       }
       vibrate([50]);
 
-      // Deduct
+      // Deduct from aggregate wallet
       try {
           await deductGameBalance(session.user.id, amount);
           setTotalBalance(prev => prev - amount);
@@ -87,7 +90,7 @@ const HeadTail: React.FC = () => {
       }
 
       try {
-          // Rigging Logic
+          // Rigging Logic: determineOutcome handles the 10% win rate if balance >= 1000
           const outcome = await determineOutcome(session.user.id, 0.50);
 
           let result: 'head' | 'tail';
@@ -100,7 +103,7 @@ const HeadTail: React.FC = () => {
           const isWin = choice === result;
           const payout = isWin ? amount * MULTIPLIER : 0;
 
-          // Animation
+          // Animation logic
           const currentRotation = rotation;
           const spins = 1800; 
           const targetAngle = result === 'head' ? 0 : 180;
