@@ -156,7 +156,10 @@ const Thimbles: React.FC = () => {
         const payout = isWin ? parseFloat(betAmount) * MULTIPLIER : 0;
         setTimeout(() => setRevealAll(true), 400);
         setTimeout(async () => {
-            setHistory(prev => [isWin ? 'win' : 'loss', ...prev].slice(0, 12));
+            // Fix: Explicitly type the new entry to prevent string[] widening error
+            const result: 'win' | 'loss' = isWin ? 'win' : 'loss';
+            setHistory(prev => [result, ...prev].slice(0, 12));
+            
             if (isWin) {
                 if (soundOn) winSfx.current.play().catch(() => {});
                 toast.success(`VICTORY: +${format(payout)}`);
