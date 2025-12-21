@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
   BadgeCheck, RefreshCw, Smartphone, Youtube, Share2, 
-  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, ArrowRight, Flame, Building2, Star, Flag, Briefcase, MessageCircle, Crown, User, ExternalLink, FileCheck, UploadCloud, Type, Send, CheckCircle2, Timer, MoreVertical, EyeOff, LayoutGrid, AlertCircle, Zap, XCircle, SlidersHorizontal, ArrowDownWideArrow, ArrowUpWideArrow, Info, Play
+  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, ArrowRight, Flame, Building2, Star, Flag, Briefcase, MessageCircle, Crown, User, ExternalLink, FileCheck, UploadCloud, Type, Send, CheckCircle2, Timer, MoreVertical, EyeOff, LayoutGrid, AlertCircle, Zap, XCircle, SlidersHorizontal, ArrowDownWideNarrow, ArrowUpWideNarrow, Info, Play
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useUI } from '../context/UIContext';

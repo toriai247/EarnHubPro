@@ -69,7 +69,7 @@ const Thimbles: React.FC = () => {
     const startGame = async () => {
         const amount = parseFloat(betAmount);
         if (isNaN(amount) || amount < 1) { toast.error("Min bet 1 TK"); return; }
-        if (amount > totalBalance) { toast.error("Insufficient funds"); return; }
+        if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
         try {

@@ -25,7 +25,7 @@ const LotteryManager: React.FC = () => {
         total_tickets: '300',
         image_url: '',
         end_date: '',
-        status: 'active' as const
+        status: 'active' as 'active' | 'ended' | 'drawn'
     };
     const [form, setForm] = useState(initialForm);
 
