@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -10,7 +11,6 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // Use __dirname for the root directory in a flat structure
       '@': path.resolve(__dirname),
     },
   },
@@ -29,7 +29,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    chunkSizeWarningLimit: 1200,
+    chunkSizeWarningLimit: 800,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
@@ -41,8 +48,7 @@ export default defineConfig({
             if (id.includes('framer-motion')) return 'vendor-motion';
             if (id.includes('lucide-react')) return 'vendor-icons';
             if (id.includes('@supabase')) return 'vendor-supabase';
-            if (id.includes('canvas-confetti')) return 'vendor-fx';
-            return 'vendor-core';
+            return 'vendor-lib';
           }
         }
       }

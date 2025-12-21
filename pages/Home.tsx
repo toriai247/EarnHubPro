@@ -188,7 +188,6 @@ const Home: React.FC = () => {
           
           <div className="flex overflow-x-auto gap-4 no-scrollbar pb-2 px-2">
               {[
-                { id: 'ludo', name: 'Ludo King', icon: Swords, color: 'text-yellow-400', bg: 'bg-yellow-500/5 border-yellow-500/20', path: '/games/ludo/select', hot: true },
                 { id: 'crash', name: 'Space Crash', icon: Rocket, color: 'text-red-400', bg: 'bg-red-500/5 border-red-500/20', path: '/games/crash' },
                 { id: 'spin', name: 'Royal Wheel', icon: Disc, color: 'text-blue-400', bg: 'bg-blue-500/5 border-blue-500/20', path: '/games/spin' },
                 { id: 'box', name: 'Mystery Box', icon: Gift, color: 'text-brand', bg: 'bg-brand/5 border-brand/20', path: '/games' },
@@ -196,11 +195,6 @@ const Home: React.FC = () => {
               ].map(game => (
                 <Link key={game.id} to={game.path} className="min-w-[140px] bg-panel border border-border-base rounded-[2.5rem] p-6 flex flex-col items-center text-center gap-4 hover:border-brand transition-all group relative">
                     <div className={`w-14 h-14 rounded-3xl flex items-center justify-center ${game.bg} border-2 group-hover:scale-110 transition-all ${game.color} relative`}>
-                        {game.hot && (
-                            <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-[0_0_10px_#ef4444] z-20">
-                                HOT
-                            </div>
-                        )}
                         <game.icon size={28} />
                     </div>
                     <div>

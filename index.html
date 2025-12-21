@@ -131,108 +131,27 @@
         --color-brand-hover: #EAB308;
       }
 
-      .lite {
-        --bg-void: #f1f5f9;
-        --bg-card: #ffffff;
-        --bg-panel: #e2e8f0;
-        --bg-input: #f8fafc;
-        --text-main: #0f172a;
-        --text-muted: #64748b;
-        --text-highlight: #0284c7;
-        --border-base: #cbd5e1;
-        --border-highlight: #0ea5e9;
-        --color-brand: #0ea5e9;
-        --color-brand-hover: #0284c7;
-        --shadow-glow: 0 4px 20px rgba(14, 165, 233, 0.15);
+      body { 
+        background-color: var(--bg-void); 
+        color: var(--text-main); 
+        overflow-x: hidden; 
+        scroll-behavior: smooth;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+      }
+      
+      .glass { 
+        background: var(--bg-card); 
+        border: 1px solid var(--border-base); 
+        backdrop-blur: 8px; 
       }
 
-      .default {
-        --bg-void: #020617;
-        --bg-card: #0f172a;
-        --bg-panel: #1e293b;
-        --bg-input: #0f172a;
-        --text-main: #f8fafc;
-        --text-muted: #94a3b8;
-        --text-highlight: #3b82f6;
-        --border-base: #334155;
-        --border-highlight: #3b82f6;
-        --color-brand: #3b82f6;
-        --color-brand-hover: #2563eb;
-      }
-
-      .premium {
-        --bg-void: #0a0118;
-        --bg-card: #150a2e;
-        --bg-panel: #1d0f3d;
-        --bg-input: #0a0118;
-        --text-main: #ffffff;
-        --text-muted: #a78bfa;
-        --text-highlight: #c084fc;
-        --border-base: #3b0764;
-        --border-highlight: #d8b4fe;
-        --color-brand: #8b5cf6;
-        --color-brand-hover: #a78bfa;
-      }
-
-      .terminal {
-        --bg-void: #020202;
-        --bg-card: #050505;
-        --bg-panel: #0a0a0a;
-        --bg-input: #000000;
-        --text-main: #22c55e;
-        --text-muted: #14532d;
-        --text-highlight: #4ade80;
-        --border-base: #064e3b;
-        --border-highlight: #22c55e;
-        --color-brand: #22c55e;
-        --color-brand-hover: #4ade80;
-      }
-
-      .solarized {
-        --bg-void: #002b36;
-        --bg-card: #073642;
-        --bg-panel: #114b5a;
-        --bg-input: #00212b;
-        --text-main: #839496;
-        --text-muted: #586e75;
-        --text-highlight: #268bd2;
-        --border-base: #586e75;
-        --border-highlight: #268bd2;
-        --color-brand: #268bd2;
-        --color-brand-hover: #2aa198;
-      }
-
-      .dracula {
-        --bg-void: #282a36;
-        --bg-card: #44475a;
-        --bg-panel: #6272a4;
-        --bg-input: #1e1f29;
-        --text-main: #f8f8f2;
-        --text-muted: #8be9fd;
-        --text-highlight: #bd93f9;
-        --border-base: #44475a;
-        --border-highlight: #bd93f9;
-        --color-brand: #bd93f9;
-        --color-brand-hover: #ff79c6;
-      }
-
-      .material {
-        --bg-void: #121212;
-        --bg-card: #1e1e1e;
-        --bg-panel: #2c2c2c;
-        --bg-input: #121212;
-        --text-main: #e1e1e1;
-        --text-muted: #b0b0b0;
-        --text-highlight: #bb86fc;
-        --border-base: #333333;
-        --border-highlight: #bb86fc;
-        --color-brand: #bb86fc;
-        --color-brand-hover: #d7b7fd;
-      }
-
-      body { background-color: var(--bg-void); color: var(--text-main); overflow-x: hidden; }
-      .glass { background: var(--bg-card); border: 1px solid var(--border-base); backdrop-blur: 8px; }
-      * { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease; }
+      /* Performance Tweaks */
+      * { transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
+      main { transform: translateZ(0); will-change: transform; }
+      
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
   <script type="importmap">
 {
@@ -241,13 +160,13 @@
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
     "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "framer-motion": "https://esm.sh/framer-motion@^12.23.26",
-    "recharts": "https://esm.sh/recharts@^3.6.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0",
-    "canvas-confetti": "https://esm.sh/canvas-confetti@^1.9.4",
-    "vite": "https://esm.sh/vite@^7.3.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "lucide-react": "https://esm.sh/lucide-react@^0.468.0",
+    "framer-motion": "https://esm.sh/framer-motion@^12.0.0",
+    "recharts": "https://esm.sh/recharts@^2.12.7",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.39.7",
+    "canvas-confetti": "https://esm.sh/canvas-confetti@^1.9.2",
+    "vite": "https://esm.sh/vite@^6.0.3",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^4.3.4",
     "path": "https://esm.sh/path@^0.12.7",
     "url": "https://esm.sh/url@^0.11.4"
   }

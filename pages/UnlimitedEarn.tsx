@@ -43,18 +43,27 @@ const UnlimitedEarn: React.FC = () => {
 
     const fetchData = async () => {
         setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        const { data: profile } = await supabase.from('profiles').select('user_uid').eq('id', session.user.id).single();
-        if (profile) setUserUid(profile.user_uid);
-
         try {
-            const { data: logs } = await supabase
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                setLoading(false);
+                return;
+            }
+
+            const { data: profile } = await supabase.from('profiles').select('user_uid').eq('id', session.user.id).single();
+            if (profile) setUserUid(profile.user_uid);
+
+            const { data: logs, error } = await supabase
                 .from('unlimited_earn_logs')
                 .select('*')
                 .eq('referrer_id', session.user.id)
                 .order('created_at', { ascending: false }); 
+
+            if (error) {
+                console.warn("Table unlimited_earn_logs might be missing", error);
+                setLoading(false);
+                return;
+            }
 
             if (logs) {
                 let v = 0, c = 0, e = 0;
@@ -64,7 +73,7 @@ const UnlimitedEarn: React.FC = () => {
                 logs.forEach((log: any) => {
                     if (log.action_type === 'view') v++;
                     if (log.action_type === 'click') c++;
-                    e += Number(log.amount);
+                    e += Number(log.amount || 0);
 
                     const country = log.country || 'Unknown';
                     countryMap[country] = (countryMap[country] || 0) + 1;
@@ -88,8 +97,9 @@ const UnlimitedEarn: React.FC = () => {
             }
         } catch (e) {
             console.error("Fetch Error", e);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const promoLink = userUid ? `${window.location.origin}/#/u-link/${userUid}` : '';
@@ -290,21 +300,25 @@ const UnlimitedEarn: React.FC = () => {
                         <h4 className="text-xs font-black text-white uppercase tracking-widest">Performance Flow</h4>
                     </div>
                     <div className="h-[250px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}>
-                                <defs>
-                                    <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <XAxis dataKey="date" tick={{fontSize: 9, fill: '#666'}} axisLine={false} tickLine={false} />
-                                <YAxis hide />
-                                <Tooltip contentStyle={{backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px', fontSize: '10px'}} />
-                                <Area type="monotone" dataKey="views" stroke="#06b6d4" strokeWidth={3} fillOpacity={1} fill="url(#colorViews)" />
-                                <Area type="monotone" dataKey="clicks" stroke="#8b5cf6" strokeWidth={2} fill="none" />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                        {chartData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartData}>
+                                    <defs>
+                                        <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis dataKey="date" tick={{fontSize: 9, fill: '#666'}} axisLine={false} tickLine={false} />
+                                    <YAxis hide />
+                                    <Tooltip contentStyle={{backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px', fontSize: '10px'}} />
+                                    <Area type="monotone" dataKey="views" stroke="#06b6d4" strokeWidth={3} fillOpacity={1} fill="url(#colorViews)" />
+                                    <Area type="monotone" dataKey="clicks" stroke="#8b5cf6" strokeWidth={2} fill="none" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-gray-600 text-xs font-bold uppercase">Awaiting Traffic Packets</div>
+                        )}
                     </div>
                 </GlassCard>
                 
@@ -325,7 +339,10 @@ const UnlimitedEarn: React.FC = () => {
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <div className="w-20 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                                <div className="h-full bg-cyan-500 shadow-[0_0_8px_cyan]" style={{ width: `${(c.value / stats.views) * 100}%` }}></div>
+                                                <div 
+                                                    className="h-full bg-cyan-500 shadow-[0_0_8px_cyan]" 
+                                                    style={{ width: `${(c.value / (stats.views || 1)) * 100}%` }}
+                                                ></div>
                                             </div>
                                             <span className="text-xs font-black text-white font-mono">{c.value}</span>
                                         </div>
