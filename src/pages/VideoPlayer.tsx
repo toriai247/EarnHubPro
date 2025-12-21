@@ -1,7 +1,9 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
-import { VideoAd } from '../types';
+// Update import to root types.ts
+import { VideoAd } from '../../types';
 import GlassCard from '../components/GlassCard';
 import { 
     ArrowLeft, Play, Pause, CheckCircle2, 

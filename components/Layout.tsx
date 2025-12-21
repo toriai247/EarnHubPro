@@ -1,9 +1,9 @@
 
-import React, { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { 
   Home, User, Bell, 
-  Wallet, Briefcase, BarChart3, PlusCircle, Globe, Shield, Inbox, Zap
+  Wallet, Briefcase, BarChart3, PlusCircle, Globe, Shield, Inbox, Zap, Grid, Megaphone
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import BalanceDisplay from './BalanceDisplay';
@@ -11,10 +11,12 @@ import { useSystem } from '../context/SystemContext';
 import MaintenanceScreen from './MaintenanceScreen';
 import SuspendedView from './SuspendedView';
 import Logo from './Logo';
-import ReviewModal from './ReviewModal';
-import Footer from './Footer'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '../types';
+
+// Lazy load non-critical components
+const ReviewModal = lazy(() => import('./ReviewModal'));
+const Footer = lazy(() => import('./Footer'));
 
 const NOTIFICATION_OFFERS = [
     { title: "🎁 500 TK Bonus Waiting!", body: "Login now to claim your daily reward before it expires." },
@@ -28,9 +30,22 @@ const NOTIFICATION_OFFERS = [
 const GlobalAlertBanner = ({ message }: { message: string }) => {
     if (!message) return null;
     return (
-        <div className="w-full px-4 py-2 text-xs font-bold uppercase border-b flex items-center justify-center gap-2 bg-yellow-900/50 text-yellow-200 border-yellow-800">
-            <span>{message}</span>
-        </div>
+        <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            className="w-full px-4 py-3 text-[10px] font-black uppercase border-b flex items-center justify-center gap-3 bg-brand/10 text-brand border-brand/20 relative overflow-hidden z-[60] shadow-lg shadow-brand/5"
+        >
+            <motion.div 
+                animate={{ scale: [1, 1.2, 1] }} 
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="shrink-0 flex items-center justify-center"
+            >
+                <Megaphone size={14} fill="currentColor" />
+            </motion.div>
+            <span className="tracking-[0.1em] text-center line-clamp-1">{message}</span>
+            {/* Ambient animation in background */}
+            <div className="absolute inset-0 bg-brand/5 animate-pulse pointer-events-none"></div>
+        </motion.div>
     );
 };
 
@@ -44,27 +59,22 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   const navigate = useNavigate();
   const { isFeatureEnabled, config } = useSystem();
   const [balance, setBalance] = useState<number>(0);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [balanceLoading, setBalanceLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isDealer, setIsDealer] = useState(false); 
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   
-  // NOTE: We allow the nav to show on video pages now per user request
   const isVideoPage = location.pathname.startsWith('/video/watch'); 
   const isGuest = !session;
-  
-  // Page Detection
-  const isHome = location.pathname === '/';
+  const isGamePage = location.pathname.startsWith('/games');
 
-  // --- AUTO NOTIFICATION LOGIC ---
   useEffect(() => {
-      // Request permission immediately
       if ('Notification' in window && Notification.permission === 'default') {
           Notification.requestPermission();
       }
 
-      // Schedule random "Lure" notifications
       const scheduleNotification = () => {
           if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
               const offer = NOTIFICATION_OFFERS[Math.floor(Math.random() * NOTIFICATION_OFFERS.length)];
@@ -75,9 +85,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                           body: offer.body,
                           icon: '/images/logo.png',
                           badge: '/images/logo.png',
-                          // @ts-ignore
                           vibrate: [200, 100, 200]
-                      });
+                      } as any);
                   });
               } else {
                   new Notification(offer.title, {
@@ -88,36 +97,37 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
           }
       };
 
-      // Trigger every 5-15 minutes (Simulated for engagement)
-      const interval = setInterval(scheduleNotification, 1000 * 60 * 5); // 5 minutes
+      const interval = setInterval(scheduleNotification, 1000 * 60 * 5); 
       return () => clearInterval(interval);
   }, []);
 
-  // --- NAVIGATION CONFIGURATION ---
-  const dealerNavItems = [
-      { path: '/dealer/dashboard', icon: BarChart3, label: 'DASH' },
-      { path: '/dealer/inbox', icon: Inbox, label: 'INBOX' },
-      { path: '/dealer/campaigns', icon: Briefcase, label: 'ADS' },
-      { path: '/dealer/create', icon: PlusCircle, label: 'NEW' },
+  const mobileNavItems = [
+    { path: '/', icon: Home, label: 'Home', protected: false },
+    { path: '/wallet', icon: Wallet, label: 'Wallet', protected: true },
+    { path: '/menu', icon: Grid, label: 'Menu', protected: false },
+    { path: '/profile', icon: User, label: 'Profile', protected: true },
   ];
 
-  // SIMPLIFIED USER NAV - CORE PILLARS ONLY
-  const userNavItems = [
-    { path: '/', icon: Home, label: 'Home', enabled: true },
+  const desktopNavItems = [
+    { path: '/', icon: Home, label: 'Home', enabled: true, protected: false },
     { path: '/wallet', icon: Wallet, label: 'Wallet', enabled: true, protected: true },
-    { path: '/unlimited-earn', icon: Zap, label: 'Promote', enabled: true, protected: true }, // Added new item
+    { path: '/unlimited-earn', icon: Zap, label: 'Promote', enabled: true, protected: true },
     { path: '/tasks', icon: Globe, label: 'Earn', enabled: isFeatureEnabled('is_tasks_enabled'), protected: true },
     { path: '/profile', icon: User, label: 'Profile', enabled: true, protected: true },
   ].filter(i => i.enabled);
 
+  const dealerNavItems = [
+      { path: '/dealer/dashboard', icon: BarChart3, label: 'DASH', protected: false },
+      { path: '/dealer/inbox', icon: Inbox, label: 'INBOX', protected: false },
+      { path: '/dealer/campaigns', icon: Briefcase, label: 'ADS', protected: false },
+      { path: '/dealer/create', icon: PlusCircle, label: 'NEW', protected: false },
+  ];
+
   const isDealerRoute = location.pathname.startsWith('/dealer');
-  const activeNavItems = (isDealer && isDealerRoute) ? dealerNavItems : userNavItems;
 
   useEffect(() => {
-    // ADSTERRA SCRIPT INJECTION (Blocked for Admins & Non-Home Pages)
     const injectAds = async () => {
-        // Ads only show on Home Page AND if not admin
-        const shouldShowAds = !isAdmin && isHome;
+        const shouldShowAds = !isAdmin && !isGamePage;
 
         if (shouldShowAds && !document.getElementById('adsterra-popunder')) {
             const script = document.createElement('script');
@@ -126,19 +136,17 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
             script.type = "text/javascript";
             document.body.appendChild(script);
         } else if (!shouldShowAds) {
-            // Cleanup if became admin or navigated away from home
             const existing = document.getElementById('adsterra-popunder');
             if (existing) existing.remove();
         }
     };
     
-    // Check session first
     if (session) {
         if (isAdmin === false) injectAds();
     } else {
-        injectAds(); // Guests see ads on Home
+        injectAds(); 
     }
-  }, [isAdmin, session, isHome]);
+  }, [isAdmin, session, isGamePage]);
 
   useEffect(() => {
     if (!session) {
@@ -146,10 +154,12 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         setUnreadCount(0);
         setIsDealer(false);
         setIsAdmin(false);
+        setBalanceLoading(false);
         return;
     }
 
     const fetchData = async () => {
+      setBalanceLoading(true);
       try {
         const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         if (error) return; 
@@ -174,11 +184,12 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
             setBalance((walletRes.value as any).data.balance || 0);
         }
         if (notifRes.status === 'fulfilled') {
-            // @ts-ignore
             setUnreadCount((notifRes.value as any).count || 0);
         }
       } catch (err) {
         console.error("Layout data fetch error:", err);
+      } finally {
+        setBalanceLoading(false);
       }
     };
 
@@ -194,8 +205,7 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
   return (
     <div className="min-h-screen flex flex-col bg-void text-main font-sans transition-colors duration-500">
       
-      {/* Global Alert - Only on Home Page */}
-      {config?.global_alert && isHome && <GlobalAlertBanner message={config.global_alert} />}
+      {config?.global_alert && <GlobalAlertBanner message={config.global_alert} />}
 
       {!isVideoPage && (
         <header className="sticky top-0 z-40 bg-void/90 backdrop-blur-md border-b border-border-base px-4 py-3 flex justify-between items-center transition-colors duration-500">
@@ -212,7 +222,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 </Link>
             ) : (
                 <>
-                    {/* Admin Icon */}
                     {isAdmin && (
                         <Link 
                             to="/admin/dashboard" 
@@ -223,7 +232,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                         </Link>
                     )}
 
-                    {/* Dealer Toggle */}
                     {isDealer && (
                         <Link 
                             to={isDealerRoute ? "/" : "/dealer/dashboard"} 
@@ -234,8 +242,8 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                         </Link>
                     )}
                     
-                    <div className="hidden sm:flex px-2 py-1 bg-card border border-border-base rounded text-xs font-mono text-main transition-colors">
-                        <BalanceDisplay amount={balance} isHeader={true} isNative={true} />
+                    <div className="hidden sm:flex px-2 py-1 bg-card border border-border-base rounded text-xs font-mono text-main transition-colors min-w-[80px] justify-center">
+                        <BalanceDisplay amount={balance} isHeader={true} isNative={true} loading={balanceLoading} />
                     </div>
                     <Link to="/notifications" className="relative p-2 text-muted hover:text-main transition-colors active:scale-90 duration-200">
                       <Bell size={20} />
@@ -264,44 +272,52 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
           </motion.div>
         </AnimatePresence>
         
-        {/* Footer is always visible now except for full-screen interactions if needed, but keeping it visible ensures buttons are there */}
-        <Footer onOpenReview={() => setShowReviewModal(true)} />
+        <Suspense fallback={<div className="h-20 animate-pulse bg-white/5 mx-6 rounded-xl mt-12"></div>}>
+           <Footer onOpenReview={() => setShowReviewModal(true)} />
+        </Suspense>
       </main>
 
-      {/* BOTTOM NAV (Mobile) */}
-      <nav className={`fixed bottom-0 left-0 right-0 z-50 sm:hidden border-t border-border-base pb-safe transition-colors duration-500 ${isDealerRoute ? 'bg-[#1a1500] border-amber-900/30' : 'bg-card'}`}>
-        <div className="flex justify-around items-center h-16">
-          {activeNavItems.map((item) => {
+      <nav className={`fixed bottom-0 left-0 right-0 z-50 sm:hidden border-t border-border-base pb-safe transition-all duration-300 shadow-[0_-10px_20px_rgba(0,0,0,0.4)] ${isDealerRoute ? 'bg-[#1a1500] border-amber-900/30' : 'bg-card/95 backdrop-blur-lg'}`}>
+        <div className="flex justify-around items-center h-18 py-2">
+          {(isDealer && isDealerRoute ? dealerNavItems : mobileNavItems).map((item) => {
             const isActive = location.pathname === item.path;
             const colorClass = isDealerRoute 
-                ? (isActive ? 'text-amber-400' : 'text-gray-500 hover:text-amber-200')
-                : (isActive ? 'text-brand' : 'text-muted hover:text-main');
+                ? (isActive ? 'text-amber-400' : 'text-gray-500')
+                : (isActive ? 'text-brand' : 'text-muted');
 
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 onClick={(e) => { 
-                    // @ts-ignore
                     if (item.protected && isGuest) { e.preventDefault(); navigate('/login'); } 
                 }}
-                className={`flex flex-col items-center justify-center w-full h-full ${colorClass} active:scale-90 transition-transform duration-200`}
+                className={`relative flex flex-col items-center justify-center w-full py-2 transition-all duration-300 ${isActive ? 'scale-110' : 'opacity-70 grayscale-[0.5]'}`}
               >
-                <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'drop-shadow-[0_0_8px_rgba(var(--color-brand),0.5)]' : ''} />
-                <span className="text-[10px] font-bold mt-1 uppercase">{item.label}</span>
+                <item.icon 
+                  size={26} 
+                  strokeWidth={isActive ? 2.5 : 2} 
+                  className={`${colorClass} transition-all duration-300 ${isActive ? 'drop-shadow-[0_0_10px_rgba(var(--color-brand),0.6)]' : ''}`} 
+                />
+                {isActive && (
+                  <motion.div 
+                    layoutId="navIndicator"
+                    className={`absolute -bottom-1 w-1 h-1 rounded-full ${isDealerRoute ? 'bg-amber-400' : 'bg-brand shadow-glow'}`}
+                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  />
+                )}
               </Link>
             );
           })}
         </div>
       </nav>
 
-      {/* SIDE NAV (Desktop) */}
       <nav className={`hidden sm:flex fixed left-0 top-0 bottom-0 w-20 border-r border-border-base flex-col items-center py-6 z-30 transition-colors duration-500 ${isDealerRoute ? 'bg-[#0f0a00] border-amber-900/20' : 'bg-card'}`}>
         <div className="mb-8">
             <Logo size="sm" showText={false} />
         </div>
         <div className="flex flex-col gap-6 w-full px-2">
-          {activeNavItems.map((item) => {
+          {(isDealer && isDealerRoute ? dealerNavItems : desktopNavItems).map((item) => {
              const isActive = location.pathname === item.path;
              const bgClass = isDealerRoute
                 ? (isActive ? 'bg-amber-500 text-black' : 'text-gray-500 hover:bg-amber-900/20 hover:text-amber-400')
@@ -312,7 +328,6 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
                 key={item.path} 
                 to={item.path} 
                 onClick={(e) => { 
-                    // @ts-ignore
                     if (item.protected && isGuest) { e.preventDefault(); navigate('/login'); } 
                 }}
                 className={`p-3 rounded-lg mx-auto flex flex-col items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 ${bgClass}`}
@@ -325,7 +340,9 @@ const Layout: React.FC<LayoutProps> = ({ children, session }) => {
         </div>
       </nav>
 
-      <ReviewModal isOpen={showReviewModal} onClose={() => setShowReviewModal(false)} />
+      <Suspense fallback={null}>
+         {showReviewModal && <ReviewModal isOpen={showReviewModal} onClose={() => setShowReviewModal(false)} />}
+      </Suspense>
     </div>
   );
 };

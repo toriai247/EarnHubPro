@@ -1,13 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { 
-  Search, RefreshCw, AlertCircle, ArrowRight, Copy, 
-  ShieldCheck, Lock, Users, Filter, UserX, CheckCircle2, MoreVertical, Ban, ShieldAlert, BadgeAlert, StickyNote, Briefcase, Eye, Star, Activity, Crown, Zap, DollarSign, Calendar, Trophy
+  Search, RefreshCw, Copy, 
+  ShieldCheck, Lock, Users, UserX, CheckCircle2, Ban, Briefcase, Star, Activity, Crown, Zap, DollarSign, Calendar, Trophy, ChevronRight
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import { supabase } from '../../integrations/supabase/client';
 import { UserProfile } from '../../types';
-import { motion, AnimatePresence } from 'framer-motion';
 import Skeleton from '../../components/Skeleton';
 import { useUI } from '../../context/UIContext';
 import BalanceDisplay from '../../components/BalanceDisplay';
@@ -18,41 +17,23 @@ interface UserManagementProps {
 
 interface EnrichedProfile extends UserProfile {
     balance?: number;
+    total_withdraw?: number;
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
-  const { toast, confirm } = useUI();
+  const { toast } = useUI();
   const [users, setUsers] = useState<EnrichedProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'verified' | 'blocked' | 'suspended' | 'dealer' | 'staff'>('all');
-  const [currentUserRole, setCurrentUserRole] = useState<'admin' | 'moderator' | 'user'>('user');
-
-  // Stats
-  const [stats, setStats] = useState({ total: 0, verified: 0, blocked: 0, suspended: 0 });
 
   useEffect(() => {
     fetchUsers();
-    checkRole();
   }, []);
-
-  const checkRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-          const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-          if (data) {
-              if (data.admin_user || data.role === 'admin') setCurrentUserRole('admin');
-              else if (data.role === 'moderator') setCurrentUserRole('moderator');
-          }
-      }
-  };
 
   const fetchUsers = async () => {
     setIsLoading(true);
-    setError(null);
     try {
-        // 1. Fetch Profiles
         const { data: profiles, error: profileError } = await supabase
             .from('profiles')
             .select('*')
@@ -60,29 +41,18 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
         
         if (profileError) throw profileError;
 
-        // 2. Fetch Wallets (for Main Balance)
-        // We fetch all to avoid N+1 queries. For large datasets, this should be paginated or joined server-side.
-        const { data: wallets } = await supabase.from('wallets').select('user_id, main_balance');
-        
-        // Create a Map for fast lookup
-        const walletMap = new Map((wallets || []).map((w: any) => [w.user_id, w.main_balance]));
+        const { data: wallets } = await supabase.from('wallets').select('user_id, balance');
+        const walletMap = new Map((wallets || []).map((w: any) => [w.user_id, w.balance]));
 
         if (profiles) {
             const userList: EnrichedProfile[] = profiles.map((p: any) => ({
                 ...p,
                 balance: walletMap.get(p.id) || 0
             }));
-
             setUsers(userList);
-            setStats({
-                total: userList.length,
-                verified: userList.filter(u => u.is_kyc_1).length,
-                blocked: userList.filter(u => u.is_withdraw_blocked).length,
-                suspended: userList.filter(u => u.is_suspended).length
-            });
         }
     } catch (err: any) {
-        setError(err.message);
+        console.error(err);
     } finally {
         setIsLoading(false);
     }
@@ -97,65 +67,42 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
     const matchesSearch = 
         u.email_1?.toLowerCase().includes(searchTerm.toLowerCase()) || 
         u.name_1?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         String(u.user_uid).includes(searchTerm);
     
     if (!matchesSearch) return false;
-    
     if (filter === 'verified') return u.is_kyc_1;
     if (filter === 'blocked') return u.is_withdraw_blocked;
     if (filter === 'suspended') return u.is_suspended;
     if (filter === 'dealer') return u.is_dealer;
     if (filter === 'staff') return (u.role === 'staff' || u.role === 'admin' || u.admin_user);
-    
     return true;
   });
 
   return (
-    <div className="space-y-4 animate-fade-in pb-20">
+    <div className="space-y-6 pb-20">
       
-      {/* --- STATS HEADER --- */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-blue-900/10 border border-blue-500/20 p-3 rounded-xl">
-              <p className="text-[10px] text-blue-300 font-bold uppercase">Total Users</p>
-              <p className="text-xl font-bold text-white">{stats.total}</p>
-          </div>
-          <div className="bg-green-900/10 border border-green-500/20 p-3 rounded-xl">
-              <p className="text-[10px] text-green-300 font-bold uppercase">Verified</p>
-              <p className="text-xl font-bold text-white">{stats.verified}</p>
-          </div>
-          <div className="bg-orange-900/10 border border-orange-500/20 p-3 rounded-xl">
-              <p className="text-[10px] text-orange-300 font-bold uppercase">Blocked</p>
-              <p className="text-xl font-bold text-white">{stats.blocked}</p>
-          </div>
-          <div className="bg-red-900/10 border border-red-500/20 p-3 rounded-xl">
-              <p className="text-[10px] text-red-300 font-bold uppercase">Suspended</p>
-              <p className="text-xl font-bold text-white">{stats.suspended}</p>
-          </div>
-      </div>
-
-      {/* --- SEARCH & FILTER BAR --- */}
-      <div className="sticky top-0 z-20 bg-[#050505]/90 backdrop-blur-xl py-2 space-y-2">
+      {/* FILTER BAR - BASIC STYLE */}
+      <div className="bg-[#0a0a0a] p-3 rounded-2xl border border-white/5 space-y-3">
           <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
               <input 
                 type="text" 
-                placeholder="Search name, email, or ID..." 
+                placeholder="Search Identity, Email, or Network UID..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[#111] border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:border-blue-500 outline-none" 
+                className="w-full bg-black border border-white/5 rounded-xl pl-12 pr-4 py-3.5 text-xs text-white focus:border-blue-500 outline-none transition-all font-mono" 
               />
           </div>
           
-          <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar">
               {(['all', 'verified', 'dealer', 'staff', 'blocked', 'suspended'] as const).map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase whitespace-nowrap border transition ${
+                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
                         filter === f 
-                        ? 'bg-white text-black border-white' 
-                        : 'bg-[#111] text-gray-500 border-[#222]'
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-lg' 
+                        : 'bg-white/5 text-gray-500 border-white/5 hover:border-white/10'
                     }`}
                   >
                       {f}
@@ -164,114 +111,74 @@ const UserManagement: React.FC<UserManagementProps> = ({ onSelectUser }) => {
           </div>
       </div>
 
-      {/* --- USER LIST (RESPONSIVE) --- */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {isLoading ? (
-            <div className="p-4 space-y-3">
-                {[1,2,3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+            <div className="space-y-2">
+                {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-20 rounded-2xl" />)}
             </div>
         ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-10 text-gray-500 bg-white/5 rounded-xl border border-white/5">
-                No users found.
+            <div className="text-center py-20 text-gray-700 bg-white/[0.02] rounded-3xl border border-dashed border-white/10 uppercase font-black tracking-widest text-xs">
+                No Node Records Found
             </div>
         ) : (
             <div className="grid grid-cols-1 gap-2">
-                {/* Desktop Header */}
-                <div className="hidden lg:grid grid-cols-12 gap-4 bg-white/5 p-3 rounded-t-xl text-[10px] font-bold text-gray-400 uppercase border-b border-white/5 tracking-wider">
-                    <div className="col-span-4">User Identity</div>
-                    <div className="col-span-3">Financial & Stats</div>
-                    <div className="col-span-3">Risk & Status</div>
-                    <div className="col-span-2 text-right">Actions</div>
-                </div>
-
-                {/* Rows */}
                 {filteredUsers.map(u => {
-                    const riskScore = u.risk_score || 0;
-                    const riskColor = riskScore > 70 ? 'text-red-500' : riskScore > 30 ? 'text-yellow-500' : 'text-green-500';
-                    const riskBg = riskScore > 70 ? 'bg-red-500/10' : riskScore > 30 ? 'bg-yellow-500/10' : 'bg-green-500/10';
+                    const isBan = u.is_suspended;
+                    const isKYC = u.is_kyc_1;
+                    const isBlock = u.is_withdraw_blocked;
 
                     return (
-                        <motion.div 
-                            layout
+                        <div 
                             key={u.id} 
-                            className="bg-[#111] border border-white/5 rounded-xl lg:rounded-none lg:first:rounded-t-none p-4 lg:p-3 lg:grid lg:grid-cols-12 lg:gap-4 lg:items-center hover:bg-white/5 transition group"
+                            onClick={() => onSelectUser && onSelectUser(u.id)}
+                            className={`bg-[#0a0a0a] border rounded-2xl p-4 cursor-pointer hover:bg-blue-600/[0.02] transition-all group relative overflow-hidden ${
+                                isBan ? 'border-red-500/30' : 'border-white/5 hover:border-blue-500/30'
+                            }`}
                         >
-                            {/* 1. Identity Column */}
-                            <div className="flex items-start gap-3 lg:col-span-4 mb-4 lg:mb-0">
-                                <div className="relative">
-                                    <div className="w-10 h-10 rounded-full bg-black/30 border border-white/10 overflow-hidden shrink-0">
-                                        <img src={u.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name_1}`} className="w-full h-full object-cover" />
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                                <div className="flex items-center gap-5">
+                                    <div className="relative shrink-0">
+                                        <div className="w-14 h-14 rounded-2xl bg-black border border-white/10 overflow-hidden shadow-inner">
+                                            <img src={u.avatar_1 || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name_1}`} className="w-full h-full object-cover" />
+                                        </div>
+                                        {isKYC && <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white p-1 rounded-lg border-2 border-black"><ShieldCheck size={10} strokeWidth={3}/></div>}
                                     </div>
-                                    {u.is_suspended && <div className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5 border border-black"><Ban size={10} className="text-black"/></div>}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="font-bold text-sm text-white truncate">{u.name_1 || 'Unknown'}</p>
-                                        
-                                        {/* Role Badges */}
-                                        {u.admin_user && <span className="text-[9px] bg-purple-500 text-black px-1.5 py-0.5 rounded font-black uppercase flex items-center gap-1"><Crown size={8} fill="black"/> Admin</span>}
-                                        {u.is_dealer && <span className="text-[9px] bg-amber-500 text-black px-1.5 py-0.5 rounded font-black uppercase flex items-center gap-1"><Briefcase size={8} fill="black"/> Dealer</span>}
-                                        {u.role === 'staff' && <span className="text-[9px] bg-blue-500 text-black px-1.5 py-0.5 rounded font-black uppercase flex items-center gap-1"><Star size={8} fill="black"/> Staff</span>}
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                                        <button onClick={() => handleCopy(String(u.user_uid), "User ID")} className="hover:text-blue-400 flex items-center gap-1 transition font-mono bg-white/5 px-1.5 rounded">
-                                            {u.user_uid} <Copy size={10} />
-                                        </button>
-                                        <span className="truncate max-w-[120px]" title={u.email_1}>{u.email_1}</span>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                                            <p className="font-black text-sm text-white uppercase tracking-tighter truncate">{u.name_1 || 'Unidentified Node'}</p>
+                                            {u.is_dealer && <span className="text-[8px] bg-amber-500 text-black px-1.5 py-0.5 rounded font-black uppercase">PARTNER</span>}
+                                            {u.admin_user && <span className="text-[8px] bg-indigo-500 text-black px-1.5 py-0.5 rounded font-black uppercase">CORE_STAFF</span>}
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <button onClick={(e) => { e.stopPropagation(); handleCopy(String(u.user_uid), "UID"); }} className="hover:text-blue-400 transition font-mono text-[9px] text-gray-500 bg-black px-2 py-1 rounded border border-white/5 font-black">
+                                                ID-{u.user_uid}
+                                            </button>
+                                            <span className="text-[9px] text-gray-600 font-bold truncate max-w-[150px] uppercase tracking-wider">{u.email_1}</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* 2. Financial & Stats */}
-                            <div className="flex flex-row lg:flex-col lg:items-start gap-4 lg:gap-1 lg:col-span-3 mb-3 lg:mb-0 text-sm">
-                                <div className="flex items-center gap-2">
-                                    <div className="p-1 bg-green-500/10 rounded text-green-500"><DollarSign size={12}/></div>
-                                    <span className="font-mono font-bold text-white"><BalanceDisplay amount={u.balance || 0} /></span>
-                                </div>
-                                <div className="flex items-center gap-3 text-xs text-gray-400">
-                                    <span className="flex items-center gap-1"><Zap size={12} className="text-purple-400"/> Lvl {u.level_1}</span>
-                                    <span className="flex items-center gap-1"><Trophy size={12} className="text-yellow-400"/> {u.rank_1 || 'Rookie'}</span>
-                                </div>
-                            </div>
-
-                            {/* 3. Risk & Status */}
-                            <div className="flex flex-row lg:flex-col lg:items-start gap-3 lg:gap-1 lg:col-span-3 mb-3 lg:mb-0">
-                                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border border-transparent ${riskBg}`}>
-                                    <Activity size={12} className={riskColor} />
-                                    <span className={riskColor}>{riskScore}% Risk Score</span>
-                                </div>
-                                
-                                <div className="flex items-center gap-2 mt-1">
-                                    {u.is_kyc_1 ? (
-                                        <span className="text-[10px] text-green-400 flex items-center gap-1 bg-green-900/20 px-1.5 rounded border border-green-500/20"><ShieldCheck size={10}/> KYC Verified</span>
-                                    ) : (
-                                        <span className="text-[10px] text-gray-500 flex items-center gap-1 bg-white/5 px-1.5 rounded border border-white/5"><UserX size={10}/> Unverified</span>
-                                    )}
-                                    
-                                    {u.is_withdraw_blocked && <span className="text-[10px] text-orange-400 bg-orange-900/20 px-1.5 rounded border border-orange-500/20">Blocked</span>}
-                                    {u.is_suspended && <span className="text-[10px] text-red-400 bg-red-900/20 px-1.5 rounded border border-red-500/20">Suspended</span>}
-                                </div>
-                                
-                                <div className="text-[9px] text-gray-600 flex items-center gap-1 mt-0.5">
-                                    <Calendar size={10}/> Joined: {new Date(u.created_at).toLocaleDateString()}
+                                <div className="flex items-center justify-between sm:justify-end gap-10 pl-16 sm:pl-0 border-t sm:border-t-0 border-white/5 pt-4 sm:pt-0">
+                                    <div className="text-right">
+                                        <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-1">AGGREGATE BALANCE</p>
+                                        <p className="font-mono font-black text-white text-base leading-none tracking-tighter">
+                                            <BalanceDisplay amount={u.balance || 0} compact />
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-1">STATUS_HEX</p>
+                                        <div className="flex gap-1.5 justify-end">
+                                            {isBan ? <span className="text-[9px] bg-red-600/20 text-red-500 px-2 py-0.5 rounded font-black uppercase border border-red-500/20">BANNED</span> :
+                                             isBlock ? <span className="text-[9px] bg-orange-600/20 text-orange-500 px-2 py-0.5 rounded font-black uppercase border border-orange-500/20">LOCKED</span> :
+                                             <span className="text-[9px] bg-green-600/20 text-green-500 px-2 py-0.5 rounded font-black uppercase border border-green-500/20">OPERATIONAL</span>}
+                                        </div>
+                                    </div>
+                                    <div className="hidden sm:block">
+                                        <ChevronRight size={20} className="text-gray-800" />
+                                    </div>
                                 </div>
                             </div>
-
-                            {/* 4. Actions */}
-                            <div className="flex gap-2 lg:col-span-2 lg:justify-end border-t border-white/5 pt-3 lg:pt-0 lg:border-0">
-                                {currentUserRole === 'admin' || currentUserRole === 'moderator' ? (
-                                    <button 
-                                        onClick={() => onSelectUser && onSelectUser(u.id)}
-                                        className="flex-1 lg:flex-none py-2 lg:py-1.5 px-4 bg-white text-black hover:bg-gray-200 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg"
-                                    >
-                                        Manage <ArrowRight size={14}/>
-                                    </button>
-                                ) : (
-                                    <span className="text-xs text-gray-600 italic w-full text-center lg:text-right">Read Only</span>
-                                )}
-                            </div>
-                        </motion.div>
+                        </div>
                     );
                 })}
             </div>

@@ -6,7 +6,7 @@ import {
   Gamepad2, DollarSign, CheckCircle2, History, Wallet, 
   Activity, Crown, Flame, Sparkles, PlayCircle, Star,
   Smartphone, Bell, Send, ArrowRightLeft, RefreshCw, Trophy, Layers, Eye, EyeOff,
-  Rocket, Disc, Gift, Swords, Maximize2, Minimize2
+  Rocket, Disc, Gift, Swords
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import BalanceDisplay from '../components/BalanceDisplay';
@@ -20,7 +20,6 @@ import { useSimulation } from '../context/SimulationContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { motion, AnimatePresence, HTMLMotionProps } from 'framer-motion';
 import SmartAd from '../components/SmartAd';
-import { toggleFullscreen } from '../lib/fullscreen';
 
 const MotionDiv: React.FC<HTMLMotionProps<"div">> = motion.div;
 
@@ -33,13 +32,9 @@ const Home: React.FC = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBalance, setShowBalance] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     fetchData();
-    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
   const fetchData = async () => {
@@ -61,8 +56,6 @@ const Home: React.FC = () => {
       if (userRes) setUser(userRes as UserProfile);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
-
-  const handleFsToggle = () => toggleFullscreen();
 
   const QuickAction = ({ to, icon: Icon, label }: any) => (
     <Link to={to} className="flex flex-col items-center gap-2 group flex-1">
@@ -95,20 +88,10 @@ const Home: React.FC = () => {
                   </div>
               </div>
           </div>
-          
-          <div className="flex items-center gap-2">
-              <button 
-                onClick={handleFsToggle} 
-                className="p-3 bg-panel rounded-2xl border border-border-base text-muted hover:text-brand transition-all active:scale-90"
-                title="Fullscreen"
-              >
-                  {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-              </button>
-              <Link to="/notifications" className="p-3 bg-panel rounded-2xl border border-border-base text-muted relative hover:text-brand">
-                  <Bell size={20} />
-                  <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-brand rounded-full border-2 border-panel shadow-sm"></span>
-              </Link>
-          </div>
+          <Link to="/notifications" className="p-3 bg-panel rounded-2xl border border-border-base text-muted relative hover:text-brand">
+              <Bell size={20} />
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-brand rounded-full border-2 border-panel shadow-sm"></span>
+          </Link>
       </div>
 
       {/* OLED BALANCE CARD */}

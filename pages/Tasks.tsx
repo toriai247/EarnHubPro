@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { 
   BadgeCheck, RefreshCw, Smartphone, Youtube, Share2, 
-  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, ArrowRight, Flame, Building2, Star, Flag, Briefcase, MessageCircle, Crown, User, ExternalLink, FileCheck, UploadCloud, Type, Send, CheckCircle2, Timer, MoreVertical, EyeOff, LayoutGrid, AlertCircle, Zap, XCircle
+  Globe, Search, Loader2, Lock, X, Clock, AlertTriangle, ShieldCheck, ArrowRight, Flame, Building2, Star, Flag, Briefcase, MessageCircle, Crown, User, ExternalLink, FileCheck, UploadCloud, Type, Send, CheckCircle2, Timer, MoreVertical, EyeOff, LayoutGrid, AlertCircle, Zap, XCircle, SlidersHorizontal, ArrowDownWideArrow, ArrowUpWideArrow, Info, Play
 } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useUI } from '../context/UIContext';
@@ -16,6 +15,19 @@ import SmartImage from '../components/SmartImage';
 import SmartAd from '../components/SmartAd';
 
 type TaskStatus = 'active' | 'pending' | 'approved' | 'rejected' | 'locked' | 'cooldown';
+type SortOption = 'latest' | 'reward' | 'timer';
+type StatusFilter = 'all' | 'available' | 'pending' | 'completed';
+
+const DAILY_VIDEO_TASK = {
+    id: 'sys-daily-video',
+    title: 'Daily Sponsored Video',
+    description: 'Watch this sponsored video for 30 seconds to earn your daily reward.',
+    category: 'video',
+    worker_reward: 2.50,
+    timer_seconds: 30,
+    target_url: 'https://www.effectivegatecpm.com/c3x9dphj?key=4805226fe4883d45030d7fd83d992710',
+    company_name: 'Naxxivo Promo'
+};
 
 const Tasks: React.FC = () => {
   const { toast, confirm } = useUI();
@@ -25,7 +37,15 @@ const Tasks: React.FC = () => {
   const [taskStatuses, setTaskStatuses] = useState<Record<string, TaskStatus>>({});
   const [cooldownEnds, setCooldownEnds] = useState<Record<string, number>>({});
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [filter, setFilter] = useState('all');
+  
+  // Daily Video State
+  const [dailyVideoStatus, setDailyVideoStatus] = useState<'available' | 'cooldown'>('available');
+  const [dailyVideoCooldownEnd, setDailyVideoCooldownEnd] = useState<number>(0);
+
+  // Filtering & Sorting
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('latest');
   
   // Modals & Menus
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
@@ -33,7 +53,7 @@ const Tasks: React.FC = () => {
   const [reportReason, setReportReason] = useState('');
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
-  // Execution State (Merged from TaskBrowser)
+  // Execution State
   const [executionTask, setExecutionTask] = useState<any | null>(null);
   const [executionStep, setExecutionStep] = useState<'briefing' | 'running' | 'verify' | 'completed' | 'pending_approval'>('briefing');
   const [timer, setTimer] = useState(0);
@@ -46,14 +66,12 @@ const Tasks: React.FC = () => {
   useEffect(() => {
      fetchTasks();
      
-     // Global ticker for cooldowns
      const interval = setInterval(() => {
          setCurrentTime(Date.now());
      }, 1000);
      return () => clearInterval(interval);
   }, []);
 
-  // Timer Logic for Execution
   useEffect(() => {
       let interval: any;
       if (isTimerRunning && timer > 0) {
@@ -73,7 +91,26 @@ const Tasks: React.FC = () => {
      const { data: { session } } = await supabase.auth.getSession();
      if(!session) return;
 
-     // 1. Get All Active Tasks with Creator Profile joined
+     // 1. Fetch Daily Video Task Status
+     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+     const { data: dailyTx } = await supabase
+        .from('transactions')
+        .select('created_at')
+        .eq('user_id', session.user.id)
+        .eq('description', 'Daily Promo Video Reward')
+        .gte('created_at', oneDayAgo)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+     if (dailyTx) {
+         setDailyVideoStatus('cooldown');
+         setDailyVideoCooldownEnd(new Date(dailyTx.created_at).getTime() + 24 * 60 * 60 * 1000);
+     } else {
+         setDailyVideoStatus('available');
+     }
+
+     // 2. Fetch Marketplace Tasks
      const { data: allTasks, error } = await supabase
         .from('marketplace_tasks')
         .select('*, creator:profiles(role, is_dealer, name_1, is_kyc_1, avatar_1, user_uid)')
@@ -88,14 +125,13 @@ const Tasks: React.FC = () => {
          return;
      }
      
-     if (!allTasks) { setLoading(false); return; }
+     const tasksToProcess = allTasks || [];
 
-     // 2. Get User Submissions
      const { data: mySubs } = await supabase
         .from('marketplace_submissions')
         .select('task_id, status, created_at')
         .eq('worker_id', session.user.id)
-        .order('created_at', { ascending: false }); // Get latest first
+        .order('created_at', { ascending: false });
      
      const statusMap: Record<string, TaskStatus> = {};
      const cooldownMap: Record<string, number> = {};
@@ -104,43 +140,30 @@ const Tasks: React.FC = () => {
      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
      const now = Date.now();
 
-     // 3. Process Statuses & Auto-Complete Check
-     // Only process the *latest* submission for each task to determine current status
      for (const s of (mySubs || [])) {
-         if (processedTaskIds.has(s.task_id)) continue; // Skip older submissions for same task
+         if (processedTaskIds.has(s.task_id)) continue;
          processedTaskIds.add(s.task_id);
 
-         // Handle Pending
          if (s.status === 'pending') {
              statusMap[s.task_id] = 'pending';
-             
-             // Client-side Auto Approve Logic Check (Simulated Cron)
-             const task = allTasks.find((t: any) => t.id === s.task_id);
+             const task = tasksToProcess.find((t: any) => t.id === s.task_id);
              if (task) {
                  const submitTime = new Date(s.created_at).getTime();
                  const hoursPassed = (now - submitTime) / (1000 * 60 * 60);
                  const autoHours = task.auto_approve_hours || 24;
-                 
-                 if (hoursPassed > autoHours) {
-                     s.status = 'approved'; 
-                 }
+                 if (hoursPassed > autoHours) s.status = 'approved'; 
              }
          }
 
-         // Handle Approved
          if (s.status === 'approved') {
              const submissionTime = new Date(s.created_at).getTime();
              const timeDiff = now - submissionTime;
-
              if (timeDiff < ONE_DAY_MS) {
-                 // Less than 24 hours? Show as Approved/Cooldown.
                  statusMap[s.task_id] = 'approved';
                  cooldownMap[s.task_id] = submissionTime + ONE_DAY_MS;
              }
-             // Else: Available again
          }
          
-         // Handle Rejected
          if (s.status === 'rejected') {
              statusMap[s.task_id] = 'rejected';
          }
@@ -148,23 +171,30 @@ const Tasks: React.FC = () => {
 
      setTaskStatuses(statusMap);
      setCooldownEnds(cooldownMap);
-     setTasks(allTasks);
+     setTasks(tasksToProcess);
      setLoading(false);
   };
 
   const handleOpenTask = (task: any) => {
-      // If menu is open, don't open task
       if (menuOpenId) {
           setMenuOpenId(null);
           return;
       }
 
+      // Special handling for Daily System Video
+      if (task.id === 'sys-daily-video') {
+          if (dailyVideoStatus === 'cooldown') {
+              toast.info(`Already completed. Ready in ${formatTimeRemaining(dailyVideoCooldownEnd)}`);
+              return;
+          }
+          setSelectedTask(task);
+          return;
+      }
+
       const status = taskStatuses[task.id];
-      
       if (status === 'locked') { toast.error("Locked due to failed attempts."); return; }
       if (status === 'pending') { toast.info("Submission under review."); return; }
       
-      // Check cooldown for approved tasks
       if (status === 'approved' && cooldownEnds[task.id]) {
           const endTime = cooldownEnds[task.id];
           const remaining = endTime - Date.now();
@@ -175,8 +205,6 @@ const Tasks: React.FC = () => {
               return;
           }
       }
-
-      // Allow if active, rejected (retry), or expired cooldown
       setSelectedTask(task);
   };
 
@@ -189,7 +217,7 @@ const Tasks: React.FC = () => {
       setManualInput('');
       setUploadedFile(null);
       setIsSubmitting(false);
-      setSelectedTask(null); // Close detail modal
+      setSelectedTask(null);
   };
 
   const handleOpenLink = () => {
@@ -213,7 +241,13 @@ const Tasks: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // --- SCENARIO 1: AUTO QUIZ ---
+      // Special handling for Daily Video (Instant approval)
+      if (executionTask.id === 'sys-daily-video') {
+          await approveDailyVideo(session.user.id);
+          setIsSubmitting(false);
+          return;
+      }
+
       if (executionTask.proof_type === 'ai_quiz' && executionTask.quiz_config) {
           if (quizAnswer === executionTask.quiz_config.correct_index) {
               await approveTask(session.user.id);
@@ -222,7 +256,6 @@ const Tasks: React.FC = () => {
               setIsSubmitting(false);
           }
       } 
-      // --- SCENARIO 2: FILE VERIFICATION ---
       else if (executionTask.proof_type === 'file_check') {
           if (!uploadedFile) {
               toast.error("Please upload the downloaded file.");
@@ -236,7 +269,6 @@ const Tasks: React.FC = () => {
               setIsSubmitting(false);
           }
       }
-      // --- SCENARIO 3: MANUAL TEXT INPUT ---
       else if (executionTask.proof_type === 'text_input') {
           if (!manualInput.trim()) {
               toast.error("Please enter the required information.");
@@ -264,6 +296,22 @@ const Tasks: React.FC = () => {
       }
   };
 
+  const approveDailyVideo = async (userId: string) => {
+      try {
+          await updateWallet(userId, DAILY_VIDEO_TASK.worker_reward, 'increment', 'earning_balance');
+          await createTransaction(userId, 'earn', DAILY_VIDEO_TASK.worker_reward, `Daily Promo Video Reward`);
+          
+          setExecutionStep('completed');
+          setDailyVideoStatus('cooldown');
+          setDailyVideoCooldownEnd(Date.now() + (24 * 60 * 60 * 1000));
+          
+          toast.success("Reward Claimed! Check your wallet.");
+          setTimeout(() => setExecutionTask(null), 2500);
+      } catch (e: any) {
+          toast.error("Claim failed: " + e.message);
+      }
+  };
+
   const approveTask = async (userId: string) => {
       try {
           if(!executionTask) return;
@@ -275,12 +323,10 @@ const Tasks: React.FC = () => {
               submission_data: { method: executionTask.proof_type, answer: quizAnswer, file: uploadedFile?.name }
           });
 
-          // Pay User
           await updateWallet(userId, executionTask.worker_reward, 'increment', 'earning_balance');
           await createTransaction(userId, 'earn', executionTask.worker_reward, `Task: ${executionTask.title}`);
 
           setExecutionStep('completed');
-          // Set to approved/cooldown immediately in UI
           setTaskStatuses(prev => ({...prev, [executionTask.id]: 'approved'}));
           setCooldownEnds(prev => ({...prev, [executionTask.id]: Date.now() + (24 * 60 * 60 * 1000)}));
           
@@ -325,39 +371,142 @@ const Tasks: React.FC = () => {
       return `${h}h ${m}m`;
   };
 
-  const sortedTasks = tasks.filter((t: any) => filter === 'all' || t.category === filter);
+  // --- COMPOSITE FILTERING LOGIC ---
+  const filteredTasks = tasks.filter((task) => {
+      // 1. Category Filter
+      if (categoryFilter !== 'all' && task.category !== categoryFilter) return false;
+
+      // 2. Status Filter
+      const status = taskStatuses[task.id];
+      if (statusFilter === 'available') {
+          return !status || (status === 'approved' && cooldownEnds[task.id] && cooldownEnds[task.id] <= currentTime);
+      }
+      if (statusFilter === 'pending') {
+          return status === 'pending';
+      }
+      if (statusFilter === 'completed') {
+          return status === 'approved' && cooldownEnds[task.id] && cooldownEnds[task.id] > currentTime;
+      }
+
+      return true;
+  });
+
+  // --- SORTING LOGIC ---
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+      if (sortBy === 'reward') return b.worker_reward - a.worker_reward;
+      if (sortBy === 'timer') return a.timer_seconds - b.timer_seconds;
+      // Default: Latest (priority to featured)
+      if (a.is_featured !== b.is_featured) return a.is_featured ? -1 : 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   if (loading) return <div className="p-4 space-y-4"><Skeleton className="h-20" /><Skeleton className="h-20" /></div>;
 
   return (
     <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6">
       
-      {/* HEADER & FILTERS */}
+      {/* HEADER */}
       <div className="flex flex-col gap-4 px-4 sm:px-0">
           <div className="flex justify-between items-end">
              <div>
                 <h1 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
                     <Briefcase className="text-yellow-400"/> Micro Jobs
                 </h1>
-                <p className="text-gray-400 text-sm">Tasks reset every 24 hours.</p>
+                <p className="text-gray-400 text-sm">Earn by performing simple tasks.</p>
              </div>
              <button onClick={fetchTasks} className="p-2 bg-[#1a1a1a] rounded-lg text-gray-400 hover:text-white"><RefreshCw size={18}/></button>
           </div>
 
-          <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
-              {['all', 'social', 'video', 'app', 'website'].map(f => (
-                  <button 
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase whitespace-nowrap transition ${filter === f ? 'bg-white text-black' : 'bg-[#1a1a1a] text-gray-400 border border-[#333]'}`}
-                  >
-                      {f}
-                  </button>
-              ))}
+          {/* DAILY TASK SPOTLIGHT */}
+          <GlassCard 
+            onClick={() => handleOpenTask(DAILY_VIDEO_TASK)}
+            className={`p-5 border-2 transition-all cursor-pointer relative overflow-hidden group ${dailyVideoStatus === 'available' ? 'border-yellow-500/40 bg-yellow-500/5 shadow-[0_0_20px_rgba(234,179,8,0.1)] hover:scale-[1.01]' : 'border-white/5 bg-black/40 grayscale opacity-70'}`}
+          >
+              <div className="absolute top-0 right-0 bg-yellow-500 text-black text-[9px] font-black px-3 py-1 rounded-bl-xl shadow-lg uppercase tracking-tighter z-10">
+                  Daily Bonus
+              </div>
+              
+              <div className="flex items-center justify-between relative z-10">
+                  <div className="flex items-center gap-5">
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-transform group-hover:scale-110 ${dailyVideoStatus === 'available' ? 'bg-yellow-500 text-black border-yellow-400 shadow-lg' : 'bg-gray-800 text-gray-500 border-gray-700'}`}>
+                          <Youtube size={32} fill="currentColor"/>
+                      </div>
+                      <div>
+                          <h3 className="font-black text-white text-lg uppercase tracking-tighter">Promo Video</h3>
+                          <div className="flex items-center gap-3 mt-1.5">
+                              <span className="text-green-400 font-bold text-xs flex items-center gap-1">
+                                  <Zap size={10} fill="currentColor"/> +৳{DAILY_VIDEO_TASK.worker_reward}
+                              </span>
+                              <span className="text-gray-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
+                                  <Clock size={10}/> 30s
+                              </span>
+                          </div>
+                      </div>
+                  </div>
+                  
+                  <div className="text-right">
+                      {dailyVideoStatus === 'available' ? (
+                          <div className="flex items-center gap-2 text-yellow-500 font-black text-xs uppercase tracking-widest group-hover:translate-x-1 transition-transform">
+                              Start <ArrowRight size={16} strokeWidth={3}/>
+                          </div>
+                      ) : (
+                          <div className="flex flex-col items-end">
+                              <span className="text-[10px] text-gray-500 font-bold uppercase">Next In</span>
+                              <span className="text-xs text-white font-mono font-bold">{formatTimeRemaining(dailyVideoCooldownEnd)}</span>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </GlassCard>
+
+          {/* STATUS FILTERS & SEARCH */}
+          <div className="flex flex-col gap-3 bg-[#111] p-3 rounded-2xl border border-white/5">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                  {(['all', 'available', 'pending', 'completed'] as StatusFilter[]).map(f => (
+                      <button 
+                        key={f}
+                        onClick={() => setStatusFilter(f)}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase whitespace-nowrap transition flex items-center gap-1.5 ${statusFilter === f ? 'bg-white text-black' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                      >
+                          {f === 'pending' && <Clock size={10}/>}
+                          {f === 'completed' && <CheckCircle2 size={10}/>}
+                          {f}
+                      </button>
+                  ))}
+              </div>
+              
+              <div className="h-px bg-white/5 w-full"></div>
+
+              <div className="flex items-center justify-between gap-4">
+                  <div className="flex overflow-x-auto no-scrollbar gap-2 flex-1">
+                      {['all', 'social', 'video', 'app', 'website'].map(f => (
+                          <button 
+                            key={f}
+                            onClick={() => setCategoryFilter(f)}
+                            className={`px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase whitespace-nowrap transition border ${categoryFilter === f ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400' : 'bg-black/20 text-gray-500 border-white/5'}`}
+                          >
+                              {f}
+                          </button>
+                      ))}
+                  </div>
+                  
+                  {/* SORT DROPDOWN (Simplified for mobile) */}
+                  <div className="flex items-center gap-2 px-2 py-1 bg-black/40 rounded-lg border border-white/10 shrink-0">
+                      <SlidersHorizontal size={12} className="text-gray-500" />
+                      <select 
+                        value={sortBy} 
+                        onChange={(e) => setSortBy(e.target.value as any)}
+                        className="bg-transparent text-[10px] font-bold text-gray-300 outline-none uppercase"
+                      >
+                          <option value="latest">Latest</option>
+                          <option value="reward">Highest Reward</option>
+                          <option value="timer">Fastest</option>
+                      </select>
+                  </div>
+              </div>
           </div>
       </div>
 
-      {/* AD PLACEMENT: IN-FEED */}
       <div className="px-4 sm:px-0">
           <SmartAd slot="4491147378" />
       </div>
@@ -365,17 +514,23 @@ const Tasks: React.FC = () => {
       {/* TASK LIST */}
       <div className="space-y-4 px-4 sm:px-0" onClick={() => setMenuOpenId(null)}>
           {sortedTasks.length === 0 ? (
-              <div className="text-center py-12 bg-[#111] rounded-2xl border border-[#222]">
-                  <Briefcase size={40} className="mx-auto text-gray-600 mb-3" />
-                  <p className="text-gray-500 font-medium">No tasks available in this category.</p>
-                  <button onClick={fetchTasks} className="mt-4 text-xs text-blue-400 hover:text-blue-300 font-bold">Refresh List</button>
+              <div className="text-center py-20 bg-[#0a0a0a] rounded-3xl border border-white/5">
+                  <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+                      <Briefcase size={48} className="mx-auto text-gray-800 mb-4" />
+                      <h3 className="text-white font-bold mb-1">No tasks found</h3>
+                      <p className="text-gray-500 text-sm max-w-xs mx-auto">
+                          Try changing your filters or checking back later for new opportunities.
+                      </p>
+                      {statusFilter !== 'all' && (
+                          <button onClick={() => setStatusFilter('all')} className="mt-4 text-xs font-bold text-yellow-500 hover:underline">Clear Status Filter</button>
+                      )}
+                  </motion.div>
               </div>
           ) : (
               sortedTasks.map((task) => {
                     let status = taskStatuses[task.id];
-                    // Double check cooldown expiration visually
                     if (status === 'approved' && cooldownEnds[task.id] && cooldownEnds[task.id] <= currentTime) {
-                        status = undefined; // Expired, back to active
+                        status = undefined; 
                     }
 
                     const isHot = task.worker_reward > 5 || task.is_featured;
@@ -391,7 +546,7 @@ const Tasks: React.FC = () => {
                             <GlassCard 
                                 onClick={() => handleOpenTask(task)}
                                 className={`p-4 group transition border relative overflow-visible rounded-2xl cursor-pointer ${
-                                    status === 'pending' ? 'border-yellow-500/30 bg-yellow-500/5' :
+                                    status === 'pending' ? 'border-yellow-500/30 bg-yellow-500/5 shadow-[0_0_15px_rgba(234,179,8,0.05)]' :
                                     status === 'approved' ? 'border-green-500/20 bg-green-900/5 opacity-80' :
                                     status === 'rejected' ? 'border-red-500/30 bg-red-500/5' :
                                     'border-white/10 hover:border-white/20 bg-[#111]'
@@ -403,7 +558,6 @@ const Tasks: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* HEADER ROW: Dealer Info & Menu */}
                                 <div className="flex justify-between items-start mb-3 border-b border-white/5 pb-3">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
@@ -417,7 +571,6 @@ const Tasks: React.FC = () => {
                                             <div className="flex items-center gap-2 mt-0.5">
                                                 <span className="text-[9px] text-gray-500 font-mono">ID: {dealer.user_uid}</span>
                                                 {dealer.is_dealer && <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1 rounded border border-amber-500/30 font-bold uppercase">Dealer</span>}
-                                                {dealer.role === 'admin' && <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1 rounded border border-purple-500/30 font-bold uppercase">Admin</span>}
                                             </div>
                                         </div>
                                     </div>
@@ -429,7 +582,6 @@ const Tasks: React.FC = () => {
                                     </button>
                                 </div>
 
-                                {/* CONTENT ROW */}
                                 <div className="flex justify-between items-center mb-3">
                                     <div className="flex-1 pr-4">
                                         <h3 className={`font-bold text-sm mb-1 ${status === 'approved' ? 'text-gray-400 line-through' : 'text-white'}`}>{task.title}</h3>
@@ -444,12 +596,8 @@ const Tasks: React.FC = () => {
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border border-white/10 bg-white/5 text-gray-400 flex items-center gap-1">
                                                 <Clock size={8}/> {task.timer_seconds}s
                                             </span>
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border border-white/10 bg-white/5 text-gray-400">
-                                                {task.proof_type === 'ai_quiz' ? 'Auto' : 'Manual'}
-                                            </span>
                                         </div>
                                     </div>
-                                    {/* Big Icon based on Category */}
                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shrink-0 ${status ? 'bg-black/20 border-transparent grayscale opacity-50' : 'bg-white/5 border-white/5'}`}>
                                         {task.category === 'social' ? <MessageCircle size={20} className="text-blue-400"/> :
                                         task.category === 'video' ? <Youtube size={20} className="text-red-500"/> :
@@ -457,7 +605,6 @@ const Tasks: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* FOOTER ROW */}
                                 <div className={`flex items-center justify-between p-2 rounded-xl ${status === 'approved' ? 'bg-black/30' : 'bg-black/20'}`}>
                                     {status === 'approved' ? (
                                         <div className="w-full flex justify-between items-center px-1">
@@ -488,7 +635,6 @@ const Tasks: React.FC = () => {
                                     )}
                                 </div>
 
-                                {/* Dropdown Menu (Absolute) */}
                                 <AnimatePresence>
                                     {isMenuOpen && (
                                         <motion.div 
@@ -510,18 +656,9 @@ const Tasks: React.FC = () => {
                                             >
                                                 <EyeOff size={12} /> Hide Task
                                             </button>
-                                            {dealer.user_uid && (
-                                                <Link 
-                                                    to={`/u/${dealer.user_uid}`}
-                                                    className="w-full text-left px-4 py-3 text-xs text-gray-300 hover:bg-white/10 hover:text-white flex items-center gap-2 border-t border-white/10 transition"
-                                                >
-                                                    <User size={12} /> View Dealer
-                                                </Link>
-                                            )}
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
-
                             </GlassCard>
                         </motion.div>
                     );
@@ -529,9 +666,7 @@ const Tasks: React.FC = () => {
           )}
       </div>
 
-      {/* --- MODALS --- */}
-
-      {/* 1. Task Detail Preview */}
+      {/* MODALS */}
       <AnimatePresence>
           {selectedTask && (
              <motion.div 
@@ -539,11 +674,11 @@ const Tasks: React.FC = () => {
                 className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
              >
                  <GlassCard className="w-full max-w-md bg-[#111] border-white/10 relative">
-                     <button onClick={() => setSelectedTask(null)} className="absolute top-4 right-4 text-gray-500 hover:text-white"><X size={20}/></button>
+                     <button onClick={() => setSelectedTask(null)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition"><X size={20}/></button>
                      
                      <div className="flex flex-col items-center text-center mb-6 pt-2">
                          <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4 text-white border border-white/10">
-                             {selectedTask.category === 'social' ? <MessageCircle size={32} /> : selectedTask.category === 'video' ? <Youtube size={32}/> : <Globe size={32}/>}
+                             {selectedTask.id === 'sys-daily-video' ? <Youtube size={32} className="text-red-500" /> : selectedTask.category === 'social' ? <MessageCircle size={32} /> : selectedTask.category === 'video' ? <Youtube size={32}/> : <Globe size={32}/>}
                          </div>
                          <h2 className="text-xl font-bold text-white mb-2">{selectedTask.title}</h2>
                          <p className="text-gray-400 text-sm max-w-xs">{selectedTask.description}</p>
@@ -557,7 +692,7 @@ const Tasks: React.FC = () => {
                          <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
                              <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Verification</p>
                              <p className="text-white font-bold capitalize text-sm flex items-center justify-center gap-1 h-7">
-                                {selectedTask.proof_type === 'ai_quiz' ? <><Zap size={14} className="text-yellow-400"/> Instant</> : 
+                                {selectedTask.id === 'sys-daily-video' ? <><ShieldCheck size={14} className="text-green-400"/> Instant</> : selectedTask.proof_type === 'ai_quiz' ? <><Zap size={14} className="text-yellow-400"/> Instant</> : 
                                  selectedTask.proof_type === 'file_check' ? <><FileCheck size={14} className="text-blue-400"/> File</> : 
                                  <><ShieldCheck size={14} className="text-green-400"/> Manual</>}
                              </p>
@@ -582,7 +717,7 @@ const Tasks: React.FC = () => {
           )}
       </AnimatePresence>
 
-      {/* 2. Execution Modal (Replaces TaskBrowser Page) */}
+      {/* Execution Modal */}
       <AnimatePresence>
           {executionTask && (
               <motion.div 
@@ -606,7 +741,6 @@ const Tasks: React.FC = () => {
                   </div>
 
                   <div className="flex-1 flex flex-col items-center justify-center max-w-md mx-auto w-full space-y-8">
-                      {/* Status Indicator */}
                       <div className="relative">
                           <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${
                               executionStep === 'completed' ? 'border-green-500 bg-green-500/20' : 
@@ -670,7 +804,20 @@ const Tasks: React.FC = () => {
 
                               {executionStep === 'verify' && (
                                   <motion.div key="verify" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
-                                      {executionTask.proof_type === 'ai_quiz' && executionTask.quiz_config ? (
+                                      {executionTask.id === 'sys-daily-video' ? (
+                                           <div className="space-y-4">
+                                                <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl flex items-center gap-3">
+                                                    <CheckCircle2 size={24} className="text-green-500" />
+                                                    <p className="text-sm text-green-200">Video verification complete. Your reward is ready.</p>
+                                                </div>
+                                                <button 
+                                                    onClick={handleSubmitProof}
+                                                    className="w-full py-4 bg-green-500 text-black font-black uppercase rounded-xl hover:bg-green-400 transition shadow-lg flex items-center justify-center gap-2"
+                                                >
+                                                    <Zap size={18} fill="currentColor"/> CLAIM REWARD
+                                                </button>
+                                           </div>
+                                      ) : executionTask.proof_type === 'ai_quiz' && executionTask.quiz_config ? (
                                           <div className="space-y-3 text-left">
                                               <div className="flex items-center gap-2 mb-2">
                                                   <AlertTriangle size={16} className="text-blue-500"/>
@@ -707,12 +854,6 @@ const Tasks: React.FC = () => {
                                                       </div>
                                                   )}
                                               </div>
-                                              {uploadedFile && (
-                                                  <div className="bg-black/30 p-2 rounded-lg border border-white/10 text-center">
-                                                      <p className="text-[10px] text-gray-500 uppercase">Detected Filename</p>
-                                                      <p className="text-white font-mono text-xs">{uploadedFile.name}</p>
-                                                  </div>
-                                              )}
                                           </div>
                                       ) : (
                                           <div className="space-y-3 text-left">
@@ -731,13 +872,15 @@ const Tasks: React.FC = () => {
                                           </div>
                                       )}
 
-                                      <button 
-                                          onClick={handleSubmitProof}
-                                          disabled={isSubmitting || (executionTask.proof_type === 'ai_quiz' && quizAnswer === null) || (executionTask.proof_type === 'text_input' && !manualInput.trim()) || (executionTask.proof_type === 'file_check' && !uploadedFile)}
-                                          className="w-full py-4 bg-green-500 text-black font-black uppercase rounded-xl hover:bg-green-400 transition shadow-lg shadow-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                      >
-                                          {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : <><Send size={18}/> SUBMIT PROOF</>}
-                                      </button>
+                                      {executionTask.id !== 'sys-daily-video' && (
+                                          <button 
+                                              onClick={handleSubmitProof}
+                                              disabled={isSubmitting || (executionTask.proof_type === 'ai_quiz' && quizAnswer === null) || (executionTask.proof_type === 'text_input' && !manualInput.trim()) || (executionTask.proof_type === 'file_check' && !uploadedFile)}
+                                              className="w-full py-4 bg-green-500 text-black font-black uppercase rounded-xl hover:bg-green-400 transition shadow-lg shadow-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                          >
+                                              {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : <><Send size={18}/> SUBMIT PROOF</>}
+                                          </button>
+                                      )}
                                   </motion.div>
                               )}
 
@@ -762,7 +905,6 @@ const Tasks: React.FC = () => {
                                       </button>
                                   </motion.div>
                               )}
-
                           </AnimatePresence>
                       </GlassCard>
                   </div>
@@ -788,7 +930,6 @@ const Tasks: React.FC = () => {
                       </h3>
                       <div className="bg-red-950/20 p-3 rounded-lg border border-red-500/10 mb-4">
                           <p className="text-xs text-gray-400">Task: <span className="text-white font-bold">{reportTask.title}</span></p>
-                          <p className="text-[10px] text-gray-500 mt-1">ID: {reportTask.id}</p>
                       </div>
                       
                       <div className="space-y-2 mb-4">
@@ -796,7 +937,7 @@ const Tasks: React.FC = () => {
                           <textarea 
                             value={reportReason}
                             onChange={e => setReportReason(e.target.value)}
-                            placeholder="Describe the issue (e.g. Broken link, Fake task, Offensive content)..."
+                            placeholder="Describe the issue..."
                             className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-red-500 outline-none h-28 resize-none"
                           />
                       </div>
@@ -810,7 +951,6 @@ const Tasks: React.FC = () => {
           )}
       </AnimatePresence>
 
-      {/* AD PLACEMENT: MULTIPLEX */}
       <div className="px-4 sm:px-0">
           <SmartAd slot="8977187296" />
       </div>
@@ -820,23 +960,3 @@ const Tasks: React.FC = () => {
 };
 
 export default Tasks;
-function Info(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 16v-4" />
-      <path d="M12 8h.01" />
-    </svg>
-  )
-}

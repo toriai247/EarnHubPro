@@ -2,12 +2,25 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
-import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy, Lock, AlertTriangle, Coins, EyeOff, Apple, Pyramid, GitGraph, Play } from 'lucide-react';
+import { Gamepad2, Disc, Rocket, Dices, Grid, Trophy, Lock, AlertTriangle, Coins, EyeOff, Apple, Pyramid, GitGraph, Play, Sparkles, Users, Zap, Swords, ChevronRight, Flame } from 'lucide-react';
 import { Game } from '../types';
 import { supabase } from '../integrations/supabase/client';
 import SmartAd from '../components/SmartAd';
+import { motion } from 'framer-motion';
 
 const GAMES_META: Game[] = [
+    {
+      id: 'dragon-spin',
+      name: 'Dragon Spin',
+      description: 'Imperial multipliers up to x20. High stakes wheel.',
+      icon: Swords,
+      color: 'text-amber-400',
+      bgColor: 'from-amber-900/40 to-orange-600/10',
+      path: '/games/dragon-spin',
+      status: 'active',
+      players: 5402,
+      type: 'wheel'
+    },
     {
       id: 'plinko',
       name: 'Plinko',
@@ -103,18 +116,6 @@ const GAMES_META: Game[] = [
       status: 'active', 
       players: 4203,
       type: 'crash'
-    },
-    {
-      id: 'ludo',
-      name: 'Ludo King',
-      description: 'Classic board game. PvP with Bot. Win 70% of pot.',
-      icon: Grid,
-      color: 'text-orange-400',
-      bgColor: 'from-orange-900/40 to-orange-600/10',
-      path: '/games/ludo',
-      status: 'maintenance',
-      players: 310,
-      type: 'ludo'
     }
 ];
 
@@ -132,7 +133,6 @@ const Games: React.FC = () => {
       if (configs && configs.length > 0) {
           const updatedGames = GAMES_META.map(game => {
               const cfg = configs.find((c: any) => c.id === game.id);
-              // If config exists, use it. If not, default to current meta status.
               const status = cfg ? (cfg.is_active ? 'active' : 'maintenance') : game.status;
               return { ...game, status };
           });
@@ -142,84 +142,121 @@ const Games: React.FC = () => {
   };
 
   return (
-    <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0">
-      <header>
-        <h1 className="text-2xl font-display font-bold text-white mb-1 flex items-center gap-2">
-          <Gamepad2 className="text-green-500" /> Game Hub
-        </h1>
-        <p className="text-gray-400 text-sm">Play, compete, and earn real money.</p>
+    <div className="pb-32 sm:pl-20 sm:pt-6 space-y-8 px-4 sm:px-0 font-sans selection:bg-brand selection:text-black">
+      
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pt-4">
+        <div className="space-y-1">
+            <h1 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+                <Gamepad2 className="text-brand" size={38} /> BATTLE <span className="text-brand">HUB</span>
+            </h1>
+            <p className="text-muted text-[10px] font-black uppercase tracking-[0.3em] pl-1">Provably Fair Arena v5.0</p>
+        </div>
+        
+        <div className="flex bg-panel p-1 rounded-2xl border border-border-base relative w-full md:w-auto shadow-xl">
+             <div className="bg-success/10 border border-success/20 px-6 py-2.5 rounded-xl flex items-center gap-3">
+                 <div className="w-2 h-2 rounded-full bg-success animate-pulse"></div>
+                 <span className="text-[10px] font-black text-success uppercase tracking-widest">14,204 Nodes Battling</span>
+             </div>
+        </div>
       </header>
 
-      {/* AD PLACEMENT: IN-FEED */}
-      <SmartAd slot="4491147378" />
+      {/* TRENDING SPOTLIGHT */}
+      <section className="relative overflow-hidden rounded-[3rem] border border-brand/20 bg-black group">
+          <div className="absolute inset-0 bg-gradient-to-r from-brand/20 via-transparent to-transparent z-10"></div>
+          <div className="p-8 sm:p-12 relative z-20 flex flex-col md:flex-row justify-between items-center gap-8">
+              <div className="space-y-4 text-center md:text-left flex-1">
+                  <div className="inline-flex items-center gap-2 bg-brand text-black px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-lg">
+                      <Flame size={12} fill="currentColor"/> TRENDING PROTOCOL
+                  </div>
+                  <h2 className="text-4xl sm:text-5xl font-black text-white uppercase tracking-tighter leading-none">
+                      DRAGON <span className="text-brand">SPIN</span>
+                  </h2>
+                  <p className="text-gray-400 text-sm max-w-sm leading-relaxed font-medium">
+                      Master the Imperial Wheel and secure multipliers up to 20x. High-payout sectors are now active.
+                  </p>
+                  <Link to="/games/dragon-spin" className="inline-flex items-center gap-3 px-10 py-4 bg-brand text-black font-black uppercase rounded-2xl active:scale-95 transition-all text-sm shadow-[0_0_40px_rgba(250,204,21,0.3)]">
+                      ENTER ARENA <ChevronRight size={20} strokeWidth={3}/>
+                  </Link>
+              </div>
+              <div className="relative shrink-0 flex items-center justify-center">
+                  <motion.div 
+                    animate={{ rotate: 360 }} 
+                    transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
+                    className="w-48 h-48 sm:w-64 sm:h-64 rounded-full border-8 border-brand/20 border-dashed relative flex items-center justify-center"
+                  >
+                      <div className="w-32 h-32 sm:w-40 sm:h-40 bg-brand rounded-full flex items-center justify-center text-black shadow-glow">
+                          <Swords size={60} strokeWidth={2.5}/>
+                      </div>
+                  </motion.div>
+                  {/* Decorative Elements */}
+                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-brand/5 blur-[100px] pointer-events-none"></div>
+              </div>
+          </div>
+      </section>
 
-      {/* WARNING BANNER */}
-      <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
-          <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={18} />
+      <SmartAd slot="4491147378" className="rounded-[3rem] border border-border-base" />
+
+      <div className="bg-red-500/5 border border-red-500/20 p-6 rounded-[2.5rem] flex items-start gap-4 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 bottom-0 bg-red-600"></div>
+          <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={24} />
           <div>
-              <h4 className="text-white font-bold text-sm mb-1 uppercase">Risk Warning</h4>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                  These games involve financial risk. Results are random or algorithm-based. 
-                  <br/>
-                  <span className="text-red-400 font-bold">You play at your own risk.</span> The admin is not liable for losses.
+              <h4 className="text-red-400 font-black text-sm mb-1 uppercase tracking-wider">Algorithmic Risk Warning</h4>
+              <p className="text-xs text-gray-500 leading-relaxed font-medium">
+                  Participation in Battle Arena modules involves significant financial risk. Results are dictated by cryptographically secure random number generation. The house edge ensures system sustainability. Play responsibly.
               </p>
           </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {games.map((game, index) => (
           <div key={game.id} className="h-full">
             {game.status === 'active' ? (
               <Link to={game.path || '#'}>
-                <div className="h-full bg-[#111] border border-white/5 rounded-2xl overflow-hidden group hover:border-white/20 transition-all duration-300 relative">
-                  
-                  {/* Card Background Gradient */}
-                  <div className={`absolute inset-0 bg-gradient-to-br ${game.bgColor} opacity-30 group-hover:opacity-50 transition-opacity`}></div>
-
-                  <div className="p-5 relative z-10 flex flex-col h-full">
-                      <div className="flex justify-between items-start mb-3">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-white/5 border border-white/10 ${game.color} shadow-lg group-hover:scale-110 transition-transform`}>
-                              {game.icon && <game.icon size={24} />}
+                <div className="h-full bg-panel border border-border-base rounded-[2.5rem] overflow-hidden group hover:border-brand/40 transition-all duration-500 relative shadow-xl hover:shadow-brand/5">
+                  <div className={`absolute inset-0 bg-gradient-to-br ${game.bgColor} opacity-0 group-hover:opacity-40 transition-opacity`}></div>
+                  <div className="p-7 relative z-10 flex flex-col h-full gap-6">
+                      <div className="flex justify-between items-start">
+                          <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center bg-black border border-white/10 ${game.color} shadow-2xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
+                              {game.icon && <game.icon size={32} strokeWidth={2.5}/>}
                           </div>
-                          {/* Online Indicator */}
-                          <div className="flex items-center gap-1 bg-black/40 px-2 py-1 rounded-full border border-white/5 backdrop-blur-sm">
-                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                              <span className="text-[9px] font-bold text-gray-400">Live</span>
+                          <div className="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-full border border-white/5 backdrop-blur-sm shadow-inner">
+                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></span>
+                              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">LIVE</span>
                           </div>
                       </div>
-
-                      <h3 className="text-base font-bold text-white mb-1 group-hover:text-green-400 transition">{game.name}</h3>
-                      <p className="text-[10px] text-gray-400 leading-relaxed line-clamp-2 mb-4 flex-1">{game.description}</p>
                       
-                      {/* Player Count */}
-                      {game.players && (
-                          <div className="flex items-center gap-1 text-[9px] text-gray-500 mb-2">
-                              <Users size={10} /> {game.players.toLocaleString()} Players
-                          </div>
-                      )}
+                      <div className="space-y-2">
+                          <h3 className="text-2xl font-black text-white uppercase tracking-tighter group-hover:text-brand transition-colors">{game.name}</h3>
+                          <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 font-medium">{game.description}</p>
+                      </div>
 
-                      <div className="mt-auto">
-                          <button className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 group-hover:bg-white group-hover:text-black">
-                              <Play size={12} fill="currentColor" /> Play Now
-                          </button>
+                      <div className="mt-auto pt-6 border-t border-white/5 flex items-center justify-between">
+                          {game.players && (
+                              <div className="flex items-center gap-2 text-[10px] font-black text-gray-600 uppercase tracking-widest">
+                                  <Users size={12} className="text-gray-700"/> {game.players.toLocaleString()} ACTIVE
+                              </div>
+                          )}
+                          <div className="bg-brand text-black p-2.5 rounded-2xl shadow-lg opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                              <Play size={18} fill="currentColor" className="ml-0.5" />
+                          </div>
                       </div>
                   </div>
                 </div>
               </Link>
             ) : (
-              <div className="h-full relative cursor-not-allowed group">
-                <div className="h-full bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden p-5 flex flex-col opacity-60 grayscale">
-                    <div className="flex justify-between items-start mb-3">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-gray-800 text-gray-500`}>
-                            {game.icon && <game.icon size={24} />}
+              <div className="h-full relative cursor-not-allowed grayscale">
+                <div className="h-full bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] p-7 flex flex-col opacity-60">
+                    <div className="flex justify-between items-start mb-6">
+                        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center bg-gray-800 text-gray-600`}>
+                            {game.icon && <game.icon size={32} />}
                         </div>
-                         <div className="flex items-center gap-1 bg-red-900/30 px-2 py-1 rounded-full border border-red-500/20">
-                            <Lock size={10} className="text-red-400"/>
-                            <span className="text-[9px] font-bold text-red-400 uppercase">Offline</span>
+                         <div className="flex items-center gap-1.5 bg-red-900/20 px-3 py-1.5 rounded-full border border-red-500/20">
+                            <Lock size={12} className="text-red-500"/>
+                            <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">OFFLINE</span>
                         </div>
                     </div>
-                    <h3 className="text-base font-bold text-gray-300 mb-1">{game.name}</h3>
-                    <p className="text-[10px] text-gray-500 leading-relaxed mb-4">Currently under maintenance.</p>
+                    <h3 className="text-2xl font-black text-gray-600 uppercase tracking-tighter">{game.name}</h3>
+                    <p className="text-xs text-gray-700 font-bold mt-2 uppercase tracking-widest">Under Maintenance</p>
                 </div>
               </div>
             )}
@@ -227,20 +264,19 @@ const Games: React.FC = () => {
         ))}
       </div>
 
-      {/* AD PLACEMENT: MULTIPLEX */}
-      <SmartAd slot="8977187296" />
+      <style>{`
+        .shadow-glow { box-shadow: 0 0 30px rgba(250, 190, 11, 0.2); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .animate-marquee {
+            animation: marquee 40s linear infinite;
+        }
+      `}</style>
     </div>
   );
 };
-
-// Simple User Icon component if not imported
-const Users = ({size, className}: {size:number, className?:string}) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-      <circle cx="9" cy="7" r="4"></circle>
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-    </svg>
-);
 
 export default Games;

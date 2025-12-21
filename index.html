@@ -4,36 +4,71 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Naxxivo - Fast, Secure Earning Dashboard">
+    <meta name="theme-color" content="#FACC15" />
     
+    <!-- Primary SEO Tags -->
+    <title>Naxxivo | Elite Earning & Investment Dashboard</title>
+    <meta name="title" content="Naxxivo | Elite Earning & Investment Dashboard" />
+    <meta name="description" content="Naxxivo is a world-class decentralized platform for digital earning, elite gaming, and high-yield asset investment. Start your revenue journey with the most secure node in the network." />
+    <meta name="keywords" content="earning app, invest online, micro jobs, make money online, naxxivo, digital assets, bdt earning, reliable investment" />
+    <meta name="author" content="Naxxivo Global" />
+    <link rel="canonical" href="https://naxxivo.com/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://naxxivo.com/" />
+    <meta property="og:title" content="Naxxivo | The Future of Digital Revenue" />
+    <meta property="og:description" content="Join 48,000+ active nodes earning daily through tasks, games, and ROI-driven assets. Instant BDT withdrawals." />
+    <meta property="og:image" content="/images/og-image.jpg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://naxxivo.com/" />
+    <meta property="twitter:title" content="Naxxivo | Elite Earning & Investment Dashboard" />
+    <meta property="twitter:description" content="The ultimate decentralized ecosystem for digital earning. Secure. Transparent. Instant." />
+    <meta property="twitter:image" content="/images/og-image.jpg" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23FACC15'%3E%3Cpath d='M21 16.5c0 .38-.21.71-.53.88l-7.97 4.43c-.31.17-.69.17-1 0l-7.97-4.43c-.32-.17-.53-.5-.53-.88v-9c0-.38.21-.71.53-.88l7.97-4.43c.31-.17.69-.17 1 0l7.97 4.43c.32.17.53.5.53.88v9z'/%3E%3Cpath fill='%23000' d='M9 15V9l3 2 3-2v6l-3-2-3 2z'/%3E%3C/svg%3E" />
+    
+    <!-- Google Schema Markup (JSON-LD) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FinancialService",
+        "name": "Naxxivo",
+        "alternateName": "Naxxivo Global",
+        "url": "https://naxxivo.com",
+        "logo": "https://naxxivo.com/images/logo.png",
+        "description": "Premium decentralized earning and investment dashboard.",
+        "address": {
+          "@type": "PostalAddress",
+          "addressCountry": "BD"
+        },
+        "priceRange": "$$"
+      }
+    </script>
+
     <!-- Google AdSense Verification -->
     <meta name="google-adsense-account" content="ca-pub-7837194709908029">
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7837194709908029"
-     crossorigin="anonymous"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7837194709908029" crossorigin="anonymous"></script>
     
-    <!-- VERCEL CACHE CONTROL & PWA OPTIMIZATIONS -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" /> 
     <meta http-equiv="Pragma" content="no-cache" /> 
     <meta http-equiv="Expires" content="0" />
     
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
     
-    <title>Naxxivo</title>
     <link rel="manifest" href="/manifest.json" />
-    <link id="favicon" rel="icon" type="image/png" href="/images/favicon.png" />
     <link rel="apple-touch-icon" href="/images/logo.png" />
     
-    <!-- PERFORMANCE OPTIMIZATIONS -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://tyhujeggtfpbkpywtrox.supabase.co" crossorigin>
-    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Poppins:wght@400;600;700;900&display=swap" rel="stylesheet">
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -41,7 +76,7 @@
           extend: {
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
-              display: ['Inter', 'sans-serif'],
+              display: ['Poppins', 'sans-serif'],
             },
             colors: {
               'void': 'var(--bg-void)',
@@ -58,74 +93,18 @@
                 DEFAULT: 'var(--color-brand)',
                 hover: 'var(--color-brand-hover)',
               },
-              'success': '#10B981',
-              'danger': '#EF4444',
-              'warning': '#F59E0B',
-              'electric': {
-                DEFAULT: '#0055FF',
-                50: '#E6F0FF',
-                100: '#CCE0FF',
-                200: '#99C2FF',
-                300: '#66A3FF',
-                400: '#3385FF',
-                500: '#0055FF',
-                600: '#0044CC',
-                700: '#003399',
-                800: '#002266',
-                900: '#001133',
-              }
-            },
-            boxShadow: {
-              'none': 'none',
-              'card': 'var(--shadow-card)',
-              'glow': 'var(--shadow-glow)',
-              'neo-sm': '4px 4px 0px 0px rgba(0,0,0,0.3)',
-              'neo-lg': '8px 8px 0px 0px rgba(0,0,0,0.3)',
             },
             borderRadius: {
-              'xl': 'var(--radius-xl)',
-              '2xl': 'var(--radius-2xl)',
+              'xl': '0.75rem',
+              '2xl': '1rem',
+              '5xl': '2.5rem',
             },
             animation: {
-                'bounce-subtle': 'bounce-subtle 2s infinite',
-                'shimmer': 'shimmer 2s linear infinite',
-                'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                'scanline': 'scanline 8s linear infinite',
-                'spin-slow': 'spin 12s linear infinite',
-                'float': 'float 6s ease-in-out infinite',
-                'gradient-x': 'gradient-x 5s ease infinite',
-                'marquee': 'marquee 25s linear infinite',
+                'shimmer': 'shimmer 2s infinite linear',
             },
             keyframes: {
-                'bounce-subtle': {
-                    '0%, 100%': { transform: 'translateY(-2%)' },
-                    '50%': { transform: 'translateY(0)' },
-                },
                 shimmer: {
-                    from: { transform: 'translateX(-100%)' },
-                    to: { transform: 'translateX(100%)' },
-                },
-                scanline: {
-                    '0%': { transform: 'translateY(-100%)' },
-                    '100%': { transform: 'translateY(100vh)' }
-                },
-                float: {
-                    '0%, 100%': { transform: 'translateY(0)' },
-                    '50%': { transform: 'translateY(-10px)' },
-                },
-                'gradient-x': {
-                    '0%, 100%': {
-                        'background-size': '200% 200%',
-                        'background-position': 'left center'
-                    },
-                    '50%': {
-                        'background-size': '200% 200%',
-                        'background-position': 'right center'
-                    },
-                },
-                marquee: {
-                    '0%': { transform: 'translateX(0%)' },
-                    '100%': { transform: 'translateX(-100%)' }
+                    '100%': { transform: 'translateX(100%)' }
                 }
             }
           }
@@ -137,215 +116,140 @@
         --radius-xl: 0.75rem;
         --radius-2xl: 1rem;
       }
-      
-      /* --- MIDNIGHT (DEFAULT - 002 YELLOW) --- */
-      /* Optimized for OLED. No gradients, True Black, High Contrast */
+
       .midnight {
         --bg-void: #000000;
         --bg-card: #050505;
         --bg-panel: #0A0A0A;
-        --bg-input: #111111;
+        --bg-input: #020202;
         --text-main: #FFFFFF;
-        --text-muted: #888888;
+        --text-muted: #71717a;
         --text-highlight: #FACC15;
-        --border-base: #222222;
+        --border-base: #18181b;
         --border-highlight: #FACC15;
-        --color-brand: #FACC15; /* Yellow-400 */
-        --color-brand-hover: #EAB308; /* Yellow-500 */
-        --shadow-card: none;
-        --shadow-glow: none;
-        --radius-xl: 0.75rem;
-        --radius-2xl: 1rem;
+        --color-brand: #FACC15;
+        --color-brand-hover: #EAB308;
+      }
+
+      .lite {
+        --bg-void: #f1f5f9;
+        --bg-card: #ffffff;
+        --bg-panel: #e2e8f0;
+        --bg-input: #f8fafc;
+        --text-main: #0f172a;
+        --text-muted: #64748b;
+        --text-highlight: #0284c7;
+        --border-base: #cbd5e1;
+        --border-highlight: #0ea5e9;
+        --color-brand: #0ea5e9;
+        --color-brand-hover: #0284c7;
+        --shadow-glow: 0 4px 20px rgba(14, 165, 233, 0.15);
       }
 
       .default {
-        --bg-void: #050505;
-        --bg-card: #111111;
-        --bg-panel: #0A0A0A;
-        --bg-input: #1A1A1A;
-        --text-main: #E5E7EB;
-        --text-muted: #9CA3AF;
-        --text-highlight: #FFFFFF;
-        --border-base: #262626;
-        --border-highlight: #404040;
-        --color-brand: #0055FF;
-        --color-brand-hover: #0044CC;
-        --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        --shadow-glow: 0 0 15px rgba(0, 85, 255, 0.3);
+        --bg-void: #020617;
+        --bg-card: #0f172a;
+        --bg-panel: #1e293b;
+        --bg-input: #0f172a;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --text-highlight: #3b82f6;
+        --border-base: #334155;
+        --border-highlight: #3b82f6;
+        --color-brand: #3b82f6;
+        --color-brand-hover: #2563eb;
       }
-      
+
       .premium {
-        --bg-void: #1a0b2e;
-        --bg-card: rgba(255, 255, 255, 0.07);
-        --bg-panel: rgba(20, 10, 40, 0.6);
-        --bg-input: rgba(0, 0, 0, 0.2);
-        --text-main: #FFFFFF;
-        --text-muted: #d4c4ed;
-        --text-highlight: #FFFFFF;
-        --border-base: rgba(141, 77, 255, 0.2);
-        --border-highlight: rgba(141, 77, 255, 0.5);
-        --color-brand: #8D4DFF;
-        --color-brand-hover: #6A30D9;
-        --shadow-card: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        --shadow-glow: 0 0 25px rgba(141, 77, 255, 0.5);
-        --radius-xl: 1.5rem;
-        --radius-2xl: 2rem;
+        --bg-void: #0a0118;
+        --bg-card: #150a2e;
+        --bg-panel: #1d0f3d;
+        --bg-input: #0a0118;
+        --text-main: #ffffff;
+        --text-muted: #a78bfa;
+        --text-highlight: #c084fc;
+        --border-base: #3b0764;
+        --border-highlight: #d8b4fe;
+        --color-brand: #8b5cf6;
+        --color-brand-hover: #a78bfa;
       }
-      
-      /* --- FAST / NO EFFECT THEMES --- */
-      .lite {
-        --bg-void: #F3F4F6;
-        --bg-card: #FFFFFF;
-        --bg-panel: #E5E7EB;
-        --bg-input: #FFFFFF;
-        --text-main: #111827;
-        --text-muted: #4B5563;
-        --text-highlight: #000000;
-        --border-base: #D1D5DB;
-        --border-highlight: #9CA3AF;
-        --color-brand: #2563EB;
-        --color-brand-hover: #1D4ED8;
-        --shadow-card: none;
-        --shadow-glow: none;
-        --radius-xl: 0.5rem;
-        --radius-2xl: 0.5rem;
-      }
-      
+
       .terminal {
-        --bg-void: #0C0C0C;
-        --bg-card: #052E16;
-        --bg-panel: #022C22;
-        --bg-input: #064E3B;
-        --text-main: #22C55E;
-        --text-muted: #4ADE80;
-        --text-highlight: #86EFAC;
-        --border-base: #14532D;
-        --border-highlight: #22C55E;
-        --color-brand: #22C55E;
-        --color-brand-hover: #16A34A;
-        --shadow-card: none;
-        --shadow-glow: none;
-        --radius-xl: 0px;
-        --radius-2xl: 0px;
+        --bg-void: #020202;
+        --bg-card: #050505;
+        --bg-panel: #0a0a0a;
+        --bg-input: #000000;
+        --text-main: #22c55e;
+        --text-muted: #14532d;
+        --text-highlight: #4ade80;
+        --border-base: #064e3b;
+        --border-highlight: #22c55e;
+        --color-brand: #22c55e;
+        --color-brand-hover: #4ade80;
       }
-      
+
       .solarized {
         --bg-void: #002b36;
         --bg-card: #073642;
-        --bg-panel: #002b36;
-        --bg-input: #073642;
-        --text-main: #93a1a1;
+        --bg-panel: #114b5a;
+        --bg-input: #00212b;
+        --text-main: #839496;
         --text-muted: #586e75;
-        --text-highlight: #eee8d5;
-        --border-base: #073642;
-        --border-highlight: #2aa198;
+        --text-highlight: #268bd2;
+        --border-base: #586e75;
+        --border-highlight: #268bd2;
         --color-brand: #268bd2;
         --color-brand-hover: #2aa198;
-        --shadow-card: 0 1px 3px 0 rgba(0,0,0,0.1);
-        --shadow-glow: 0 0 10px rgba(38,139,210,0.2);
-        --radius-xl: 0.25rem;
-        --radius-2xl: 0.5rem;
       }
 
       .dracula {
         --bg-void: #282a36;
         --bg-card: #44475a;
-        --bg-panel: #282a36;
-        --bg-input: #44475a;
+        --bg-panel: #6272a4;
+        --bg-input: #1e1f29;
         --text-main: #f8f8f2;
-        --text-muted: #6272a4;
-        --text-highlight: #50fa7b;
-        --border-base: #6272a4;
+        --text-muted: #8be9fd;
+        --text-highlight: #bd93f9;
+        --border-base: #44475a;
         --border-highlight: #bd93f9;
         --color-brand: #bd93f9;
         --color-brand-hover: #ff79c6;
-        --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        --shadow-glow: 0 0 15px rgba(189, 147, 249, 0.4);
-        --radius-xl: 0.5rem;
-        --radius-2xl: 0.75rem;
       }
 
       .material {
         --bg-void: #121212;
-        --bg-card: #1E1E1E;
-        --bg-panel: #1E1E1E;
-        --bg-input: #2C2C2C;
-        --text-main: #E0E0E0;
-        --text-muted: #A0A0A0;
-        --text-highlight: #FFFFFF;
+        --bg-card: #1e1e1e;
+        --bg-panel: #2c2c2c;
+        --bg-input: #121212;
+        --text-main: #e1e1e1;
+        --text-muted: #b0b0b0;
+        --text-highlight: #bb86fc;
         --border-base: #333333;
-        --border-highlight: #BB86FC;
-        --color-brand: #BB86FC;
-        --color-brand-hover: #3700B3;
-        --shadow-card: 0 1px 5px rgba(0,0,0,0.2), 0 3px 4px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.14);
-        --shadow-glow: 0 0 8px rgba(187,134,252,0.3);
-        --radius-xl: 4px;
-        --radius-2xl: 8px;
+        --border-highlight: #bb86fc;
+        --color-brand: #bb86fc;
+        --color-brand-hover: #d7b7fd;
       }
 
-      body {
-        background-color: var(--bg-void);
-        color: var(--text-main);
-        -webkit-font-smoothing: antialiased;
-        transition: background 0.5s ease, color 0.5s ease;
-      }
-      .premium body {
-        background: linear-gradient(135deg, #1a0b2e 0%, #3B2CC9 50%, #0f0518 100%);
-        background-attachment: fixed;
-      }
-      .premium .bg-card {
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-      }
-      
-      /* --- PERFORMANCE OVERRIDES FOR FAST THEMES --- */
-      html.lite *, html.midnight *, html.terminal * {
-          transition: none !important;
-          animation: none !important;
-          backdrop-filter: none !important;
-          -webkit-backdrop-filter: none !important;
-          box-shadow: none !important;
-      }
-      /* Restore basic hover for usability only color */
-      html.lite button:hover, html.midnight button:hover, html.terminal button:hover {
-          opacity: 0.8;
-      }
-
-      ::-webkit-scrollbar { width: 6px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: var(--border-highlight); border-radius: 3px; }
-      ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-      .no-scrollbar::-webkit-scrollbar { display: none; }
-      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-      .pt-safe { padding-top: env(safe-area-inset-top); }
-      .text-balance { text-wrap: balance; }
+      body { background-color: var(--bg-void); color: var(--text-main); overflow-x: hidden; }
+      .glass { background: var(--bg-card); border: 1px solid var(--border-base); backdrop-blur: 8px; }
+      * { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease; }
     </style>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
-        });
-      }
-    </script>
-<script type="importmap">
+  <script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.2/",
-    "react/": "https://esm.sh/react@^19.2.2/",
-    "react": "https://esm.sh/react@^19.2.2",
-    "lucide-react": "https://esm.sh/lucide-react@^0.560.0",
-    "vite": "https://esm.sh/vite@^7.2.7",
-    "path": "https://esm.sh/path@^0.12.7",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.10.1",
-    "recharts": "https://esm.sh/recharts@^3.5.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "framer-motion": "https://esm.sh/framer-motion@^12.23.26",
-    "url": "https://esm.sh/url@^0.11.4",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.87.1",
-    "canvas-confetti": "https://esm.sh/canvas-confetti@^1.9.4"
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0",
+    "canvas-confetti": "https://esm.sh/canvas-confetti@^1.9.4",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "path": "https://esm.sh/path@^0.12.7",
+    "url": "https://esm.sh/url@^0.11.4"
   }
 }
 </script>

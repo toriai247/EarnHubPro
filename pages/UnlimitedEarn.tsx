@@ -3,21 +3,19 @@ import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { supabase } from '../integrations/supabase/client';
 import { 
-    Link as LinkIcon, Copy, TrendingUp, Users, Globe, Monitor, 
-    MousePointer, Eye, Loader2, ArrowRight, Zap, AlertCircle, Activity,
-    Map as MapIcon, Smartphone, RefreshCw, BookOpen, Flame, Dice5, Check, Share2, Gift, Link2
+    Link as LinkIcon, Copy, TrendingUp, Users, Globe, 
+    MousePointer, Eye, Loader2, Share2, Zap, AlertCircle, 
+    Activity, Map as MapIcon, RefreshCw, Link2, Gift, Check, ShieldCheck
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
-// --- AFFILIATE CONFIGURATION ---
 const PARTNER_BANNERS = [
     { id: 1, name: "ShrinkMe - Leaderboard", img: "https://shrinkme.io/banners/ref/728x90GIF.gif", link: "https://shrinkme.io/ref/103373471738485103929" },
     { id: 2, name: "ShrinkMe - Banner 1", img: "https://shrinkme.io/banners/ref/728x90.png", link: "https://shrinkme.io/ref/103373471738485103929" },
     { id: 3, name: "ShrinkMe - Banner 2", img: "https://shrinkme.io/banners/ref/728x90-2.png", link: "https://shrinkme.io/ref/103373471738485103929" },
-    { id: 4, name: "ShrinkMe - Rect", img: "https://shrinkme.io/banners/ref/336x280.png", link: "https://shrinkme.io/ref/103373471738485103929" },
     { id: 5, name: "Ouo.io", img: "https://ouo.io/images/banners/r1.jpg", link: "http://ouo.io/ref/riQiDnjE" }
 ];
 
@@ -48,13 +46,11 @@ const UnlimitedEarn: React.FC = () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        // Get User UID
         const { data: profile } = await supabase.from('profiles').select('user_uid').eq('id', session.user.id).single();
         if (profile) setUserUid(profile.user_uid);
 
-        // Fetch Analytics (Using the new table if available, else standard)
         try {
-            const { data: logs, error } = await supabase
+            const { data: logs } = await supabase
                 .from('unlimited_earn_logs')
                 .select('*')
                 .eq('referrer_id', session.user.id)
@@ -65,9 +61,6 @@ const UnlimitedEarn: React.FC = () => {
                 const dailyMap: Record<string, {views: number, clicks: number}> = {};
                 const countryMap: Record<string, number> = {};
 
-                // Process logs (reverse for chart)
-                const chartLogs = [...logs].reverse();
-
                 logs.forEach((log: any) => {
                     if (log.action_type === 'view') v++;
                     if (log.action_type === 'click') c++;
@@ -75,9 +68,7 @@ const UnlimitedEarn: React.FC = () => {
 
                     const country = log.country || 'Unknown';
                     countryMap[country] = (countryMap[country] || 0) + 1;
-                });
 
-                chartLogs.forEach((log: any) => {
                     const date = new Date(log.created_at).toLocaleDateString('en-US', {day:'numeric', month:'short'});
                     if (!dailyMap[date]) dailyMap[date] = { views: 0, clicks: 0 };
                     if (log.action_type === 'view') dailyMap[date].views++;
@@ -101,291 +92,242 @@ const UnlimitedEarn: React.FC = () => {
         setLoading(false);
     };
 
-    // Construct Universal Link (No category param)
-    const promoLink = userUid ? `${window.location.origin}/#/u-link/${userUid}` : 'Loading...';
+    const promoLink = userUid ? `${window.location.origin}/#/u-link/${userUid}` : '';
 
-    const handleBannerClick = async (bannerId: number, name: string, link: string) => {
-        // 1. Open immediately to prevent popup blocking
-        window.open(link, '_blank');
-
-        // 2. Track click source
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        try {
-            await supabase.from('unlimited_earn_logs').insert({
-                referrer_id: session.user.id,
-                action_type: 'click',
-                amount: 0.00, // No direct earnings for clicking banner yourself, just tracking
-                visitor_ip: '0.0.0.0', // Admin check
-                device_info: navigator.userAgent,
-                country: 'Unknown',
-                source: `Banner_${bannerId}_${name}` // Track specific banner
-            });
-            // Don't refresh whole data to keep UI smooth, maybe just toast
-            // toast.success("Click tracked"); 
-        } catch (e) {
-            console.error("Tracking failed", e);
+    const handleShortenAndCopy = async () => {
+        if (!promoLink) return;
+        
+        // If we already have a short link, just copy it
+        if (shortLink) {
+            navigator.clipboard.writeText(shortLink);
+            toast.success("Short Link Copied!");
+            return;
         }
-    };
 
-    const copyLink = () => {
-        navigator.clipboard.writeText(promoLink);
-        toast.success(`Copied Smart Link!`);
-    };
-    
-    const copyShortLink = () => {
-        navigator.clipboard.writeText(shortLink);
-        toast.success(`Copied Short Link!`);
-    };
-
-    const shareLink = async () => {
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: 'Check this out!',
-                    text: 'Login and win 12000 TK Bonus instantly!',
-                    url: shortLink || promoLink
-                });
-            } catch (err) {
-                console.error('Share failed:', err);
-            }
-        } else {
-            copyLink();
-        }
-    };
-
-    const handleShorten = async () => {
-        if (!promoLink || promoLink.includes('Loading')) return;
         setIsShortening(true);
         try {
             const apiToken = 'a314d689ed2d97048989982ae75ca370096fda91';
             const url = encodeURIComponent(promoLink);
-            const alias = `Nxv${userUid}${Math.floor(Math.random()*100)}`; // Random suffix to avoid collision
+            // Use a unique alias for the user
+            const alias = `Nax${userUid}${Math.floor(Math.random()*99)}`;
             
-            // Attempt 1: Custom Alias
-            let response = await fetch(`https://api.gplinks.com/api?api=${apiToken}&url=${url}&alias=${alias}`);
-            let data = await response.json();
+            const response = await fetch(`https://api.gplinks.com/api?api=${apiToken}&url=${url}&alias=${alias}`);
+            const data = await response.json();
             
             if (data.status === 'success') {
-                setShortLink(data.shortenedUrl);
-                toast.success("Link Shortened Successfully!");
+                const link = data.shortenedUrl;
+                setShortLink(link);
+                navigator.clipboard.writeText(link);
+                toast.success("Link Generated & Copied!");
             } else {
-                 // Attempt 2: Random Alias (Fallback)
-                 response = await fetch(`https://api.gplinks.com/api?api=${apiToken}&url=${url}`);
-                 data = await response.json();
-                 
-                 if (data.status === 'success') {
-                    setShortLink(data.shortenedUrl);
-                    toast.success("Link Shortened!");
-                 } else {
-                    toast.error("Shortener Error: " + (data.message || 'Unknown'));
-                 }
+                // Fallback to random alias if custom fail
+                const res2 = await fetch(`https://api.gplinks.com/api?api=${apiToken}&url=${url}`);
+                const data2 = await res2.json();
+                if (data2.status === 'success') {
+                    setShortLink(data2.shortenedUrl);
+                    navigator.clipboard.writeText(data2.shortenedUrl);
+                    toast.success("Link Generated & Copied!");
+                } else {
+                    toast.error("Generation failed. Copying direct link instead.");
+                    navigator.clipboard.writeText(promoLink);
+                }
             }
         } catch (e) {
-            console.error(e);
-            toast.error("Network Error. Ensure CORS is allowed or check API status.");
+            toast.error("Network Error. Copying direct link.");
+            navigator.clipboard.writeText(promoLink);
         } finally {
             setIsShortening(false);
         }
     };
 
-    if (loading) return <div className="p-10"><Loader2 className="animate-spin mx-auto text-cyan-500" /></div>;
+    const handleBannerClick = (link: string) => {
+        window.open(link, '_blank');
+    };
+
+    if (loading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-cyan-500" size={40} /></div>;
 
     return (
-        <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0 animate-fade-in">
+        <div className="pb-24 sm:pl-20 sm:pt-6 space-y-6 px-4 sm:px-0 animate-fade-in font-sans">
             
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
-                    <h2 className="text-3xl font-display font-black text-white flex items-center gap-2">
-                        <Zap className="text-cyan-400" size={32} /> Affiliate Link
+                    <h2 className="text-3xl font-display font-black text-white flex items-center gap-3">
+                        <Zap className="text-cyan-400" size={32} /> UNLIMITED <span className="text-cyan-400">EARN</span>
                     </h2>
                     <p className="text-gray-400 text-sm mt-1 max-w-lg">
-                        Share your unique link. It automatically adapts content for maximum conversion.
+                        Our smart link redirects users to high-paying ads before landing on Naxxivo.
                     </p>
                 </div>
-                <button onClick={fetchData} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white transition">
+                <button onClick={fetchData} className="p-2 bg-white/5 rounded-lg hover:bg-white/10 text-white transition border border-white/10">
                     <RefreshCw size={20} />
                 </button>
             </div>
 
-            {/* PARTNER SLIDER COMPONENT */}
-            <div className="py-2">
-                <div className="flex items-center justify-between mb-3 px-1">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                        <Gift size={14} className="text-pink-500"/> Partner Offers
-                    </h3>
-                    <span className="text-[9px] bg-pink-500/10 text-pink-400 border border-pink-500/20 px-2 py-0.5 rounded font-bold uppercase animate-pulse flex items-center gap-1">
-                        <Zap size={10} /> Signup Bonus Active
-                    </span>
-                </div>
+            {/* --- SMART LINK ENGINE --- */}
+            <GlassCard className="bg-gradient-to-br from-cyan-900/20 via-[#0a0a0a] to-black border-cyan-500/30 p-8 relative overflow-hidden rounded-[2.5rem]">
+                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none rotate-12"><LinkIcon size={180} /></div>
                 
-                <div className="w-full overflow-hidden relative bg-black/20 border-y border-white/5 py-4 rounded-xl">
-                    <div className="flex gap-4 w-max animate-marquee hover:[animation-play-state:paused]">
-                        {/* Triple the list for seamless infinite loop */}
-                        {[...PARTNER_BANNERS, ...PARTNER_BANNERS, ...PARTNER_BANNERS].map((b, i) => (
+                <div className="relative z-10 text-center space-y-6">
+                    <div className="flex justify-center">
+                        <div className="bg-cyan-500/10 border border-cyan-500/20 px-4 py-1.5 rounded-full flex items-center gap-2">
+                            <ShieldCheck size={14} className="text-cyan-400" />
+                            <span className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em]">Anti-Cheat Protocol Active</span>
+                        </div>
+                    </div>
+
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Your Monetized Smart Link</h3>
+                    
+                    <div className="max-w-xl mx-auto space-y-4">
+                        <div className={`p-5 rounded-2xl bg-black/60 border-2 transition-all duration-500 ${shortLink ? 'border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.1)]' : 'border-white/5'}`}>
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="flex-1 min-w-0 text-left">
+                                    <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Generated Endpoint</p>
+                                    <p className={`font-mono text-sm sm:text-base truncate font-bold ${shortLink ? 'text-green-400' : 'text-gray-600'}`}>
+                                        {shortLink || 'https://gp.link/waiting-for-generation...'}
+                                    </p>
+                                </div>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all ${shortLink ? 'bg-green-500 border-green-400 text-black' : 'bg-white/5 border-white/10 text-gray-600'}`}>
+                                    {shortLink ? <Check size={20} strokeWidth={3} /> : <Link2 size={20} />}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <button 
+                                onClick={handleShortenAndCopy}
+                                disabled={isShortening}
+                                className="flex-1 py-4 bg-white text-black font-black uppercase text-sm rounded-2xl hover:bg-cyan-400 transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3"
+                            >
+                                {isShortening ? <Loader2 className="animate-spin" size={20}/> : <><Zap size={20} fill="currentColor"/> GENERATE & COPY LINK</>}
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if(navigator.share) {
+                                        navigator.share({ title: 'Earn with me!', url: shortLink || promoLink });
+                                    } else {
+                                        toast.info("Share API not supported, link copied.");
+                                        handleShortenAndCopy();
+                                    }
+                                }}
+                                className="p-4 bg-white/5 border border-white/10 text-white rounded-2xl hover:bg-white/10 transition active:scale-90"
+                            >
+                                <Share2 size={24} />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap justify-center gap-6 pt-4 border-t border-white/5">
+                        <div className="text-center">
+                            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Yield / View</p>
+                            <p className="text-xl font-black text-green-400 font-mono">৳0.10</p>
+                        </div>
+                        <div className="h-10 w-px bg-white/5"></div>
+                        <div className="text-center">
+                            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Yield / Click</p>
+                            <p className="text-xl font-black text-cyan-400 font-mono">৳0.05</p>
+                        </div>
+                        <div className="h-10 w-px bg-white/5"></div>
+                        <div className="text-center">
+                            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Payout</p>
+                            <p className="text-xl font-black text-white font-mono">INSTANT</p>
+                        </div>
+                    </div>
+                </div>
+            </GlassCard>
+
+            {/* PARTNER BANNERS */}
+            <div className="space-y-4">
+                <h3 className="text-xs font-black text-gray-500 uppercase tracking-[0.3em] pl-1 flex items-center gap-2">
+                    <Gift size={14} className="text-pink-500" /> Viral Ad Templates
+                </h3>
+                <div className="w-full overflow-hidden bg-black/20 border-y border-white/5 py-6 rounded-[2rem] relative">
+                    <div className="flex gap-6 w-max animate-marquee hover:[animation-play-state:paused]">
+                        {[...PARTNER_BANNERS, ...PARTNER_BANNERS].map((b, i) => (
                             <div 
                                 key={i} 
-                                onClick={() => handleBannerClick(b.id, b.name || `Banner ${b.id}`, b.link)}
-                                className="block relative group shrink-0 cursor-pointer"
+                                onClick={() => handleBannerClick(b.link)}
+                                className="relative group shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-white/10 shadow-2xl hover:border-cyan-500/50 transition-all duration-500"
                             >
-                                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition duration-300 rounded-lg"></div>
-                                <img 
-                                    src={b.img} 
-                                    alt="Make Money" 
-                                    className="h-[60px] sm:h-[80px] w-auto rounded-lg shadow-lg border border-white/10 object-contain bg-[#111]"
-                                />
-                                <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[8px] font-bold px-1.5 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition">
-                                    VISIT
-                                </div>
+                                <img src={b.img} alt="Ad" className="h-[100px] w-auto object-contain bg-[#050505]" />
+                                <div className="absolute inset-0 bg-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             </div>
                         ))}
                     </div>
                 </div>
             </div>
 
-            {/* LINK GENERATOR */}
-            <GlassCard className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border-cyan-500/30 p-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none"><LinkIcon size={120} /></div>
-                
-                <h3 className="text-sm font-bold text-cyan-300 uppercase tracking-widest mb-3">
-                    Your Smart Link
-                </h3>
-                
-                <div className="flex flex-col gap-3">
-                    {/* ORIGINAL LINK ROW */}
-                    <div className="flex flex-col sm:flex-row gap-3">
-                        <div className="flex-1 bg-black/40 border border-cyan-500/30 rounded-xl px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-black/50 transition" onClick={copyLink}>
-                            <code className="text-white font-mono text-xs sm:text-sm truncate mr-2">{promoLink}</code>
-                            <Copy size={16} className="text-cyan-500 group-hover:text-white transition shrink-0" />
-                        </div>
-                        <div className="flex gap-2">
-                            <button onClick={copyLink} className="bg-cyan-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-cyan-500 transition shadow-lg shadow-cyan-500/20 whitespace-nowrap">
-                                Copy Link
-                            </button>
-                            <button onClick={shareLink} className="p-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition border border-white/10">
-                                <Share2 size={20} />
-                            </button>
-                        </div>
-                    </div>
-                    
-                    {/* SHORTENER ROW */}
-                    {shortLink ? (
-                        <motion.div 
-                            initial={{ opacity: 0, height: 0 }} 
-                            animate={{ opacity: 1, height: 'auto' }}
-                            className="flex flex-col sm:flex-row gap-3 items-center bg-green-500/10 border border-green-500/20 p-2 rounded-xl"
-                        >
-                            <div className="flex-1 px-2">
-                                <p className="text-[10px] text-green-400 font-bold uppercase mb-1">Shortened URL (Higher CPM)</p>
-                                <code className="text-white font-mono text-sm block truncate">{shortLink}</code>
-                            </div>
-                            <button onClick={copyShortLink} className="w-full sm:w-auto bg-green-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-green-500 flex items-center justify-center gap-2">
-                                <Copy size={14}/> Copy Short
-                            </button>
-                        </motion.div>
-                    ) : (
-                        <button 
-                            onClick={handleShorten}
-                            disabled={isShortening}
-                            className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:bg-white/10 transition flex items-center justify-center gap-2"
-                        >
-                            {isShortening ? <Loader2 className="animate-spin" size={14} /> : <Link2 size={14} />} 
-                            Generate Short Link (GPLinks)
-                        </button>
-                    )}
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded border border-green-500/30 font-bold">
-                        0.10 BDT / View
-                    </span>
-                    <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-1 rounded border border-blue-500/30 font-bold">
-                        0.05 BDT / Click
-                    </span>
-                    <span className="text-[10px] bg-yellow-500/10 text-yellow-300 px-2 py-1 rounded border border-yellow-500/20 flex items-center gap-1">
-                        <Activity size={10} /> Auto-Rotating Content
-                    </span>
-                </div>
-            </GlassCard>
-
             {/* METRICS */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <GlassCard className="p-4 bg-black/40 border-white/5">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Total Visitors</p>
-                    <div className="flex items-center gap-2">
-                        <Eye size={20} className="text-purple-500" />
-                        <span className="text-2xl font-black text-white">{stats.views.toLocaleString()}</span>
-                    </div>
+                <GlassCard className="p-5 bg-black/40 border-white/5 text-center">
+                    <Eye size={24} className="text-purple-500 mx-auto mb-2" />
+                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Total Impressions</p>
+                    <h4 className="text-2xl font-black text-white mt-1">{stats.views.toLocaleString()}</h4>
                 </GlassCard>
-                <GlassCard className="p-4 bg-black/40 border-white/5">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Ad Clicks</p>
-                    <div className="flex items-center gap-2">
-                        <MousePointer size={20} className="text-cyan-500" />
-                        <span className="text-2xl font-black text-white">{stats.clicks.toLocaleString()}</span>
-                    </div>
+                <GlassCard className="p-5 bg-black/40 border-white/5 text-center">
+                    <MousePointer size={24} className="text-cyan-500 mx-auto mb-2" />
+                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Unique Clicks</p>
+                    <h4 className="text-2xl font-black text-white mt-1">{stats.clicks.toLocaleString()}</h4>
                 </GlassCard>
-                <GlassCard className="p-4 bg-black/40 border-white/5">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Total Revenue</p>
-                    <div className="flex items-center gap-2">
-                        <TrendingUp size={20} className="text-green-500" />
-                        <span className="text-2xl font-black text-green-400 font-mono"><BalanceDisplay amount={stats.earnings} /></span>
-                    </div>
+                <GlassCard className="p-5 bg-black/40 border-white/5 text-center">
+                    <TrendingUp size={24} className="text-green-500 mx-auto mb-2" />
+                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Total Yield</p>
+                    <h4 className="text-2xl font-black text-green-400 mt-1 font-mono">
+                        <BalanceDisplay amount={stats.earnings} />
+                    </h4>
                 </GlassCard>
-                <GlassCard className="p-4 bg-black/40 border-white/5">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Conv. Rate</p>
-                    <div className="flex items-center gap-2">
-                        <Activity size={20} className="text-orange-500" />
-                        <span className="text-2xl font-black text-white">{stats.ctr.toFixed(1)}%</span>
-                    </div>
+                <GlassCard className="p-5 bg-black/40 border-white/5 text-center">
+                    <Activity size={24} className="text-orange-500 mx-auto mb-2" />
+                    <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Conv. Rate</p>
+                    <h4 className="text-2xl font-black text-white mt-1">{stats.ctr.toFixed(1)}%</h4>
                 </GlassCard>
             </div>
 
-            {/* CHARTS & GEO */}
+            {/* ANALYTICS */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                    <GlassCard className="p-5 h-full bg-black/40 border-white/10">
-                        <h4 className="text-xs font-bold text-white uppercase mb-4">Traffic Performance (7 Days)</h4>
-                        <div className="h-64 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData}>
-                                    <defs>
-                                        <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="date" tick={{fontSize: 10}} stroke="#444" />
-                                    <YAxis tick={{fontSize: 10}} stroke="#444" />
-                                    <Tooltip contentStyle={{backgroundColor: '#000', border: '1px solid #333'}} />
-                                    <Area type="monotone" dataKey="views" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorViews)" />
-                                    <Area type="monotone" dataKey="clicks" stroke="#06b6d4" fill="none" strokeWidth={2} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </GlassCard>
-                </div>
+                <GlassCard className="lg:col-span-2 p-6 bg-black/40 border-white/10 h-[350px]">
+                    <div className="flex items-center gap-2 mb-6">
+                        <TrendingUp size={16} className="text-cyan-400" />
+                        <h4 className="text-xs font-black text-white uppercase tracking-widest">Performance Flow</h4>
+                    </div>
+                    <div className="h-[250px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData}>
+                                <defs>
+                                    <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="date" tick={{fontSize: 9, fill: '#666'}} axisLine={false} tickLine={false} />
+                                <YAxis hide />
+                                <Tooltip contentStyle={{backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px', fontSize: '10px'}} />
+                                <Area type="monotone" dataKey="views" stroke="#06b6d4" strokeWidth={3} fillOpacity={1} fill="url(#colorViews)" />
+                                <Area type="monotone" dataKey="clicks" stroke="#8b5cf6" strokeWidth={2} fill="none" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </GlassCard>
                 
                 <div className="space-y-6">
-                    <GlassCard className="p-5 bg-black/40 border-white/10">
-                        <h4 className="text-xs font-bold text-white uppercase mb-4 flex items-center gap-2">
-                            <MapIcon size={14}/> Top Countries
+                    <GlassCard className="p-6 bg-black/40 border-white/10">
+                        <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <MapIcon size={14} className="text-cyan-400"/> Geo Distribution
                         </h4>
                         {countryData.length === 0 ? (
-                            <div className="text-center py-6 text-gray-500 text-xs">No data yet.</div>
+                            <div className="text-center py-10 text-gray-600 text-xs font-bold uppercase">No Traffic Data</div>
                         ) : (
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 {countryData.map((c, i) => (
                                     <div key={i} className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Globe size={14} className="text-gray-500" />
-                                            <span className="text-sm text-gray-300">{c.name}</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-lg">🌍</span>
+                                            <span className="text-xs font-bold text-gray-300">{c.name}</span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-16 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                                <div className="h-full bg-cyan-500" style={{ width: `${(c.value / stats.views) * 100}%` }}></div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-20 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                                <div className="h-full bg-cyan-500 shadow-[0_0_8px_cyan]" style={{ width: `${(c.value / stats.views) * 100}%` }}></div>
                                             </div>
-                                            <span className="text-xs font-bold text-white">{c.value}</span>
+                                            <span className="text-xs font-black text-white font-mono">{c.value}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -393,72 +335,24 @@ const UnlimitedEarn: React.FC = () => {
                         )}
                     </GlassCard>
 
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex items-start gap-3">
-                        <AlertCircle className="text-yellow-500 shrink-0 mt-0.5" size={18} />
-                        <div className="text-xs text-yellow-200/80 leading-relaxed">
-                            <strong>Fraud Protection Active:</strong> 
-                            We now track Device ID, Browser, and Location. Repeat spamming within 24 hours is automatically blocked by the system.
-                        </div>
+                    <div className="p-5 bg-cyan-950/20 border border-cyan-500/20 rounded-[2rem] flex items-start gap-4">
+                        <AlertCircle className="text-cyan-400 shrink-0 mt-1" size={20} />
+                        <p className="text-[11px] text-cyan-200/70 leading-relaxed font-medium uppercase tracking-tight">
+                            System utilizes high-cpm link shrouding. Direct bot traffic is filtered to protect network integrity.
+                        </p>
                     </div>
                 </div>
             </div>
 
-            {/* LIVE FEED TABLE */}
-            <GlassCard className="p-0 overflow-hidden border-white/10 bg-black/40">
-                <div className="p-4 border-b border-white/10">
-                    <h4 className="text-xs font-bold text-white uppercase">Detailed Activity Log</h4>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-gray-400">
-                        <thead className="bg-white/5 text-gray-500 font-bold uppercase">
-                            <tr>
-                                <th className="p-3">Time</th>
-                                <th className="p-3">Action</th>
-                                <th className="p-3">Device / Browser</th>
-                                <th className="p-3">Location</th>
-                                <th className="p-3">Source</th>
-                                <th className="p-3 text-right">Revenue</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {recentLogs.map((log) => (
-                                <tr key={log.id} className="hover:bg-white/5 transition">
-                                    <td className="p-3">{new Date(log.created_at).toLocaleTimeString()}</td>
-                                    <td className="p-3">
-                                        <span className={`px-2 py-0.5 rounded uppercase font-bold text-[10px] ${log.action_type === 'click' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
-                                            {log.action_type}
-                                        </span>
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="flex flex-col">
-                                            <span className="text-white font-bold">{log.device_type || 'Unknown'}</span>
-                                            <span className="text-[10px] text-gray-500 truncate max-w-[100px]">{log.device_info || 'N/A'}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="flex flex-col">
-                                            <span className="text-white">{log.country}</span>
-                                            <span className="text-[10px] text-gray-500">{log.city}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-3">
-                                        <span className="text-[10px] text-amber-500 font-mono bg-amber-900/10 px-1 rounded">{log.source || 'N/A'}</span>
-                                    </td>
-                                    <td className="p-3 text-right font-mono text-green-400 font-bold">
-                                        +<BalanceDisplay amount={log.amount} />
-                                    </td>
-                                </tr>
-                            ))}
-                            {recentLogs.length === 0 && (
-                                <tr>
-                                    <td colSpan={6} className="p-6 text-center text-gray-600">No recent logs found.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </GlassCard>
+            <p className="text-center text-[10px] text-gray-800 font-black uppercase tracking-[0.5em] pt-12">
+                Naxxivo Affiliate Engine v9.2
+            </p>
 
+            <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+                .animate-marquee { animation: marquee 30s linear infinite; }
+            `}</style>
         </div>
     );
 };

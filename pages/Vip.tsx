@@ -4,14 +4,14 @@ import GlassCard from '../components/GlassCard';
 import { supabase } from '../integrations/supabase/client';
 import { InvestmentPlan, UserInvestment, WalletData } from '../types';
 import { buyPackage, claimInvestmentReward } from '../lib/actions';
-import { Crown, Clock, CheckCircle2, Loader2, TrendingUp, AlertCircle, Zap, Shield, Sparkles, Lock } from 'lucide-react';
+// Added Activity to lucide-react imports to resolve the error on line 166
+import { Crown, Clock, CheckCircle2, Loader2, TrendingUp, Zap, Shield, Sparkles, Lock, ArrowUpRight, Award, Gem, Activity } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import Loader from '../components/Loader';
 import GoogleAd from '../components/GoogleAd';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const MotionDiv = motion.div as any;
+import confetti from 'canvas-confetti';
 
 const Vip: React.FC = () => {
     const { toast, confirm } = useUI();
@@ -24,26 +24,30 @@ const Vip: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-        // Live timer for countdowns
         const interval = setInterval(() => setNow(new Date()), 1000);
         return () => clearInterval(interval);
     }, []);
 
     const fetchData = async () => {
         setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-            const [pRes, myRes, wRes] = await Promise.all([
-                supabase.from('investment_plans').select('*').eq('is_active', true).order('min_invest', { ascending: true }),
-                supabase.from('investments').select('*').eq('user_id', session.user.id).eq('status', 'active'),
-                supabase.from('wallets').select('*').eq('user_id', session.user.id).single()
-            ]);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                const [pRes, myRes, wRes] = await Promise.all([
+                    supabase.from('investment_plans').select('*').eq('is_active', true).order('min_invest', { ascending: true }),
+                    supabase.from('investments').select('*').eq('user_id', session.user.id).eq('status', 'active'),
+                    supabase.from('wallets').select('*').eq('user_id', session.user.id).single()
+                ]);
 
-            if (pRes.data) setPlans(pRes.data);
-            if (myRes.data) setMyInvestments(myRes.data);
-            if (wRes.data) setWallet(wRes.data as WalletData);
+                if (pRes.data) setPlans(pRes.data);
+                if (myRes.data) setMyInvestments(myRes.data);
+                if (wRes.data) setWallet(wRes.data as WalletData);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleBuy = async (plan: InvestmentPlan) => {
@@ -53,14 +57,20 @@ const Vip: React.FC = () => {
             return;
         }
 
-        if (!await confirm(`Activate ${plan.name}?\n\nCost: ৳${plan.min_invest}\nDaily Return: ৳${plan.daily_return}`, "Confirm Purchase")) return;
+        if (!await confirm(`Authorize activation of ${plan.name}?\n\nPrice: ৳${plan.min_invest}\nDaily Return: ৳${plan.daily_return}`, "Security Confirmation")) return;
 
         setProcessingId(plan.id);
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
                 await buyPackage(session.user.id, plan);
-                toast.success("VIP Plan Activated Successfully!");
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#FFD700', '#FFFFFF', '#00E5FF']
+                });
+                toast.success("VIP Status Activated!");
                 fetchData();
             }
         } catch (e: any) {
@@ -73,7 +83,7 @@ const Vip: React.FC = () => {
     const handleClaim = async (inv: UserInvestment) => {
         const nextClaim = new Date(inv.next_claim_at);
         if (now < nextClaim) {
-            toast.error("Reward is locked. Please wait.");
+            toast.error("Resource is still calibrating. Please wait.");
             return;
         }
 
@@ -82,7 +92,7 @@ const Vip: React.FC = () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
                 await claimInvestmentReward(session.user.id, inv.id, inv.daily_return);
-                toast.success("Daily Income Claimed!");
+                toast.success(`Claim Success: +৳${inv.daily_return}`);
                 fetchData();
             }
         } catch (e: any) {
@@ -94,79 +104,75 @@ const Vip: React.FC = () => {
 
     const getThemeStyles = (name: string) => {
         const n = name.toLowerCase();
-        if (n.includes('gold') || n.includes('vip 1')) return { 
-            bg: 'bg-gradient-to-br from-yellow-500/20 to-amber-900/40', 
-            border: 'border-amber-500/50', 
-            text: 'text-amber-400',
-            glow: 'shadow-[0_0_30px_rgba(245,158,11,0.15)]'
-        };
-        if (n.includes('platinum') || n.includes('vip 2')) return { 
-            bg: 'bg-gradient-to-br from-slate-400/20 to-slate-900/40', 
-            border: 'border-slate-400/50', 
-            text: 'text-slate-200',
-            glow: 'shadow-[0_0_30px_rgba(148,163,184,0.15)]'
-        };
-        if (n.includes('diamond') || n.includes('royal') || n.includes('vip 3')) return { 
-            bg: 'bg-gradient-to-br from-cyan-500/20 to-blue-900/40', 
+        if (n.includes('royal') || n.includes('diamond')) return { 
+            bg: 'bg-gradient-to-br from-cyan-600/20 via-[#0a192f] to-blue-900/40', 
             border: 'border-cyan-500/50', 
             text: 'text-cyan-400',
-            glow: 'shadow-[0_0_30px_rgba(6,182,212,0.15)]'
+            glow: 'shadow-[0_0_40px_rgba(6,182,212,0.2)]',
+            icon: Gem
         };
-        // Default / Basic
+        if (n.includes('gold') || n.includes('platinum')) return { 
+            bg: 'bg-gradient-to-br from-amber-500/20 via-[#1a1400] to-yellow-900/40', 
+            border: 'border-amber-500/50', 
+            text: 'text-amber-400',
+            glow: 'shadow-[0_0_40px_rgba(245,158,11,0.2)]',
+            icon: Crown
+        };
         return { 
-            bg: 'bg-gradient-to-br from-purple-500/20 to-indigo-900/40', 
+            bg: 'bg-gradient-to-br from-purple-600/20 via-[#11051a] to-indigo-900/40', 
             border: 'border-purple-500/50', 
             text: 'text-purple-400',
-            glow: 'shadow-[0_0_30px_rgba(168,85,247,0.15)]'
+            glow: 'shadow-[0_0_40px_rgba(168,85,247,0.2)]',
+            icon: Zap
         };
-    };
-
-    if (loading) return <div className="p-10"><Loader /></div>;
-
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        show: { opacity: 1, transition: { staggerChildren: 0.1 } }
-    };
-
-    const itemVariants = {
-        hidden: { opacity: 0, y: 20 },
-        show: { opacity: 1, y: 0 }
     };
 
     return (
-        <div className="pb-24 sm:pl-20 sm:pt-6 space-y-8 px-4 sm:px-0">
+        <div className="pb-32 sm:pl-20 sm:pt-6 space-y-10 px-4 sm:px-0 bg-void min-h-screen">
             
-            {/* HEADER */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pt-4">
-                <div>
-                    <h1 className="text-3xl font-display font-black text-white flex items-center gap-2">
-                        <Crown className="text-yellow-400 fill-yellow-400" size={32} /> VIP Lounge
+            {/* ELITE HEADER */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-6">
+                <div className="space-y-1">
+                    <h1 className="text-4xl font-black text-white tracking-tighter flex items-center gap-3">
+                        <Crown className="text-brand animate-pulse" size={36} fill="currentColor" /> 
+                        VIP <span className="text-brand">LOUNGE</span>
                     </h1>
-                    <p className="text-gray-400 text-sm mt-1">Upgrade your status. Earn passive daily income.</p>
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-success animate-ping"></div>
+                        <p className="text-muted text-[10px] font-black uppercase tracking-[0.3em]">Institutional Grade Assets</p>
+                    </div>
                 </div>
-                <div className="bg-[#111] px-5 py-3 rounded-2xl border border-white/10 flex flex-col items-end min-w-[140px]">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Investable Funds</p>
-                    <p className="text-white font-mono font-bold text-lg">
-                        <BalanceDisplay amount={wallet?.deposit_balance || 0} isNative={true} />
-                    </p>
-                </div>
+                
+                <GlassCard className="!p-4 !rounded-[2rem] border-brand/20 bg-brand/5 backdrop-blur-xl flex items-center gap-4 shadow-2xl">
+                    <div className="p-3 bg-brand/10 rounded-2xl text-brand">
+                        <Award size={24} />
+                    </div>
+                    <div>
+                        <p className="text-[9px] text-muted font-black uppercase tracking-widest">Trading Power</p>
+                        <p className="text-xl font-black text-brand font-mono leading-none mt-1">
+                            <BalanceDisplay amount={wallet?.deposit_balance || 0} isNative />
+                        </p>
+                    </div>
+                </GlassCard>
             </div>
 
-            {/* AD PLACEMENT */}
-            <GoogleAd slot="3493119845" layout="in-article" />
-
-            {/* MY ACTIVE SUBSCRIPTIONS */}
-            {myInvestments.length > 0 && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                    <div className="flex items-center gap-2 px-1">
-                        <div className="p-1.5 bg-green-500/20 rounded-lg">
-                            <Clock size={14} className="text-green-400" />
+            {/* ACTIVE PORTFOLIO SECTION */}
+            <AnimatePresence>
+                {myInvestments.length > 0 && (
+                    <motion.section 
+                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                        className="space-y-4"
+                    >
+                        <div className="flex items-center justify-between px-2">
+                            <h3 className="text-xs font-black text-muted uppercase tracking-[0.4em] flex items-center gap-2">
+                                <Activity size={14} className="text-success" /> Active Portfolio
+                            </h3>
+                            <span className="text-[10px] font-black text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
+                                {myInvestments.length} UNITS RUNNING
+                            </span>
                         </div>
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Active Portfolio</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <AnimatePresence>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {myInvestments.map(inv => {
                                 const nextClaim = new Date(inv.next_claim_at);
                                 const isReady = now >= nextClaim;
@@ -176,131 +182,147 @@ const Vip: React.FC = () => {
                                 const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                                 const secs = Math.floor((diff % (1000 * 60)) / 1000);
                                 
-                                // Progress Calculation (Assuming 24h cycle)
                                 const totalCycle = 24 * 60 * 60 * 1000;
                                 const progress = Math.min(100, ((totalCycle - diff) / totalCycle) * 100);
 
                                 return (
                                     <motion.div 
-                                        key={inv.id}
-                                        layout
-                                        initial={{ opacity: 0, scale: 0.95 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        layout key={inv.id}
+                                        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                                        className="relative group"
                                     >
-                                        <GlassCard className="border-l-4 border-l-green-500 flex items-center justify-between relative overflow-hidden group">
-                                            {/* Background Progress Bar */}
-                                            <div className="absolute bottom-0 left-0 h-1 bg-green-500/20 w-full z-0">
-                                                <div className="h-full bg-green-500" style={{ width: `${progress}%` }}></div>
+                                        <div className={`absolute -inset-0.5 bg-gradient-to-r from-success/50 to-brand/50 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition`}></div>
+                                        <GlassCard className="relative !rounded-[2.5rem] border-white/5 bg-panel p-6 flex flex-col gap-6 overflow-hidden">
+                                            <div className="flex justify-between items-start relative z-10">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-14 h-14 rounded-3xl bg-black flex items-center justify-center border border-white/10 shadow-inner">
+                                                        <TrendingUp className="text-success" size={28} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-lg font-black text-white uppercase tracking-tighter">{inv.plan_name}</h4>
+                                                        <p className="text-[10px] text-muted font-bold mt-1 uppercase flex items-center gap-1">
+                                                            <Shield size={10} className="text-success"/> Encrypted Node Active
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[9px] text-muted font-black uppercase tracking-widest">Yield / Day</p>
+                                                    <p className="text-xl font-black text-success font-mono">৳{inv.daily_return}</p>
+                                                </div>
                                             </div>
 
-                                            <div className="relative z-10">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h4 className="font-black text-white text-base">{inv.plan_name}</h4>
-                                                    <span className="text-[9px] bg-green-500/20 text-green-400 px-1.5 rounded font-bold uppercase">Active</span>
+                                            <div className="space-y-3 relative z-10">
+                                                <div className="flex justify-between items-end">
+                                                    <p className="text-[10px] text-muted font-black uppercase tracking-widest">Next Harvest</p>
+                                                    <span className={`font-mono text-sm font-black ${isReady ? 'text-success' : 'text-white'}`}>
+                                                        {isReady ? 'READY TO CLAIM' : `${hours}h ${mins}m ${secs}s`}
+                                                    </span>
                                                 </div>
-                                                <div className="flex gap-3 text-xs text-gray-400">
-                                                    <span>Earned: <span className="text-white font-bold">৳{inv.total_earned}</span></span>
-                                                    <span>Daily: <span className="text-green-400 font-bold">+৳{inv.daily_return}</span></span>
+                                                <div className="h-2 w-full bg-black rounded-full overflow-hidden border border-white/5 p-0.5">
+                                                    <motion.div 
+                                                        className="h-full bg-gradient-to-r from-success to-brand rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                                                        initial={{ width: 0 }}
+                                                        animate={{ width: `${progress}%` }}
+                                                        transition={{ duration: 1 }}
+                                                    />
                                                 </div>
                                             </div>
 
                                             <button 
                                                 onClick={() => handleClaim(inv)}
                                                 disabled={!isReady || processingId === inv.id}
-                                                className={`relative z-10 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg flex items-center gap-2 ${
+                                                className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all relative z-10 shadow-xl active:scale-95 ${
                                                     isReady 
-                                                    ? 'bg-green-500 text-black hover:bg-green-400 hover:scale-105 active:scale-95 animate-pulse' 
-                                                    : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'
+                                                    ? 'bg-success text-black hover:bg-white' 
+                                                    : 'bg-white/5 text-muted border border-white/5 cursor-not-allowed'
                                                 }`}
                                             >
-                                                {processingId === inv.id ? <Loader2 className="animate-spin" size={14}/> : isReady ? (
-                                                    <><Zap size={14} fill="currentColor" /> CLAIM</>
-                                                ) : (
-                                                    <span className="font-mono">{hours}h {mins}m {secs}s</span>
-                                                )}
+                                                {processingId === inv.id ? <Loader2 className="animate-spin mx-auto" size={18}/> : isReady ? 'CLAIM DAILY PROFIT' : 'CALIBRATING...'}
                                             </button>
                                         </GlassCard>
                                     </motion.div>
                                 );
                             })}
-                        </AnimatePresence>
-                    </div>
-                </motion.div>
-            )}
+                        </div>
+                    </motion.section>
+                )}
+            </AnimatePresence>
 
-            {/* PLANS MARKETPLACE */}
-            <MotionDiv 
-                variants={containerVariants} 
-                initial="hidden" 
-                animate="show" 
-                className="space-y-4"
-            >
-                 <div className="flex items-center justify-between px-1">
-                    <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                        <TrendingUp size={16} className="text-blue-400"/> Available Packages
+            {/* AD PLACEMENT */}
+            <div className="px-1">
+                <GoogleAd slot="3493119845" layout="in-article" />
+            </div>
+
+            {/* INVESTMENT PLANS SECTION */}
+            <section className="space-y-6">
+                <div className="flex items-center justify-between px-2">
+                    <h3 className="text-xs font-black text-muted uppercase tracking-[0.4em] flex items-center gap-2">
+                        <Zap size={14} className="text-brand" /> Available Contracts
                     </h3>
-                    <span className="text-[10px] bg-white/5 px-2 py-1 rounded text-gray-500 border border-white/5">{plans.length} Plans</span>
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[9px] text-muted font-black uppercase tracking-widest">Market Open</span>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {plans.map(plan => {
                         const theme = getThemeStyles(plan.name);
+                        const ThemeIcon = theme.icon;
                         const roiPercent = Math.round(((plan.total_roi || (plan.daily_return * plan.duration)) - plan.min_invest) / plan.min_invest * 100);
 
                         return (
-                            <MotionDiv variants={itemVariants} key={plan.id} className="h-full">
-                                <div className={`relative rounded-3xl overflow-hidden p-6 border transition-all duration-300 hover:-translate-y-2 h-full flex flex-col ${theme.bg} ${theme.border} ${theme.glow} group`}>
+                            <motion.div 
+                                key={plan.id}
+                                whileHover={{ y: -8 }}
+                                className="h-full"
+                            >
+                                <div className={`relative rounded-[3rem] overflow-hidden p-8 border-2 transition-all duration-500 h-full flex flex-col ${theme.bg} ${theme.border} ${theme.glow} group cursor-pointer`}>
                                     
-                                    {/* Shine Effect */}
-                                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                                    {/* Glass Shine */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
 
-                                    {/* Badge */}
+                                    {/* Top Badge */}
                                     {plan.badge_tag && (
-                                        <div className="absolute top-0 right-0 bg-gradient-to-bl from-white text-black text-[10px] font-black px-3 py-1.5 rounded-bl-2xl shadow-lg z-20 uppercase tracking-wider flex items-center gap-1">
-                                            <Sparkles size={10} fill="black" /> {plan.badge_tag}
+                                        <div className="absolute top-0 right-0 bg-white text-black text-[9px] font-black px-4 py-2 rounded-bl-3xl shadow-2xl z-20 uppercase tracking-widest">
+                                            {plan.badge_tag}
                                         </div>
                                     )}
 
-                                    {/* Card Header */}
-                                    <div className="relative z-10 mb-6">
-                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 shadow-inner bg-black/20 backdrop-blur-sm border border-white/10 ${theme.text}`}>
-                                            <Crown size={24} fill="currentColor" />
+                                    {/* Icon & Title */}
+                                    <div className="relative z-10 mb-8 flex items-center gap-4">
+                                        <div className={`w-16 h-16 rounded-3xl flex items-center justify-center shadow-2xl bg-black border border-white/10 ${theme.text}`}>
+                                            <ThemeIcon size={32} fill="currentColor" />
                                         </div>
-                                        <h3 className={`text-2xl font-black uppercase tracking-tight text-white leading-none`}>
-                                            {plan.name}
-                                        </h3>
-                                        <div className="flex items-center gap-2 mt-2">
-                                            <span className="text-[10px] font-bold bg-black/30 px-2 py-0.5 rounded text-gray-300 border border-white/5 flex items-center gap-1">
-                                                <Shield size={10} /> Secure
-                                            </span>
-                                            <span className="text-[10px] font-bold bg-green-900/30 text-green-400 px-2 py-0.5 rounded border border-green-500/20">
-                                                {roiPercent}% ROI
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Price Tag */}
-                                    <div className="mb-6 relative z-10">
-                                        <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Investment</p>
-                                        <div className="text-4xl font-black text-white font-mono flex items-start leading-none">
-                                            <span className="text-lg mt-1 mr-1 text-gray-400">৳</span>{plan.min_invest.toLocaleString()}
+                                        <div>
+                                            <h3 className="text-2xl font-black uppercase tracking-tighter text-white leading-none">
+                                                {plan.name}
+                                            </h3>
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <span className="text-[9px] font-black bg-success/20 text-success px-2 py-0.5 rounded-full border border-success/30 uppercase tracking-widest">
+                                                    {roiPercent}% ROI
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Stats Grid */}
-                                    <div className="grid grid-cols-2 gap-3 mb-8 relative z-10 bg-black/20 p-3 rounded-2xl border border-white/5">
-                                        <div className="p-2">
-                                            <p className="text-[10px] text-gray-400 uppercase font-bold">Daily Income</p>
-                                            <p className={`text-sm font-bold ${theme.text}`}>+৳{plan.daily_return}</p>
+                                    {/* Cost Display */}
+                                    <div className="mb-8 relative z-10">
+                                        <p className="text-[9px] font-black text-muted uppercase tracking-[0.3em] mb-2">Required Deposit</p>
+                                        <div className="text-5xl font-black text-white font-mono flex items-start leading-none tracking-tighter">
+                                            <span className="text-lg mt-1 mr-1 text-muted">৳</span>{plan.min_invest.toLocaleString()}
                                         </div>
-                                        <div className="p-2 border-l border-white/10 pl-4">
-                                            <p className="text-[10px] text-gray-400 uppercase font-bold">Duration</p>
-                                            <p className="text-sm font-bold text-white">{plan.duration} Days</p>
+                                    </div>
+
+                                    {/* Detailed Breakdown */}
+                                    <div className="grid grid-cols-2 gap-4 mb-10 relative z-10">
+                                        <div className="bg-black/30 p-4 rounded-3xl border border-white/5">
+                                            <p className="text-[8px] text-muted font-black uppercase tracking-widest mb-1">Daily Payout</p>
+                                            <p className={`text-base font-black ${theme.text} font-mono leading-none`}>+৳{plan.daily_return}</p>
                                         </div>
-                                        <div className="col-span-2 border-t border-white/10 pt-2 mt-1 flex justify-between items-center px-2">
-                                            <p className="text-[10px] text-gray-400 uppercase font-bold">Total Profit</p>
-                                            <p className="text-base font-black text-white">৳{(plan.total_roi || (plan.daily_return * plan.duration)).toFixed(0)}</p>
+                                        <div className="bg-black/30 p-4 rounded-3xl border border-white/5">
+                                            <p className="text-[8px] text-muted font-black uppercase tracking-widest mb-1">Term Length</p>
+                                            <p className="text-base font-black text-white font-mono leading-none">{plan.duration} Days</p>
                                         </div>
                                     </div>
 
@@ -308,19 +330,19 @@ const Vip: React.FC = () => {
                                     <button 
                                         onClick={() => handleBuy(plan)}
                                         disabled={!!processingId}
-                                        className="w-full mt-auto relative z-10 py-4 bg-white text-black rounded-xl font-black text-sm uppercase tracking-wider hover:bg-gray-200 transition shadow-lg active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 group-hover:shadow-white/20"
+                                        className="w-full mt-auto relative z-10 py-5 bg-white text-black rounded-[2rem] font-black text-xs uppercase tracking-[0.25em] shadow-2xl hover:bg-brand transition-all active:scale-95 disabled:opacity-50"
                                     >
-                                        {processingId === plan.id ? <Loader2 className="animate-spin" size={18}/> : <span className="flex items-center gap-2">Activate Now <TrendingUp size={16}/></span>}
+                                        {processingId === plan.id ? <Loader2 className="animate-spin mx-auto" size={18}/> : 'ACTIVATE CONTRACT'}
                                     </button>
 
-                                    {/* Decorative Background Icon */}
-                                    <Crown size={200} className={`absolute -bottom-10 -right-10 opacity-5 rotate-12 pointer-events-none ${theme.text}`} />
+                                    {/* Decoration */}
+                                    <ThemeIcon size={220} className={`absolute -bottom-16 -right-16 opacity-[0.03] rotate-12 pointer-events-none ${theme.text}`} />
                                 </div>
-                            </MotionDiv>
+                            </motion.div>
                         );
                     })}
                 </div>
-            </MotionDiv>
+            </section>
         </div>
     );
 };

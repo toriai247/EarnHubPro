@@ -1,99 +1,110 @@
-
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Flag, Star, LogIn, Info, Shield, HelpCircle, Trophy } from 'lucide-react';
+import { Search, Flag, Star, LogIn, Info, Shield, HelpCircle, Trophy, Users, User, LayoutGrid, Lock, Globe } from 'lucide-react';
 import Logo from './Logo';
 
 interface FooterProps {
     onOpenReview: () => void;
 }
 
+// Added FooterProps to the component definition and destructured onOpenReview to fix the undefined reference error
 const Footer: React.FC<FooterProps> = ({ onOpenReview }) => {
   const location = useLocation();
   const isHome = location.pathname === '/';
 
   return (
-    <footer className="w-full mt-12 border-t border-white/5 bg-black/20 backdrop-blur-sm pb-24 sm:pb-12 pt-12">
-      <div className="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
+    <footer className="w-full mt-24 border-t border-border-base bg-card/40 backdrop-blur-md pb-32 sm:pb-16 pt-16">
+      <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-12">
         
-        {/* Brand Column - Only fully detailed on Home */}
-        <div className="col-span-2 md:col-span-1 space-y-4">
-            <Logo size="sm" />
-            {isHome ? (
-                <p className="text-xs text-gray-500 leading-relaxed">
-                    The next-generation earning ecosystem. Fast, secure, and transparent opportunities for everyone.
-                </p>
-            ) : (
-                <p className="text-xs text-gray-500">Premium Earning Platform</p>
-            )}
-            <div className="flex gap-2">
-                <span className="text-[10px] bg-white/5 px-2 py-1 rounded text-gray-500 border border-white/5">v4.5.2 Stable</span>
+        {/* Brand Column */}
+        <div className="col-span-2 md:col-span-1 space-y-6">
+            <Logo size="md" />
+            <p className="text-sm text-muted leading-relaxed">
+                The most confident decentralized earning network. Fast payments, trending games, and high-yield assets in one secure portal.
+            </p>
+            <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-bold text-muted">
+                    <Shield size={12} className="text-success" /> SSL SECURE
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/5 rounded-full text-[10px] font-bold text-muted">
+                    <LayoutGrid size={12} className="text-brand" /> v4.5.2
+                </div>
             </div>
         </div>
 
-        {/* Quick Access */}
-        <div className="space-y-4">
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest">Quick Access</h4>
-            <div className="flex flex-col gap-2">
-                <Link to="/search" className="text-xs text-gray-500 hover:text-brand transition flex items-center gap-2">
-                    <Search size={14} /> Find User
+        {/* Earning Pillar */}
+        <div className="space-y-5">
+            <h4 className="text-[10px] font-black text-main uppercase tracking-[0.25em]">Essentials</h4>
+            <div className="flex flex-col gap-3">
+                <Link to="/invite" className="text-sm text-muted hover:text-brand transition flex items-center gap-2">
+                    <Users size={16} /> Invite Friends
                 </Link>
-                <Link to="/leaderboard" className="text-xs text-gray-500 hover:text-brand transition flex items-center gap-2">
-                    <Trophy size={14} /> Visit Profiles
+                <Link to="/profile" className="text-sm text-muted hover:text-brand transition flex items-center gap-2">
+                    <User size={16} /> My Profile
                 </Link>
-                <Link to="/login" className="text-xs text-gray-500 hover:text-brand transition flex items-center gap-2">
-                    <LogIn size={14} /> Login / Join
+                <Link to="/leaderboard" className="text-sm text-muted hover:text-brand transition flex items-center gap-2">
+                    <Trophy size={16} /> Top Earners
+                </Link>
+                <Link to="/tasks" className="text-sm text-muted hover:text-brand transition flex items-center gap-2">
+                    <Globe size={16} /> Micro Jobs
                 </Link>
             </div>
         </div>
 
-        {/* Support */}
-        <div className="space-y-4">
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest">Support</h4>
-            <div className="flex flex-col gap-2">
-                <Link to="/support" className="text-xs text-gray-500 hover:text-brand transition flex items-center gap-2">
-                    <Flag size={14} /> Report Issue
+        {/* Support Pillar */}
+        <div className="space-y-5">
+            <h4 className="text-[10px] font-black text-main uppercase tracking-[0.25em]">Assistance</h4>
+            <div className="flex flex-col gap-3">
+                <Link to="/support" className="text-sm text-muted hover:text-brand transition flex items-center gap-2">
+                    <Flag size={16} /> Report Issue
                 </Link>
-                <button onClick={onOpenReview} className="text-xs text-gray-500 hover:text-brand transition flex items-center gap-2 text-left">
-                    <Star size={14} /> Write Review
+                <button onClick={onOpenReview} className="text-sm text-muted hover:text-brand transition flex items-center gap-2 text-left">
+                    <Star size={16} /> Write Review
                 </button>
-                <Link to="/faq" className="text-xs text-gray-500 hover:text-brand transition flex items-center gap-2">
-                    <HelpCircle size={14} /> Help Center
+                <Link to="/faq" className="text-sm text-muted hover:text-brand transition flex items-center gap-2">
+                    <HelpCircle size={16} /> Help Center
+                </Link>
+                <Link to="/search" className="text-sm text-muted hover:text-brand transition flex items-center gap-2">
+                    <Search size={16} /> Find Identity
                 </Link>
             </div>
         </div>
 
-        {/* Legal */}
-        <div className="space-y-4">
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest">Legal</h4>
-            <div className="flex flex-col gap-2">
-                <Link to="/terms" className="text-xs text-gray-500 hover:text-white transition flex items-center gap-2">
-                    <Shield size={14} /> Terms of Service
+        {/* System Pillar */}
+        <div className="space-y-5">
+            <h4 className="text-[10px] font-black text-main uppercase tracking-[0.25em]">Platform</h4>
+            <div className="flex flex-col gap-3">
+                <Link to="/terms" className="text-sm text-muted hover:text-main transition flex items-center gap-2">
+                    <Shield size={16} /> Legal & Terms
                 </Link>
-                <Link to="/terms" className="text-xs text-gray-500 hover:text-white transition flex items-center gap-2">
-                    <Info size={14} /> Website Details
+                <Link to="/privacy" className="text-sm text-muted hover:text-main transition flex items-center gap-2">
+                    <Lock size={16} /> Privacy Policy
                 </Link>
+                <Link to="/login" className="text-sm text-muted hover:text-main transition flex items-center gap-2">
+                    <LogIn size={16} /> Authentication
+                </Link>
+                <div className="pt-2 flex items-center gap-3 grayscale opacity-30">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" className="h-4 w-auto" alt="Paypal" />
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" className="h-4 w-auto" alt="Visa" />
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" className="h-4 w-auto" alt="Mastercard" />
+                </div>
             </div>
         </div>
 
       </div>
 
-      {/* PARTNER / REFERRAL BANNER - Only on Home */}
-      {isHome && (
-          <div className="flex justify-center py-8 border-t border-white/5 mt-8 bg-black/40">
-              <a href="https://beta.publishers.adsterra.com/referral/R8fkj7ZJZA" target="_blank" rel="nofollow" className="hover:opacity-80 transition opacity-60">
-                  <img alt="banner" src="https://landings-cdn.adsterratech.com/referralBanners/gif/468x60_adsterra_reff.gif" className="rounded-lg border border-white/10" />
-              </a>
-          </div>
-      )}
-      
-      <div className="max-w-5xl mx-auto px-6 pt-6 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-[10px] text-gray-600 uppercase font-bold tracking-wider">
-              &copy; {new Date().getFullYear()} Naxxivo Inc. All rights reserved.
+      <div className="max-w-7xl mx-auto px-6 pt-12 text-center md:text-left flex flex-col md:flex-row justify-between items-center gap-6">
+          <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+              &copy; {new Date().getFullYear()} Naxxivo Inc. International Gateway.
           </p>
-          <div className="flex items-center gap-4">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              <span className="text-[10px] text-green-500 font-bold uppercase tracking-widest">Systems Operational</span>
+          <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-success rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></div>
+                  <span className="text-[10px] text-success font-black uppercase tracking-widest">Operational</span>
+              </div>
+              <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted font-black uppercase tracking-widest">Global Node: ID-882</span>
+              </div>
           </div>
       </div>
     </footer>

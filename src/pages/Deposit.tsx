@@ -1,10 +1,10 @@
-
 import React, { useEffect, useState } from 'react';
 import GlassCard from '../components/GlassCard';
 import { ArrowLeft, CheckCircle, Loader2, Copy, ArrowRight, X, Clock, FileText, Zap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
-import { PaymentMethod } from '../types';
+// Fix: Updated import path to correctly reference root types.ts from src/pages directory
+import { PaymentMethod } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUI } from '../context/UIContext';
 import { useCurrency } from '../context/CurrencyContext';

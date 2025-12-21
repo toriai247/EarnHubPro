@@ -1,23 +1,19 @@
 
 {
-  "name": "Naxxivo",
+  "name": "Naxxivo Global",
   "short_name": "Naxxivo",
-  "description": "Premium Earning Dashboard",
+  "description": "World-Class Earning & Investment Ecosystem.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#050505",
-  "theme_color": "#050505",
+  "background_color": "#000000",
+  "theme_color": "#FFBE0B",
+  "categories": ["finance", "games", "productivity"],
   "icons": [
     {
-      "src": "/images/logo.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/images/logo.png",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='128' fill='%23FFBE0B'/%3E%3Cpath d='M150 400V112l212 288V112' stroke='black' stroke-width='40' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
-  ],
-  "requestFramePermissions": []
+  ]
 }

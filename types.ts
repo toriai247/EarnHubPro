@@ -1,4 +1,28 @@
 
+export interface Lottery {
+    id: string;
+    title: string;
+    description: string;
+    prize_value: number;
+    ticket_price: number;
+    total_tickets: number;
+    sold_tickets: number;
+    image_url?: string;
+    status: 'active' | 'ended' | 'drawn';
+    winner_id?: string;
+    winner_name?: string;
+    end_date: string;
+    created_at: string;
+}
+
+export interface LotteryTicket {
+    id: string;
+    lottery_id: string;
+    user_id: string;
+    ticket_number: string;
+    created_at: string;
+}
+
 export interface PublishedSite {
     id: string;
     name: string;
@@ -27,7 +51,7 @@ export interface WebsiteReview {
     is_public: boolean;
     admin_reply?: string;
     created_at: string;
-    profile?: UserProfile; // Joined
+    profile?: UserProfile; 
 }
 
 export interface UnlimitedEarnLog {
@@ -38,11 +62,10 @@ export interface UnlimitedEarnLog {
     device_info: string;
     country: string;
     amount: number;
-    source?: string; // Added source tracking
+    source?: string; 
     created_at: string;
 }
 
-// NEW INVESTMENT TYPES
 export type AssetType = 'commodity' | 'currency' | 'business';
 
 export interface Asset {
@@ -53,13 +76,10 @@ export interface Asset {
     image_url?: string;
     current_price: number;
     previous_price?: number;
-    
-    // Business Specific
     target_fund?: number;
     collected_fund?: number;
     profit_rate?: number;
     duration_days?: number;
-    
     is_active: boolean;
     created_at?: string;
 }
@@ -72,15 +92,8 @@ export interface UserAsset {
     average_buy_price: number;
     status: 'holding' | 'sold' | 'delivery_requested';
     delivery_details?: string;
-    asset?: Asset; // Joined
+    asset?: Asset; 
     created_at: string;
-}
-
-export interface TaskRequirement {
-  id: string;
-  type: 'text' | 'image' | 'code';
-  label: string;
-  required: boolean;
 }
 
 export interface QuizConfig {
@@ -105,62 +118,12 @@ export interface MarketTask {
   expected_file_name?: string; 
   quiz_config?: QuizConfig; 
   ai_reference_data?: any; 
-  requirements?: TaskRequirement[]; 
   timer_seconds?: number; 
   status: 'active' | 'paused' | 'completed' | 'banned';
   company_name?: string;
   is_featured?: boolean;
   auto_approve_hours?: number; 
   created_at: string;
-  creator_role?: 'admin' | 'dealer' | 'staff' | 'user'; 
-  creator_verified?: boolean; 
-}
-
-export interface TaskReport {
-    id: string;
-    task_id: string;
-    reporter_id: string;
-    reason: string;
-    status: 'pending' | 'resolved';
-    created_at: string;
-    task?: MarketTask;
-}
-
-export interface VideoAd {
-    id: string;
-    creator_id: string;
-    title: string;
-    video_url: string;
-    thumbnail_url?: string;
-    duration: number;
-    total_budget: number;
-    remaining_budget: number;
-    cost_per_view: number;
-    status: 'active' | 'paused' | 'completed';
-    created_at: string;
-}
-
-export interface MarketSubmission {
-  id: string;
-  task_id: string;
-  worker_id: string;
-  submission_data?: Record<string, string>; 
-  status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-}
-
-export interface Transaction {
-  id: string;
-  user_id: string;
-  type: 'deposit' | 'withdraw' | 'earn' | 'bonus' | 'invest' | 'game_win' | 'game_loss' | 'referral' | 'penalty' | 'transfer' | 'sponsorship' | 'asset_buy' | 'asset_sell' | 'fee' | 'roi_claim';
-  amount: number;
-  status: 'success' | 'pending' | 'failed';
-  description?: string;
-  metadata?: any;
-  created_at: string;
-  time?: string;
-  title?: string;
-  timestamp?: number;
 }
 
 export interface WalletData {
@@ -205,11 +168,7 @@ export interface UserProfile {
   rank_1?: string;
   xp_1: number;
   phone_1?: string | null;
-  socials_1?: {
-    twitter?: string;
-    telegram?: string;
-    discord?: string;
-  };
+  socials_1?: any;
   badges_1?: string[];
   sec_2fa_1?: boolean;
   admin_user?: boolean;
@@ -217,32 +176,11 @@ export interface UserProfile {
   created_at: string;
 }
 
-export interface InfluencerCampaign {
-    id: string;
-    title: string;
-    platform: 'facebook' | 'youtube' | 'instagram' | 'tiktok';
-    media_link: string;
-    requirements: string;
-    payout: number;
-    status: 'active' | 'completed';
-    created_at: string;
-}
-
-export interface InfluencerSubmission {
-    id: string;
-    campaign_id: string;
-    user_id: string;
-    proof_link: string;
-    views_count: number;
-    status: 'pending' | 'approved' | 'rejected';
-    created_at: string;
-}
-
 export interface Game { 
   id: string; 
   name: string; 
   players: number; 
-  type: 'crash' | 'wheel' | 'slots' | 'ludo'; 
+  type: 'crash' | 'wheel' | 'slots'; 
   status?: string;
   image?: string;
   description?: string;
@@ -251,11 +189,7 @@ export interface Game {
   bgColor?: string;
   path?: string;
 }
-export interface GameConfig { id: string; name: string; is_active: boolean; }
-export interface VideoShort { id: string; username: string; description: string; likes: string; comments: string; videoUrl: string; }
-export interface Activity { id: string; title: string; type: Transaction['type']; amount: number; time: string; timestamp: number; status?: string; }
-export interface ReferralStats { code: string; invitedUsers: number; totalEarned: number; }
-export interface AdminStats { totalUsers: number; totalDeposits: number; totalWithdrawals: number; pendingWithdrawals: number; revenue: number; }
+
 export interface DepositRequest { 
     id: string; 
     user_id: string; 
@@ -264,58 +198,227 @@ export interface DepositRequest {
     transaction_id: string; 
     sender_number: string; 
     screenshot_url?: string; 
-    user_note?: string; // New field
+    user_note?: string;
     status: 'pending' | 'approved' | 'rejected'; 
     admin_note?: string; 
     created_at: string; 
     processed_at?: string; 
 }
+
 export interface WithdrawRequest { id: string; user_id: string; amount: number; method: string; account_number?: string; status: 'pending' | 'approved' | 'rejected'; created_at: string; processed_at?: string; }
 export interface WithdrawalSettings { id: string; min_withdraw: number; max_withdraw: number; daily_limit: number; monthly_limit: number; id_change_fee: number; withdraw_fee_percent: number; kyc_required: boolean; }
-export interface UserWithdrawMethod { id: string; user_id: string; method_name: string; account_number: string; is_auto_enabled: boolean; }
-export interface DepositBonus { id: string; title: string; tier_level: number; method_name?: string | null; bonus_percent: number; bonus_fixed: number; min_deposit: number; is_active: boolean; }
-export interface PaymentMethod { id: string; name: string; account_number: string; type: 'mobile_banking' | 'crypto' | 'bank'; instruction?: string; logo_url?: string; is_active: boolean; }
-export interface GameResult { id: string; gameId: string; gameName: string; bet: number; payout: number; profit: number; timestamp: number; details: string; }
-export interface AppNotification { id: string; title: string; message: string; type: 'info' | 'success' | 'warning' | 'error'; created_at: string; read: boolean; is_read?: boolean; }
-export interface BotProfile { id: string; name: string; avatar: string; is_active: boolean; }
-export interface SpinItem { id: string; label: string; value: number; probability: number; color: string; is_active: boolean; }
-export interface SystemConfig { 
-    id: string; 
-    is_tasks_enabled: boolean; 
-    is_games_enabled: boolean; 
-    is_invest_enabled: boolean; 
-    is_invite_enabled: boolean; 
-    is_video_enabled: boolean; 
-    is_deposit_enabled: boolean; 
-    is_withdraw_enabled: boolean; 
-    maintenance_mode: boolean; 
-    global_alert: string | null; 
-    p2p_transfer_fee_percent?: number; 
-    p2p_min_transfer?: number; 
-    is_activation_enabled?: boolean; 
-    activation_amount?: number; 
-    is_pwa_enabled?: boolean;
-    hero_title?: string;
-    hero_description?: string;
-    hero_image_url?: string;
-    task_commission_percent?: number;
-    adsterra_api_token?: string; // New
-}
-export interface HelpRequest { id: string; user_id?: string; email: string; message: string; status: 'pending' | 'resolved'; admin_response?: string; resolved_at?: string; created_at: string; }
-export interface KycRequest { id: string; user_id: string; full_name: string; id_type: string; id_number: string; front_image_url: string; back_image_url: string; status: 'pending' | 'approved' | 'rejected'; admin_note?: string; created_at: string; profile?: UserProfile; }
-export interface ReferralTier { id: string; level: number; commission_percent: number; type: 'deposit' | 'earning'; is_active: boolean; created_at?: string; }
+export interface AppNotification { id: string; title: string; message: string; type: 'info' | 'success' | 'warning' | 'error'; created_at: string; is_read?: boolean; }
 
-// --- INVESTMENT PACKAGES (Updated) ---
-export interface InvestmentPlan { 
-    id: string; 
-    name: string; 
-    daily_return: number; // Used as Fixed Daily Income in Packages
-    duration: number; // Days
-    min_invest: number; // Cost
-    total_roi: number; // Total Income (Cost + Profit)
-    badge_tag?: string; 
-    description?: string; 
-    is_active?: boolean; 
+export interface InvestmentPlan {
+  id: string;
+  name: string;
+  daily_return: number;
+  duration: number;
+  min_invest: number;
+  total_roi: number;
+  badge_tag?: string;
+  is_active?: boolean;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  reward: number;
+  sponsor_rate: number;
+  icon: string;
+  difficulty: string;
+  status: string;
+  type: string;
+  frequency: string;
+}
+
+export interface Transaction {
+  id: string;
+  user_id: string;
+  type: string;
+  amount: number;
+  created_at: string;
+  status: string;
+  description: string;
+  from_wallet?: string;
+  to_wallet?: string;
+  balance_before?: number;
+  balance_after?: number;
+  wallet_affected?: string;
+}
+
+export interface VideoShort {
+  id: string;
+  username: string;
+  description: string;
+  likes: string;
+  comments: string;
+  videoUrl: string;
+}
+
+export interface Activity {
+  id: string;
+  title: string;
+  type: string;
+  amount?: number;
+  time: string;
+  timestamp: number;
+  status?: string;
+}
+
+export interface ReferralStats {
+    code: string;
+    invitedUsers: number;
+    totalEarned: number;
+}
+
+export interface VideoAd {
+  id: string;
+  creator_id: string;
+  title: string;
+  video_url: string;
+  thumbnail_url?: string;
+  duration: number;
+  total_budget: number;
+  remaining_budget: number;
+  cost_per_view: number;
+  status: 'active' | 'paused' | 'completed';
+  created_at: string;
+  profiles?: {
+    name_1: string;
+    avatar_1: string | null;
+  };
+}
+
+export interface BotProfile {
+    id: string;
+    name: string;
+    avatar: string;
+    is_active: boolean;
+    created_at?: string;
+}
+
+export interface DepositBonus {
+    id: string;
+    title: string;
+    tier_level: number;
+    method_name: string | null;
+    bonus_percent: number;
+    bonus_fixed: number;
+    min_deposit: number;
+    is_active: boolean;
+}
+
+export interface PaymentMethod {
+    id: string;
+    name: string;
+    account_number: string;
+    type: string;
+    instruction: string | null;
+    logo_url: string | null;
+    is_active: boolean;
+    created_at?: string;
+}
+
+export interface SystemConfig {
+  id: string;
+  is_tasks_enabled: boolean;
+  is_games_enabled: boolean;
+  is_invest_enabled: boolean;
+  is_invite_enabled: boolean;
+  is_video_enabled: boolean;
+  is_deposit_enabled: boolean;
+  is_withdraw_enabled: boolean;
+  maintenance_mode: boolean;
+  global_alert: string | null;
+  p2p_transfer_fee_percent?: number;
+  p2p_min_transfer?: number;
+  is_activation_enabled?: boolean;
+  activation_amount?: number;
+  is_pwa_enabled?: boolean;
+  hero_title?: string;
+  hero_description?: string;
+  hero_image_url?: string;
+  task_commission_percent?: number;
+  adsterra_api_token?: string;
+  gplinks_api_token?: string;
+}
+
+export interface SpinItem {
+    id?: string;
+    label: string;
+    value: number;
+    probability: number;
+    color: string;
+    is_active: boolean;
+}
+
+export interface UserWithdrawMethod {
+    user_id: string;
+    method_name: string;
+    account_number: string;
+    is_auto_enabled: boolean;
+}
+
+export interface GameResult {
+    id: string;
+    gameId: string;
+    gameName: string;
+    bet: number;
+    payout: number;
+    profit: number;
+    details: string;
+    timestamp: number;
+}
+
+export interface GameConfig {
+    id: string;
+    name: string;
+    is_active: boolean;
+}
+
+export interface HelpRequest {
+    id: string;
+    user_id: string | null;
+    email: string;
+    message: string;
+    status: 'pending' | 'resolved';
+    admin_response?: string;
+    created_at: string;
+    resolved_at?: string;
+}
+
+export interface ReferralTier {
+    id: string;
+    level: number;
+    commission_percent: number;
+    type: string;
+    is_active: boolean;
+}
+
+export interface KycRequest {
+    id: string;
+    user_id: string;
+    full_name: string;
+    id_type: string;
+    id_number: string;
+    front_image_url: string;
+    back_image_url: string;
+    status: 'pending' | 'approved' | 'rejected';
+    admin_note?: string;
+    created_at: string;
+    profile?: UserProfile;
+}
+
+export interface InfluencerCampaign {
+    id: string;
+    title: string;
+    platform: string;
+    requirements: string;
+    media_link: string;
+    payout: number;
+    status: 'active' | 'completed';
+    created_at: string;
 }
 
 export interface UserInvestment {
@@ -325,13 +428,10 @@ export interface UserInvestment {
     plan_name: string;
     amount: number;
     daily_return: number;
-    total_profit_percent: number;
     start_date: string;
     end_date: string;
     status: 'active' | 'completed';
     total_earned: number;
-    last_claim_at: string;
     next_claim_at: string;
+    last_claim_at?: string;
 }
-
-export interface Task { id: string; title: string; description?: string; reward: number; sponsor_rate?: number; icon: string; url?: string; difficulty: 'Easy' | 'Medium' | 'Hard'; frequency: 'once' | 'daily'; type: 'social' | 'video' | 'app' | 'website'; status?: 'available' | 'completed' | 'cooldown'; is_active?: boolean; created_at?: string; }

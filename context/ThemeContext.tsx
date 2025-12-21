@@ -15,19 +15,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setThemeState] = useState<ThemeId>(() => {
     const saved = localStorage.getItem('eh_theme_id');
     const validThemes = ['default', 'premium', 'lite', 'midnight', 'terminal', 'solarized', 'dracula', 'material'];
-    // Default to 'midnight' (Yellow 002) if no preference saved
     return (validThemes.includes(saved as string)) ? (saved as ThemeId) : 'midnight';
   });
 
-  // Effect to handle root class changes
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.remove('default', 'premium', 'lite', 'midnight', 'terminal', 'solarized', 'dracula', 'material');
+    const validThemes = ['default', 'premium', 'lite', 'midnight', 'terminal', 'solarized', 'dracula', 'material'];
+    root.classList.remove(...validThemes);
     root.classList.add(theme);
     localStorage.setItem('eh_theme_id', theme);
   }, [theme]);
 
-  // Effect to load theme from DB on auth state change
   useEffect(() => {
     const loadThemeFromDB = async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -48,12 +46,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     };
     loadThemeFromDB();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_IN') loadThemeFromDB();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const setTheme = async (newTheme: ThemeId) => {
     setThemeState(newTheme);
-    
-    // Save to DB if logged in
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
         await supabase.from('profiles').update({ theme_id: newTheme }).eq('id', session.user.id);

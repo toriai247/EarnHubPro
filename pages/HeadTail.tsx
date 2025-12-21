@@ -1,12 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import GlassCard from '../components/GlassCard';
-import { ArrowLeft, Volume2, VolumeX, Coins, Zap, RefreshCw, Wallet } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, Coins, Zap, RefreshCw, Wallet, Trophy, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
-import { createTransaction } from '../lib/actions';
+import { updateWallet, createTransaction } from '../lib/actions';
 import { getPlayableBalance, deductGameBalance, determineOutcome } from '../lib/gameMath';
-import { updateWallet } from '../lib/actions';
 import { useUI } from '../context/UIContext';
 import BalanceDisplay from '../components/BalanceDisplay';
 import { useCurrency } from '../context/CurrencyContext';
@@ -16,7 +15,6 @@ import confetti from 'canvas-confetti';
 const HeadTail: React.FC = () => {
   const { toast } = useUI();
   const { symbol, format } = useCurrency();
-  
   const [totalBalance, setTotalBalance] = useState(0);
   const [betAmount, setBetAmount] = useState<string>('10');
   const [choice, setChoice] = useState<'head' | 'tail'>('head');
@@ -25,48 +23,44 @@ const HeadTail: React.FC = () => {
   const [history, setHistory] = useState<('head' | 'tail')[]>([]);
   const [soundOn, setSoundOn] = useState(true);
 
-  const flipSound = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'));
-  const winSound = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'));
+  const flipSound = useRef(new window.Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'));
+  const winSound = useRef(new window.Audio('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'));
+  const loseSound = useRef(new window.Audio('https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3'));
   
   useEffect(() => {
       flipSound.current.volume = 0.6; 
       winSound.current.volume = 0.8;
+      loseSound.current.volume = 0.6;
       fetchBalance();
   }, []);
 
-  const MULTIPLIER = 1.90;
-  const FLIP_DURATION = 2000;
+  const MULTIPLIER = 1.95;
+  const FLIP_DURATION = 2.2; 
 
   const fetchBalance = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if(session) {
-          const bal = await getPlayableBalance(session.user.id);
-          setTotalBalance(bal);
-      }
+      if(session) setTotalBalance(await getPlayableBalance(session.user.id));
   };
 
-  const vibrate = (pattern: number[]) => {
-      if (navigator.vibrate) navigator.vibrate(pattern);
-  };
-
-  const handleQuickAmount = (action: 'min' | 'half' | 'double' | 'max') => {
+  const handleQuickAmount = (action: string) => {
+      if (isFlipping) return;
       const current = parseFloat(betAmount) || 0;
       let next = current;
-      if (action === 'min') next = 1;
-      if (action === 'half') next = Math.max(1, current / 2);
-      if (action === 'double') next = Math.min(500, current * 2);
-      if (action === 'max') next = Math.min(500, totalBalance);
-      setBetAmount(next.toFixed(0));
+      switch(action) {
+          case 'min': next = 10; break;
+          case 'half': next = Math.max(1, current / 2); break;
+          case 'double': next = current * 2; break;
+          case 'max': next = totalBalance; break;
+          case 'plus10': next = current + 10; break;
+          case 'plus50': next = current + 50; break;
+      }
+      setBetAmount(Math.round(next).toString());
   };
 
   const handleFlip = async () => {
       const amount = parseFloat(betAmount);
-      
-      // Enforce limits: 1 BDT min, 500 BDT max
       if (isNaN(amount) || amount < 1) { toast.error("Minimum bet is 1 BDT"); return; }
-      if (amount > 500) { toast.error("Maximum bet is 500 BDT"); return; }
       if (amount > totalBalance) { toast.error("Insufficient balance"); return; }
-
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
@@ -75,42 +69,19 @@ const HeadTail: React.FC = () => {
           flipSound.current.currentTime = 0;
           flipSound.current.play().catch(() => {});
       }
-      vibrate([50]);
 
-      // Deduct from aggregate wallet
       try {
-          await deductGameBalance(session.user.id, amount);
+          await deductGameBalance(session.user.id, amount, 'Head & Tail');
           setTotalBalance(prev => prev - amount);
-          
           await createTransaction(session.user.id, 'game_bet', amount, `Coin Bet: ${choice.toUpperCase()}`);
-      } catch (e: any) {
-          toast.error(e.message);
-          setIsFlipping(false);
-          return;
-      }
-
-      try {
-          // Rigging Logic: determineOutcome handles the 10% win rate if balance >= 1000
-          const outcome = await determineOutcome(session.user.id, 0.50);
-
-          let result: 'head' | 'tail';
-          if (outcome === 'win') {
-              result = choice; 
-          } else {
-              result = choice === 'head' ? 'tail' : 'head'; 
-          }
-
+          const outcome = await determineOutcome(session.user.id, 0.48, amount);
+          const result: 'head' | 'tail' = outcome === 'win' ? choice : (choice === 'head' ? 'tail' : 'head');
           const isWin = choice === result;
           const payout = isWin ? amount * MULTIPLIER : 0;
-
-          // Animation logic
-          const currentRotation = rotation;
-          const spins = 1800; 
+          const spins = 1800 + Math.floor(Math.random() * 720);
           const targetAngle = result === 'head' ? 0 : 180;
-          const remainder = currentRotation % 360;
-          const adjustment = targetAngle - remainder + 360; 
-          const newRotation = currentRotation + spins + adjustment;
-          setRotation(newRotation);
+          const nextRotation = rotation + spins + (targetAngle - (rotation + spins) % 360);
+          setRotation(nextRotation);
 
           setTimeout(async () => {
               setIsFlipping(false);
@@ -118,186 +89,120 @@ const HeadTail: React.FC = () => {
 
               if (isWin) {
                   if (soundOn) winSound.current.play().catch(() => {});
-                  vibrate([100, 50, 100]); 
-                  
-                  toast.success(`You Won ${format(payout)}!`);
-                  confetti({
-                      particleCount: 100,
-                      spread: 60,
-                      origin: { y: 0.6 },
-                      colors: ['#FFD700', '#F43F5E']
-                  });
-                  
+                  toast.success(`VICTORY: Won ${format(payout)}!`);
+                  confetti({ particleCount: 80, spread: 50, origin: { y: 0.7 }, colors: ['#FFD60A', '#FFFFFF'] });
                   await updateWallet(session.user.id, payout, 'increment', 'game_balance');
                   await createTransaction(session.user.id, 'game_win', payout, `Coin Win`);
                   setTotalBalance(prev => prev + payout);
               } else {
-                  vibrate([200]);
+                  if (soundOn) loseSound.current.play().catch(() => {});
+                  toast.info(`Landed on ${result.toUpperCase()}. Better luck next time.`);
               }
-
-              await supabase.from('game_history').insert({
-                  user_id: session.user.id,
-                  game_id: 'headtail',
-                  game_name: 'Head & Tail',
-                  bet: amount,
-                  payout: payout,
-                  profit: payout - amount,
-                  details: `Choice: ${choice} | Result: ${result}`
-              });
-
+              await supabase.from('game_history').insert({ user_id: session.user.id, game_id: 'headtail', game_name: 'Head & Tail', bet: amount, payout: payout, profit: payout - amount, details: `Choice: ${choice} | Result: ${result}` });
               fetchBalance();
-          }, FLIP_DURATION);
-
+          }, FLIP_DURATION * 1000);
       } catch (e: any) {
-          toast.error("Error: " + e.message);
+          toast.error(e.message);
           setIsFlipping(false);
-          fetchBalance(); 
+          fetchBalance();
       }
   };
 
   return (
-    <div className="pb-32 pt-4 px-4 max-w-lg mx-auto min-h-screen relative font-sans flex flex-col">
-        
-        <div className="flex justify-between items-center mb-4 z-10">
+    <div className="pb-32 pt-4 px-4 max-w-lg mx-auto min-h-screen relative flex flex-col bg-void overflow-hidden selection:bg-brand selection:text-black">
+        <div className="flex justify-between items-center mb-8 z-10">
            <div className="flex items-center gap-3">
-               <Link to="/games" className="p-2 bg-white/5 rounded-xl hover:bg-white/10 transition text-white border border-white/10">
+               <Link to="/games" className="p-2.5 bg-panel rounded-2xl border border-white/5 text-white hover:bg-white/10 transition active:scale-90">
                    <ArrowLeft size={20} />
                </Link>
-               <h1 className="text-lg font-black text-white uppercase tracking-wider">Coin Flip</h1>
+               <div>
+                  <h1 className="text-xl font-black text-white uppercase tracking-tighter leading-none">Luxury <span className="text-brand">Coin</span></h1>
+                  <div className="flex items-center gap-1.5 mt-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse shadow-glow"></div>
+                      <span className="text-[8px] text-muted font-black uppercase tracking-widest">3D Physics</span>
+                  </div>
+               </div>
            </div>
-           <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]">
-                <Wallet size={16} className="text-yellow-500" />
-                <span className="text-lg font-black text-yellow-400 tracking-wide"><BalanceDisplay amount={totalBalance}/></span>
+           <div className="flex items-center gap-2">
+                <button onClick={() => setSoundOn(!soundOn)} className="p-2.5 bg-white/5 rounded-2xl text-gray-400 hover:text-white transition border border-white/5">
+                   {soundOn ? <Volume2 size={18}/> : <VolumeX size={18}/>}
+                </button>
+                <div className="flex items-center gap-2 bg-panel px-4 py-2.5 rounded-2xl border border-brand/20 shadow-glow">
+                    <Wallet size={16} className="text-brand" />
+                    <span className="text-lg font-black text-brand tracking-tighter font-mono leading-none"><BalanceDisplay amount={totalBalance}/></span>
+                </div>
             </div>
-           <button onClick={() => setSoundOn(!soundOn)} className="p-2 text-gray-400 hover:text-white transition bg-white/5 rounded-xl border border-white/10">
-               {soundOn ? <Volume2 size={20}/> : <VolumeX size={20}/>}
-           </button>
         </div>
 
-        {/* History Bar */}
-        <div className="flex justify-center gap-2 mb-4 h-8 z-10">
+        <div className="flex justify-center gap-2 mb-10 h-8 z-10 overflow-x-auto no-scrollbar">
             <AnimatePresence>
                 {history.map((res, idx) => (
-                    <motion.div 
-                        key={`${idx}-${res}`}
-                        initial={{ scale: 0, x: -10 }}
-                        animate={{ scale: 1, x: 0 }}
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border ${res === 'head' ? 'bg-yellow-500 border-yellow-300 text-black' : 'bg-slate-500 border-slate-300 text-white'}`}
-                    >
-                        {res === 'head' ? 'H' : 'T'}
-                    </motion.div>
+                    <motion.div key={`${idx}-${res}`} initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black border-2 transition-all ${res === 'head' ? 'bg-brand/20 border-brand text-brand' : 'bg-white/5 border-white/20 text-gray-500'}`}>{res === 'head' ? 'H' : 'T'}</motion.div>
                 ))}
             </AnimatePresence>
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center relative z-10 min-h-[300px]">
             <div className="relative perspective-1000">
-                <motion.div
-                    animate={isFlipping ? { 
-                        y: [0, -200, 0], 
-                        scale: [1, 1.3, 1],
-                    } : { y: 0, scale: 1 }}
-                    transition={{ duration: FLIP_DURATION / 1000, ease: "easeInOut" }}
-                    className="relative preserve-3d w-48 h-48"
-                    style={{ 
-                        transform: `rotateY(${rotation}deg)`,
-                        transition: isFlipping ? `transform ${FLIP_DURATION}ms cubic-bezier(0.45, 0, 0.55, 1)` : 'none'
-                    }}
-                >
-                    <div className="absolute inset-0 backface-hidden rounded-full bg-gradient-to-br from-yellow-400 via-yellow-600 to-yellow-800 border-4 border-yellow-300 shadow-xl flex items-center justify-center">
-                        <div className="absolute inset-2 border-2 border-yellow-200/50 rounded-full border-dashed opacity-50"></div>
-                        <Coins size={80} className="text-yellow-100 drop-shadow-md" strokeWidth={1.5} />
+                <motion.div animate={isFlipping ? { y: [0, -300, 0], scale: [1, 1.3, 1], rotateY: rotation, } : { y: 0, scale: 1, rotateY: rotation }} transition={{ duration: FLIP_DURATION, ease: [0.22, 1, 0.36, 1] }} className="relative preserve-3d w-52 h-52">
+                    <div className="absolute inset-0 backface-hidden rounded-full bg-gradient-to-br from-[#FFD60A] via-[#FFBE0B] to-[#B45309] border-[6px] border-[#FFD60A] shadow-2xl flex items-center justify-center overflow-hidden">
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                        <div className="relative flex flex-col items-center">
+                            <div className="w-24 h-24 rounded-full border-4 border-black/10 flex items-center justify-center bg-white/10 backdrop-blur-sm">
+                                <Coins size={60} className="text-black/60" strokeWidth={2.5} />
+                            </div>
+                            <span className="mt-2 text-black/60 font-black text-xs tracking-widest uppercase">Heads</span>
+                        </div>
                     </div>
-
-                    <div className="absolute inset-0 backface-hidden rounded-full bg-gradient-to-br from-slate-400 via-slate-600 to-slate-800 border-4 border-slate-300 shadow-xl flex items-center justify-center" style={{ transform: 'rotateY(180deg)' }}>
-                         <div className="absolute inset-2 border-2 border-slate-200/50 rounded-full border-dashed opacity-50"></div>
-                        <Zap size={80} className="text-slate-100 drop-shadow-md" strokeWidth={1.5} />
+                    <div className="absolute inset-0 backface-hidden rounded-full bg-gradient-to-br from-[#FFD60A] via-[#FFBE0B] to-[#B45309] border-[6px] border-[#FFD60A] shadow-2xl flex items-center justify-center overflow-hidden" style={{ transform: 'rotateY(180deg)' }}>
+                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                         <div className="relative flex flex-col items-center">
+                            <div className="w-24 h-24 rounded-full border-4 border-black/10 flex items-center justify-center bg-white/10 backdrop-blur-sm">
+                                <Zap size={60} className="text-black/60" fill="currentColor" />
+                            </div>
+                            <span className="mt-2 text-black/60 font-black text-xs tracking-widest uppercase">Tails</span>
+                        </div>
                     </div>
-
-                    <div className="absolute inset-0 rounded-full border-[8px] border-[#854d0e] -z-10 translate-z-[-5px]"></div>
                 </motion.div>
-                
-                <motion.div 
-                    animate={isFlipping ? { scale: [1, 0.5, 1], opacity: [0.5, 0.2, 0.5] } : { scale: 1, opacity: 0.5 }}
-                    transition={{ duration: FLIP_DURATION / 1000 }}
-                    className="absolute -bottom-16 left-1/2 -translate-x-1/2 w-32 h-4 bg-black/60 blur-xl rounded-full"
-                />
+                <motion.div animate={isFlipping ? { scale: [1, 0.3, 1], opacity: [0.3, 0.05, 0.3], filter: ['blur(15px)', 'blur(25px)', 'blur(15px)'] } : { scale: 1, opacity: 0.3, filter: 'blur(15px)' }} transition={{ duration: FLIP_DURATION, ease: "easeInOut" }} className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-40 h-8 bg-black rounded-full" />
             </div>
-            
-            <div className="mt-12 text-center">
-                 <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Potential Win</p>
-                 <p className={`text-2xl font-black ${isFlipping ? 'text-white animate-pulse' : 'text-green-400'}`}>
-                     {format(parseFloat(betAmount) * MULTIPLIER)}
-                 </p>
+            <div className="mt-24 text-center">
+                 <p className={`text-4xl font-black font-mono leading-none transition-all duration-500 ${isFlipping ? 'text-white/20 blur-sm' : 'text-success drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]'}`}>{format(parseFloat(betAmount) * MULTIPLIER)}</p>
             </div>
         </div>
 
-        <GlassCard className="p-4 bg-[#151515] border-t border-white/10 rounded-t-3xl rounded-b-none -mx-4 pb-10">
-            <div className="flex bg-black/40 p-1.5 rounded-xl mb-4 border border-white/5 relative h-12">
-                <motion.div 
-                    className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-lg shadow-lg ${choice === 'head' ? 'left-1.5 bg-yellow-500' : 'left-[calc(50%+4px)] bg-slate-500'}`}
-                    layoutId="selector"
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-                <button 
-                    onClick={() => setChoice('head')} 
-                    disabled={isFlipping}
-                    className={`flex-1 relative z-10 font-bold uppercase text-xs flex items-center justify-center gap-2 ${choice === 'head' ? 'text-black' : 'text-gray-500'}`}
-                >
-                    HEADS
-                </button>
-                <button 
-                    onClick={() => setChoice('tail')} 
-                    disabled={isFlipping}
-                    className={`flex-1 relative z-10 font-bold uppercase text-xs flex items-center justify-center gap-2 ${choice === 'tail' ? 'text-white' : 'text-gray-500'}`}
-                >
-                    TAILS
-                </button>
+        <GlassCard className="p-6 bg-panel border-t border-white/10 rounded-t-[3.5rem] rounded-b-none -mx-4 pb-12 shadow-2xl relative">
+            <div className="flex bg-void p-1.5 rounded-2xl mb-6 border border-border-base relative h-14">
+                <motion.div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-xl shadow-lg ${choice === 'head' ? 'left-1.5 bg-brand' : 'left-[calc(50%+4px)] bg-brand'}`} layoutId="sideSelector" transition={{ type: "spring", stiffness: 400, damping: 35 }} />
+                <button onClick={() => setChoice('head')} disabled={isFlipping} className={`flex-1 relative z-10 font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-colors ${choice === 'head' ? 'text-black' : 'text-gray-500'}`}>HEADS</button>
+                <button onClick={() => setChoice('tail')} disabled={isFlipping} className={`flex-1 relative z-10 font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-colors ${choice === 'tail' ? 'text-black' : 'text-gray-500'}`}>TAILS</button>
             </div>
 
-            <div className="flex items-center gap-3 mb-4">
-                <div className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 flex-1 flex flex-col justify-center">
-                     <p className="text-[9px] text-gray-500 font-bold uppercase">Bet Amount</p>
-                     <div className="flex items-center gap-1">
-                         <span className="text-gray-400 font-bold text-sm">{symbol}</span>
-                         <input 
-                            type="number" 
-                            value={betAmount} 
-                            onChange={e => setBetAmount(e.target.value)}
-                            disabled={isFlipping}
-                            className="bg-transparent text-white font-mono font-bold text-lg w-full outline-none"
-                         />
+            <div className="flex items-stretch gap-4 mb-6">
+                <div className="bg-void border border-border-base rounded-[2rem] px-6 py-4 flex-1 flex flex-col justify-center transition-all focus-within:border-brand/40 group">
+                     <p className="text-[10px] text-muted font-black uppercase tracking-widest mb-1 group-focus-within:text-brand">STAKE AMOUNT</p>
+                     <div className="flex items-center gap-2">
+                         <span className="text-brand font-black text-2xl">{symbol}</span>
+                         <input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value)} disabled={isFlipping} className="bg-transparent text-white font-mono font-black text-3xl w-full outline-none placeholder-gray-800" placeholder="0" />
                      </div>
                 </div>
-                <button 
-                    onClick={handleFlip}
-                    disabled={isFlipping}
-                    className={`h-14 px-8 rounded-xl font-black uppercase text-sm shadow-lg flex items-center gap-2 transition active:scale-95 ${isFlipping ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-green-500 text-black hover:bg-green-400'}`}
-                >
-                    {isFlipping ? <RefreshCw className="animate-spin" /> : 'FLIP IT'}
+                <button onClick={handleFlip} disabled={isFlipping} className={`px-10 rounded-[2rem] font-black uppercase text-base shadow-2xl flex items-center justify-center gap-3 transition-all active:scale-95 ${isFlipping ? 'bg-gray-700 text-gray-500 cursor-not-allowed opacity-80' : 'bg-brand text-black hover:bg-white shadow-yellow-pop'}`}>
+                    {isFlipping ? <RefreshCw className="animate-spin" size={24} /> : 'FLIP'}
                 </button>
             </div>
-
-            <div className="grid grid-cols-4 gap-2">
-                {['min', 'half', 'double', 'max'].map((action) => (
-                    <button 
-                        key={action}
-                        onClick={() => handleQuickAmount(action as any)}
-                        disabled={isFlipping}
-                        className="py-2 bg-white/5 rounded-lg text-[10px] font-bold text-gray-400 hover:text-white hover:bg-white/10 border border-white/5 uppercase"
-                    >
-                        {action}
-                    </button>
+            <div className="grid grid-cols-3 gap-3">
+                {['min', 'half', 'double', 'max', 'plus10', 'plus50'].map((action) => (
+                    <button key={action} onClick={() => handleQuickAmount(action)} disabled={isFlipping} className="py-3 bg-void rounded-2xl text-[10px] font-black text-gray-400 hover:text-white transition-all border border-border-base uppercase tracking-widest">{action === 'plus10' ? '+10' : action === 'plus50' ? '+50' : action}</button>
                 ))}
             </div>
-
         </GlassCard>
-
         <style>{`
-            .perspective-1000 { perspective: 1000px; }
+            .perspective-1000 { perspective: 1500px; }
             .preserve-3d { transform-style: preserve-3d; }
-            .backface-hidden { backface-visibility: hidden; }
-            .translate-z-[-5px] { transform: translateZ(-5px); }
+            .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+            .shadow-glow { box-shadow: 0 0 25px rgba(250, 190, 11, 0.15); }
+            .shadow-yellow-pop { box-shadow: 0 10px 40px -10px rgba(250, 190, 11, 0.5); }
+            .no-scrollbar::-webkit-scrollbar { display: none; }
         `}</style>
     </div>
   );
